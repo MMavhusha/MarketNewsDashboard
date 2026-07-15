@@ -30,14 +30,14 @@ SUMMARY_STRIP = [
     ("Bitcoin", "BTC-USD", "crypto", "{:,.0f}"),
 ]
 
+# Spec list only: Brent, Iron ore, Gold, Platinum, Coal, Copper
 COMMODITIES = [
     ("Brent Crude Oil", "BZ=F", "$/bbl"),
-    ("WTI Crude Oil", "CL=F", "$/bbl"),
+    ("Iron Ore (SGX proxy)", "TIO=F", "$/t"),
     ("Gold", "GC=F", "$/oz"),
     ("Platinum", "PL=F", "$/oz"),
-    ("Copper", "HG=F", "$/lb"),
-    ("Iron Ore (SGX proxy)", "TIO=F", "$/t"),
     ("Coal (Newcastle proxy)", "MTF=F", "$/t"),
+    ("Copper", "HG=F", "$/lb"),
 ]
 
 FX_MAJORS = [
@@ -47,14 +47,20 @@ FX_MAJORS = [
     ("USD/BRL", "USDBRL=X"), ("DXY Index", "DX-Y.NYB"),
 ]
 
-MOVERS_UNIVERSE = [
-    ("S&P 500", "^GSPC"), ("NASDAQ", "^IXIC"), ("Dow Jones", "^DJI"),
-    ("FTSE 100", "^FTSE"), ("DAX", "^GDAXI"), ("CAC 40", "^FCHI"),
+# CORE = instruments explicitly requested in the spec
+# (summary strip + the six spec commodities). EXTENDED = broader context set.
+CORE_MOVERS = [
+    ("S&P 500", "^GSPC"), ("NASDAQ", "^IXIC"), ("FTSE 100", "^FTSE"),
+    ("JSE ALSI", "^J203.JO"), ("USD/ZAR", "USDZAR=X"), ("EUR/USD", "EURUSD=X"),
+    ("Gold", "GC=F"), ("Brent Crude", "BZ=F"), ("Bitcoin", "BTC-USD"),
+    ("Iron Ore", "TIO=F"), ("Platinum", "PL=F"), ("Coal", "MTF=F"),
+    ("Copper", "HG=F"),
+]
+EXTENDED_MOVERS = [
+    ("Dow Jones", "^DJI"), ("DAX", "^GDAXI"), ("CAC 40", "^FCHI"),
     ("Nikkei 225", "^N225"), ("Hang Seng", "^HSI"), ("Shanghai Comp", "000001.SS"),
-    ("JSE ALSI", "^J203.JO"), ("Sensex", "^BSESN"), ("Brent", "BZ=F"),
-    ("Gold", "GC=F"), ("Copper", "HG=F"), ("Platinum", "PL=F"),
-    ("USD/ZAR", "USDZAR=X"), ("EUR/USD", "EURUSD=X"), ("USD/JPY", "USDJPY=X"),
-    ("Bitcoin", "BTC-USD"), ("US 10Y Yield", "^TNX"),
+    ("Sensex", "^BSESN"), ("USD/JPY", "USDJPY=X"), ("GBP/USD", "GBPUSD=X"),
+    ("USD/CNY", "USDCNY=X"), ("USD/INR", "USDINR=X"),
 ]
 
 
@@ -147,8 +153,9 @@ def get_fx() -> list[Quote]:
     return get_quotes([(n, t) for n, t in FX_MAJORS])
 
 
-def get_movers(top_n: int = 6) -> tuple[list[Quote], list[Quote]]:
-    qs = [q for q in get_quotes(MOVERS_UNIVERSE) if q.ok and q.change_pct is not None]
+def get_movers(top_n: int = 6, universe: str = "core") -> tuple[list[Quote], list[Quote]]:
+    items = CORE_MOVERS if universe == "core" else CORE_MOVERS + EXTENDED_MOVERS
+    qs = [q for q in get_quotes(items) if q.ok and q.change_pct is not None]
     qs.sort(key=lambda q: q.change_pct, reverse=True)
     return qs[:top_n], list(reversed(qs[-top_n:]))
 
@@ -165,10 +172,7 @@ def get_shock_alerts() -> list[dict]:
     alerts = []
     quotes = get_quotes(SUMMARY_STRIP)
     kinds = {t: k for _, t, k, _ in SUMMARY_STRIP}
-    extra = get_quotes([("US 10Y Yield", "^TNX"), ("VIX", "^VIX")])
-    for q in extra:
-        kinds[q.ticker] = "index"
-    for q in quotes + extra:
+    for q in quotes:
         if not q.ok or q.change_pct is None:
             continue
         warn, crit = _THRESHOLDS.get(kinds.get(q.ticker, "index"), (2.0, 3.5))

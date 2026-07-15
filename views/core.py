@@ -42,7 +42,7 @@ def page_executive_summary():
         else:
             ui.empty_state("No live news available for the hero story.")
 
-        ui.section("Global Market Summary", "Latest close vs prior session · yfinance")
+        ui.section("Global Market Summary", "Latest close vs prior session · mini-chart shows the last month · yfinance")
         render_summary_strip()
 
         left, right = st.columns([1.5, 1], gap="medium")
@@ -61,13 +61,21 @@ def page_executive_summary():
             ui.section("Economic Calendar", "Next 7 days")
             cal = calendar_data.get_calendar()
             if cal:
+                day = None
                 for e in cal[:5]:
+                    if e.get("day") and e["day"] != day:
+                        day = e["day"]
+                        ui.cal_day_header(day)
                     ui.cal_row(e)
+                st.caption("Consensus = market forecast · Previous = prior reading · "
+                           "times in SAST")
             else:
                 ui.empty_state("Calendar feed unavailable right now.")
 
-        ui.section("Market Movers", "Best and worst across the tracked universe")
-        gainers, losers = markets.get_movers()
+        ui.section("Market Movers", "Requested instruments first · toggle for wider context")
+        extended = st.toggle("Include extended universe (global indices, other FX)",
+                             value=False, key="mv_ext")
+        gainers, losers = markets.get_movers(universe="extended" if extended else "core")
         c1, c2 = st.columns(2, gap="medium")
         with c1:
             st.markdown('<div class="card"><div class="rt" style="font-size:11px;'
@@ -92,26 +100,20 @@ def _right_rail(items):
         for t in it.get("tags", []):
             trend_tags[t] = trend_tags.get(t, 0) + 1
     top = sorted(trend_tags.items(), key=lambda kv: kv[1], reverse=True)[:7]
-
-    def _top_link(tag):
-        for it in items:  # items are importance-ranked already
-            if tag in it.get("tags", []):
-                return it["link"]
-        return ""
-
-    rows = ""
+    st.markdown('<div class="rail-card" style="margin-bottom:4px;">'
+                '<div class="rt">Trending Topics</div></div>',
+                unsafe_allow_html=True)
+    if not top:
+        st.markdown('<div class="rail-card"><div class="rail-item">No live tags</div></div>',
+                    unsafe_allow_html=True)
     for k, v in top:
-        link = _top_link(k)
-        label = (f'<a href="{ui.esc(link)}" target="_blank" title="Open top story">'
-                 f'{ui.badge(k, "blue")}</a>' if link else ui.badge(k, "blue"))
-        rows += (f'<div class="rail-item">{label} '
-                 f'<span style="color:#909288;">{v} '
-                 f'{"story" if v == 1 else "stories"}</span></div>')
-    st.markdown(
-        '<div class="rail-card"><div class="rt">Trending Topics</div>' +
-        (rows or '<div class="rail-item">No live tags</div>') + "</div>",
-        unsafe_allow_html=True,
-    )
+        stories = [it for it in items if k in it.get("tags", [])]
+        with st.expander(f"{k.upper()} · {v} {'story' if v == 1 else 'stories'}"):
+            for it in stories:
+                st.markdown(
+                    f'<div class="rail-item"><a href="{ui.esc(it["link"])}" '
+                    f'target="_blank">{ui.esc(it["title"][:90])}</a></div>',
+                    unsafe_allow_html=True)
 
     watch = st.session_state.setdefault("watchlist", ["USD/ZAR", "Brent Crude", "Gold"])
     strip = {q.name: q for q in markets.get_summary_strip() if q.ok}
@@ -133,13 +135,22 @@ def _right_rail(items):
                 unsafe_allow_html=True)
 
     alerts = markets.get_shock_alerts()
-    crit = [a for a in alerts if a["severity"] == "Critical"]
-    qi = (f'{len(alerts)} active alert(s), {len(crit)} critical. '
-          if alerts else "No threshold breaches. ")
-    qi += f'{len(items)} stories ingested this cycle.'
-    st.markdown(f'<div class="rail-card"><div class="rt">Quick Insights</div>'
-                f'<div class="rail-item">{ui.esc(qi)}</div></div>',
+    rows = ""
+    if alerts:
+        for a in alerts[:3]:
+            kind = {"Critical": "red", "Warning": "amber"}.get(a["severity"], "blue")
+            rows += (f'<div class="rail-item">{ui.badge(a["severity"], kind)} '
+                     f'{ui.esc(a["title"])}</div>')
+    else:
+        rows = '<div class="rail-item">No threshold breaches this session.</div>'
+    rows += (f'<div class="rail-item" style="color:#909288;">{len(items)} stories '
+             f'ingested this cycle.</div>')
+    st.markdown(f'<div class="rail-card"><div class="rt">Quick Insights</div>{rows}</div>',
                 unsafe_allow_html=True)
+    if alerts and st.button("View alert details →", key="qi_goto_alerts",
+                            use_container_width=True):
+        st.session_state["nav_to"] = "Market Shock Alerts"
+        st.rerun()
 
 
 def page_market_news():
@@ -237,7 +248,13 @@ def page_calendar():
     if not cal:
         ui.empty_state("No calendar data returned by the provider.")
         return
+    st.caption("How to read this: each row is a scheduled data release or event. "
+               "Consensus = the market's forecast before release; Previous = the "
+               "prior period's reading. Importance is the provider's market-impact "
+               "rating. All times in SAST. No in-app estimation is performed.")
+    day = None
     for e in cal[:60]:
+        if e.get("day") and e["day"] != day:
+            day = e["day"]
+            ui.cal_day_header(day)
         ui.cal_row(e)
-    st.caption("Source: Trading Economics API. Expected/previous values as published "
-               "by the provider — no in-app estimation.")

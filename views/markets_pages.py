@@ -27,7 +27,8 @@ def page_commodities():
         tk = next(q.ticker for q in ok if q.name == pick)
         s = markets.get_history(tk, "1y")
         if len(s):
-            st.plotly_chart(charts.line_chart(s, f"{pick} — 1 year"),
+            st.plotly_chart(charts.line_chart(s, f"{pick} — 1 year",
+                                              y_title=units.get(pick, "Price")),
                             use_container_width=True, config={"displayModeBar": False})
 
     ui.section("Impact on South Africa's Balance of Payments",
@@ -71,7 +72,7 @@ def page_currencies():
         tk = next(q.ticker for q in ok if q.name == pick)
         s = markets.get_history(tk, "1y")
         if len(s):
-            st.plotly_chart(charts.line_chart(s, f"{pick} — 1 year"),
+            st.plotly_chart(charts.line_chart(s, f"{pick} — 1 year", y_title="Rate"),
                             use_container_width=True, config={"displayModeBar": False})
 
     ui.section("Commentary", "Factual, derived from observed moves")
@@ -198,7 +199,7 @@ def page_regional_macro():
                                     list(macro.WB_INDICATORS.keys()), key=f"ind_{iso}")
             series = macro.wb_series(iso, macro.WB_INDICATORS[ind_pick])
             if series:
-                st.plotly_chart(charts.bar_years(series, f"{region} — {ind_pick}"),
+                st.plotly_chart(charts.bar_years(series, f"{region} — {ind_pick}", y_title="%"),
                                 use_container_width=True, config={"displayModeBar": False})
             else:
                 ui.empty_state("World Bank API unreachable for this series.")
@@ -212,7 +213,7 @@ def page_regional_macro():
             frames[region] = pd.Series({y: v for y, v in s})
     if frames:
         df = pd.DataFrame(frames).sort_index()
-        st.plotly_chart(charts.multi_line(df, ind_pick), use_container_width=True,
+        st.plotly_chart(charts.multi_line(df, ind_pick, y_title="%"), use_container_width=True,
                         config={"displayModeBar": False})
     else:
         ui.empty_state("No comparison data available.")

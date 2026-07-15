@@ -45,10 +45,14 @@ def sidebar() -> str:
             '<div class="sb-sub">MARKET NEWS</div>',
             unsafe_allow_html=True,
         )
+        keys = list(PAGES.keys())
+        pending = st.session_state.pop("nav_to", None)
         choice = option_menu(
-            None, list(PAGES.keys()),
+            None, keys,
             icons=[v[0] for v in PAGES.values()],
             default_index=0,
+            manual_select=keys.index(pending) if pending in keys else None,
+            key="main_nav",
             styles={
                 "container": {"padding": "0", "background-color": "transparent"},
                 "icon": {"font-size": "13px", "color": "#9FBAD0"},

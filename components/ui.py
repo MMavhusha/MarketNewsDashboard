@@ -89,15 +89,26 @@ def alert_card(a: dict):
 
 def cal_row(e: dict):
     imp = importance_badge(e["importance"])
+    when = esc(e.get("time") or e["date"])
+    exp, prev = esc(e["expected"]), esc(e["previous"])
+    right = (f'Consensus <b>{exp}</b> · Previous <b>{prev}</b>'
+             if (exp, prev) != ("—", "—") else
+             '<span style="color:#909288;">no consensus published</span>')
     st.markdown(
         f'''<div class="cal-row">
         <span class="cty">{esc(e["country"])}</span>
         <span class="ev">{imp} {esc(e["event"])}</span>
-        <span class="tm num">{esc(e["date"])}</span>
-        <span class="cal-val num">Exp {esc(e["expected"])} · Prev {esc(e["previous"])}</span>
+        <span class="tm num">{when}</span>
+        <span class="cal-val num" style="width:230px;">{right}</span>
         </div>''',
         unsafe_allow_html=True,
     )
+
+
+def cal_day_header(day: str):
+    st.markdown(f'<div style="font-size:11px;font-weight:700;color:#003B71;'
+                f'letter-spacing:1px;text-transform:uppercase;margin:12px 0 6px 2px;">'
+                f'{esc(day)}</div>', unsafe_allow_html=True)
 
 
 def mover_row(q) -> str:

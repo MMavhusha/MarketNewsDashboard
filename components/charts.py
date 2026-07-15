@@ -34,7 +34,7 @@ def sparkline(values: list[float], height: int = 42) -> go.Figure:
 
 
 def line_chart(series: pd.Series, title: str = "", height: int = 300,
-               color: str = NAVY) -> go.Figure:
+               color: str = NAVY, y_title: str = "") -> go.Figure:
     fig = go.Figure(go.Scatter(
         x=series.index, y=series.values, mode="lines",
         line=dict(width=2, color=color),
@@ -45,14 +45,15 @@ def line_chart(series: pd.Series, title: str = "", height: int = 300,
         height=height, margin=dict(l=10, r=10, t=36 if title else 10, b=10),
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font=dict(family="Lato", size=11, color=TEXT),
-        xaxis=dict(gridcolor=GRID, zeroline=False),
-        yaxis=dict(gridcolor=GRID, zeroline=False),
+        xaxis=dict(gridcolor=GRID, zeroline=False, title=dict(text="Date", font=dict(size=11))),
+        yaxis=dict(gridcolor=GRID, zeroline=False, title=dict(text=y_title, font=dict(size=11))),
         showlegend=False,
     )
     return fig
 
 
-def multi_line(df: pd.DataFrame, title: str = "", height: int = 320) -> go.Figure:
+def multi_line(df: pd.DataFrame, title: str = "", height: int = 320,
+               y_title: str = "") -> go.Figure:
     palette = ["#FF671D", "#1F3864", "#909288", "#2A8B7C", "#B0212C", "#F2C84A"]  # brand chart order (Ice too light on white)
     fig = go.Figure()
     for i, col in enumerate(df.columns):
@@ -65,15 +66,15 @@ def multi_line(df: pd.DataFrame, title: str = "", height: int = 320) -> go.Figur
         height=height, margin=dict(l=10, r=10, t=36 if title else 10, b=10),
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font=dict(family="Lato", size=11, color=TEXT),
-        xaxis=dict(gridcolor=GRID, zeroline=False),
-        yaxis=dict(gridcolor=GRID, zeroline=False),
-        legend=dict(orientation="h", y=-0.18, font=dict(size=10.5)),
+        xaxis=dict(gridcolor=GRID, zeroline=False, title=dict(text="Year", font=dict(size=11))),
+        yaxis=dict(gridcolor=GRID, zeroline=False, title=dict(text=y_title, font=dict(size=11))),
+        legend=dict(orientation="h", y=-0.22, font=dict(size=10.5)),
     )
     return fig
 
 
 def bar_years(pairs: list[tuple[int, float]], title: str = "",
-              height: int = 260) -> go.Figure:
+              height: int = 260, y_title: str = "%") -> go.Figure:
     years = [p[0] for p in pairs]
     vals = [p[1] for p in pairs]
     colors = [GREEN if v >= 0 else RED for v in vals]
@@ -84,8 +85,10 @@ def bar_years(pairs: list[tuple[int, float]], title: str = "",
         height=height, margin=dict(l=10, r=10, t=36 if title else 10, b=10),
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font=dict(family="Lato", size=11, color=TEXT),
-        xaxis=dict(gridcolor=GRID, zeroline=False, type="category"),
-        yaxis=dict(gridcolor=GRID, zeroline=True, zerolinecolor="#D0D5DD"),
+        xaxis=dict(gridcolor=GRID, zeroline=False, type="category",
+                   title=dict(text="Year", font=dict(size=11))),
+        yaxis=dict(gridcolor=GRID, zeroline=True, zerolinecolor="#C9CBC4",
+                   title=dict(text=y_title, font=dict(size=11))),
         showlegend=False,
     )
     return fig

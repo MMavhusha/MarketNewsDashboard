@@ -14,6 +14,9 @@ events.
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
+
+SAST = ZoneInfo('Africa/Johannesburg')
 
 import requests
 import streamlit as st
@@ -30,6 +33,19 @@ _CCY_LABEL = {
     "JPY": "Japan", "CNY": "China", "AUD": "Australia", "CAD": "Canada",
     "CHF": "Switzerland", "NZD": "New Zealand",
 }
+
+
+
+def _nice(dt_iso: str) -> tuple[str, str]:
+    """(day header 'Mon 14 Jul', time '22:00 SAST') from an ISO string."""
+    try:
+        dt = datetime.fromisoformat(dt_iso.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        loc = dt.astimezone(SAST)
+        return loc.strftime("%a %d %b"), loc.strftime("%H:%M SAST")
+    except Exception:
+        return dt_iso[:10], dt_iso[11:16]
 
 _TE_IMPORTANCE = {1: "Low", 2: "Medium", 3: "High"}
 
@@ -58,10 +74,12 @@ def _fetch_forexfactory() -> list[dict]:
             seen.add(name)
             for x in r.json():
                 when = x.get("date") or ""
+                day, tm = _nice(when)
                 out.append({
                     "country": _CCY_LABEL.get(x.get("country"), x.get("country") or "—"),
                     "event": (x.get("title") or "").strip(),
                     "date": when[:16].replace("T", " "),
+                    "day": day, "time": tm,
                     "_dt": when,
                     "expected": x.get("forecast") or "—",
                     "previous": x.get("previous") or "—",
@@ -90,10 +108,12 @@ def _fetch_trading_economics(key: str, days_ahead: int) -> list[dict]:
             country = (x.get("Country") or "").strip()
             if country.lower() not in TE_WATCH:
                 continue
+            day, tm = _nice(x.get("Date") or "")
             out.append({
                 "country": country,
                 "event": (x.get("Event") or "").strip(),
                 "date": (x.get("Date") or "")[:16].replace("T", " "),
+                "day": day, "time": tm,
                 "_dt": x.get("Date") or "",
                 "expected": x.get("Forecast") or "—",
                 "previous": x.get("Previous") or "—",

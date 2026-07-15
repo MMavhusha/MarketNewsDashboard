@@ -17,10 +17,15 @@ div[data-testid="stToolbar"], div[data-testid="stDecoration"],
 div[data-testid="stStatusWidget"] { display: none; }
 header[data-testid="stHeader"] { background: transparent; height: 2.2rem; }
 [data-testid="stSidebarCollapsedControl"],
-[data-testid="collapsedControl"] {
-  visibility: visible !important; display: flex !important;
-  color: #003B71; background: #FFFFFF; border: 1px solid #E2E3E0;
-  border-radius: 8px;
+[data-testid="collapsedControl"],
+[data-testid="stExpandSidebarButton"],
+header [data-testid="stBaseButton-headerNoPadding"] {
+  visibility: visible !important; display: flex !important; opacity: 1 !important;
+  color: #003B71 !important; background: #FFFFFF; border: 1px solid #E2E3E0;
+  border-radius: 8px; z-index: 999;
+}
+[data-testid="stSidebarCollapsedControl"] *, [data-testid="stExpandSidebarButton"] * {
+  color: #003B71 !important; visibility: visible !important;
 }
 .block-container { padding-top: 0.6rem; padding-bottom: 2.5rem; max-width: 1500px; }
 
@@ -73,7 +78,7 @@ section[data-testid="stSidebar"] * { color: #D8E6EE; }
 }
 .mkt-card:hover { box-shadow: 0 4px 14px rgba(0,59,113,.12); }
 .mkt-card .nm { font-size: 11px; font-weight: 700; color: #909288; text-transform: uppercase; letter-spacing: .6px; }
-.mkt-card .vl { font-size: 19px; font-weight: 700; color: #212322; margin-top: 2px; }
+.mkt-card .vl { font-size: 17px; font-weight: 700; color: #212322; margin-top: 2px; white-space: nowrap; }
 .mkt-card .ch { font-size: 12px; font-weight: 700; margin-top: 1px; }
 .mkt-card .ts { font-size: 10px; color: #909288; margin-top: 2px; }
 .up { color: #1E8052; } .dn { color: #B0212C; } .flat { color: #6B6D64; }
