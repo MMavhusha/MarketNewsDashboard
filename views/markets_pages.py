@@ -92,37 +92,91 @@ def page_currencies():
         ui.empty_state("FX data unavailable.")
 
 
+def _sarb_repo():
+    """Latest repo rate row from SARB home-page rates, if reachable."""
+    for rows in sarb.get_sa_indicators().values():
+        for r in rows:
+            if "repo" in r["name"].lower():
+                return r
+    return None
+
+
+# Full workbook indicator framework per region.
+# value resolvers return (value_str, sub_str) or None -> pending with source.
+_PENDING = {
+    "Policy Rate (%)": "Central bank release / Trading Economics (key)",
+    "Manufacturing PMI": "S&P Global / Trading Economics (key)",
+    "10Y Government Yield (%)": "Trading Economics / Bloomberg (key)",
+}
+
+
 def page_regional_macro():
     ui.section("Regional Macroeconomic Dashboard",
                "South Africa · United States · Euro Area · United Kingdom · China · India")
-    st.caption("Comparison indicators from the World Bank Open Data API (annual, latest "
-               "available). Policy rates, PMI and 10Y yields require a keyed provider — "
-               "see the source registry below.")
+    st.caption("Indicator set mirrors the macro pack: GDP, inflation, policy rate, "
+               "unemployment, FX, PMI and 10Y yields. Live free sources fill what "
+               "they can (World Bank, SARB, yfinance); the rest shows its named "
+               "target source. No estimation is performed.")
 
     matrix = macro.wb_latest_matrix()
     tabs = st.tabs(list(macro.REGIONS.keys()))
     for tab, (region, iso) in zip(tabs, macro.REGIONS.items()):
         with tab:
-            cols = st.columns(4)
-            for i, (ind, per_region) in enumerate(matrix.items()):
-                cell = per_region.get(region)
-                with cols[i]:
-                    if cell:
-                        yr, val = cell
+            cells = []  # (label, value_html, sub)
+            for ind in ["GDP Growth (YoY %)", "Inflation, CPI (YoY %)",
+                        "Unemployment Rate (%)"]:
+                cell = matrix.get(ind, {}).get(region)
+                if cell:
+                    yr, val = cell
+                    cells.append((ind, f'{val:,.2f}', f'{yr} · World Bank'))
+                else:
+                    cells.append((ind, None, 'World Bank unreachable'))
+
+            # Policy rate: SARB live for SA, pending elsewhere
+            if region == "South Africa":
+                repo = _sarb_repo()
+                if repo:
+                    cells.append(("Policy Rate (%)", ui.esc(repo["value"]),
+                                  f'{repo["date"]} · SARB Web API'))
+                else:
+                    cells.append(("Policy Rate (%)", None,
+                                  "SARB Web API unreachable"))
+            else:
+                cells.append(("Policy Rate (%)", None, _PENDING["Policy Rate (%)"]))
+
+            # 10Y yield: free only for the US (^TNX = yield x 10)
+            if region == "United States":
+                q10 = markets.get_quotes([("US 10Y", "^TNX")])[0]
+                if q10.ok:
+                    cells.append(("10Y Government Yield (%)", f"{q10.price/10:,.2f}",
+                                  f'{q10.asof} · CBOE via yfinance'))
+                else:
+                    cells.append(("10Y Government Yield (%)", None,
+                                  "yfinance unreachable"))
+            else:
+                cells.append(("10Y Government Yield (%)", None,
+                              _PENDING["10Y Government Yield (%)"]))
+
+            cells.append(("Manufacturing PMI", None, _PENDING["Manufacturing PMI"]))
+
+            cols = st.columns(3)
+            for i, (label, value, sub) in enumerate(cells):
+                with cols[i % 3]:
+                    if value is not None:
                         st.markdown(
-                            f'<div class="metric-block"><div class="metric-label">{ui.esc(ind)}</div>'
-                            f'<div class="metric-value num">{val:,.2f}</div>'
-                            f'<div class="metric-sub">{yr} · World Bank</div></div>',
+                            f'<div class="metric-block"><div class="metric-label">{ui.esc(label)}</div>'
+                            f'<div class="metric-value num">{value}</div>'
+                            f'<div class="metric-sub">{ui.esc(sub)}</div></div>',
                             unsafe_allow_html=True)
                     else:
                         st.markdown(
-                            f'<div class="metric-block"><div class="metric-label">{ui.esc(ind)}</div>'
-                            f'<div class="metric-value" style="font-size:14px;color:#98A2B3;">unavailable</div>'
-                            f'<div class="metric-sub">World Bank</div></div>',
+                            f'<div class="metric-block"><div class="metric-label">{ui.esc(label)}</div>'
+                            f'<div class="metric-pending">Source: {ui.esc(sub)}</div></div>',
                             unsafe_allow_html=True)
+                    st.markdown(" ")
             fx_name, fx_tk = macro.REGION_FX[region]
             q = markets.get_quotes([(fx_name, fx_tk)])[0]
-            with cols[3]:
+            with cols[2]:
                 st.markdown(ui.market_card_html(q), unsafe_allow_html=True)
 
             if region == "South Africa":
@@ -140,8 +194,8 @@ def page_regional_macro():
                 else:
                     ui.empty_state("SARB Web API unreachable right now.")
 
-            ind_pick = st.selectbox("Indicator history (10y)", list(macro.WB_INDICATORS.keys()),
-                                    key=f"ind_{iso}")
+            ind_pick = st.selectbox("Indicator history (10y)",
+                                    list(macro.WB_INDICATORS.keys()), key=f"ind_{iso}")
             series = macro.wb_series(iso, macro.WB_INDICATORS[ind_pick])
             if series:
                 st.plotly_chart(charts.bar_years(series, f"{region} — {ind_pick}"),
@@ -162,12 +216,3 @@ def page_regional_macro():
                         config={"displayModeBar": False})
     else:
         ui.empty_state("No comparison data available.")
-
-    ui.section("Source registry", "Free source now → target premium source")
-    for ind, (free, prem) in macro.PROVIDER_REGISTRY.items():
-        st.markdown(
-            f'<div class="cal-row"><span class="cty">{ui.esc(ind)}</span>'
-            f'<span class="ev">{ui.esc(free)}</span>'
-            f'<span class="cal-val" style="width:320px;">→ {ui.esc(prem)}</span></div>',
-            unsafe_allow_html=True,
-        )

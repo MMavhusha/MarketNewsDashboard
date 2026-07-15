@@ -32,7 +32,7 @@ PAGES = {
     "Commodities": ("minecart-loaded", markets_pages.page_commodities),
     "Currencies": ("currency-exchange", markets_pages.page_currencies),
     "Regional Macro": ("globe2", markets_pages.page_regional_macro),
-    "Antonie's Weekly Key Events": ("star", reports.page_weekly_key_events),
+    "Weekly Key Events": ("star", reports.page_weekly_key_events),
     "Reports": ("file-earmark-text", reports.page_reports),
     "Settings": ("gear", reports.page_settings),
 }
@@ -51,15 +51,15 @@ def sidebar() -> str:
             default_index=0,
             styles={
                 "container": {"padding": "0", "background-color": "transparent"},
-                "icon": {"font-size": "13px", "color": "#7C8AA5"},
+                "icon": {"font-size": "13px", "color": "#9FBAD0"},
                 "nav-link": {
                     "font-size": "12.5px", "font-weight": "500",
-                    "color": "#C9D2E3", "padding": "7px 14px",
+                    "color": "#D8E6EE", "padding": "7px 14px",
                     "border-radius": "7px", "margin": "2px 8px",
-                    "--hover-color": "#1B2A4A",
+                    "--hover-color": "#1F3864",
                 },
                 "nav-link-selected": {
-                    "background-color": "#1B2A4A", "color": "#FFFFFF",
+                    "background-color": "#FF671D", "color": "#FFFFFF",
                     "font-weight": "600",
                 },
             },
@@ -82,7 +82,7 @@ def topbar(page: str):
         <div class="tb-title">{page}</div>
         <div class="tb-meta"><span class="live-dot"></span>Last refresh
         <b>{markets.last_refresh()}</b><br>
-        Sources: yfinance · public RSS wires · World Bank · Trading Economics</div>
+        Sources: yfinance · public RSS wires · World Bank · SARB · Forex Factory</div>
         </div>''',
         unsafe_allow_html=True,
     )

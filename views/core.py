@@ -64,7 +64,7 @@ def page_executive_summary():
                 for e in cal[:5]:
                     ui.cal_row(e)
             else:
-                ui.empty_state("Calendar requires a Trading Economics key (Settings).")
+                ui.empty_state("Calendar feed unavailable right now.")
 
         ui.section("Market Movers", "Best and worst across the tracked universe")
         gainers, losers = markets.get_movers()
@@ -72,13 +72,13 @@ def page_executive_summary():
         with c1:
             st.markdown('<div class="card"><div class="rt" style="font-size:11px;'
                         'font-weight:700;text-transform:uppercase;letter-spacing:1px;'
-                        'color:#027A48;margin-bottom:6px;">Top gainers</div>' +
+                        'color:#1E8052;margin-bottom:6px;">Top gainers</div>' +
                         "".join(ui.mover_row(q) for q in gainers) + "</div>",
                         unsafe_allow_html=True)
         with c2:
             st.markdown('<div class="card"><div class="rt" style="font-size:11px;'
                         'font-weight:700;text-transform:uppercase;letter-spacing:1px;'
-                        'color:#B42318;margin-bottom:6px;">Top decliners</div>' +
+                        'color:#B0212C;margin-bottom:6px;">Top decliners</div>' +
                         "".join(ui.mover_row(q) for q in losers) + "</div>",
                         unsafe_allow_html=True)
 
@@ -92,11 +92,24 @@ def _right_rail(items):
         for t in it.get("tags", []):
             trend_tags[t] = trend_tags.get(t, 0) + 1
     top = sorted(trend_tags.items(), key=lambda kv: kv[1], reverse=True)[:7]
+
+    def _top_link(tag):
+        for it in items:  # items are importance-ranked already
+            if tag in it.get("tags", []):
+                return it["link"]
+        return ""
+
+    rows = ""
+    for k, v in top:
+        link = _top_link(k)
+        label = (f'<a href="{ui.esc(link)}" target="_blank" title="Open top story">'
+                 f'{ui.badge(k, "blue")}</a>' if link else ui.badge(k, "blue"))
+        rows += (f'<div class="rail-item">{label} '
+                 f'<span style="color:#909288;">{v} '
+                 f'{"story" if v == 1 else "stories"}</span></div>')
     st.markdown(
         '<div class="rail-card"><div class="rt">Trending Topics</div>' +
-        ("".join(f'<div class="rail-item">{ui.badge(k, "blue")} '
-                 f'<span style="color:#98A2B3;">{v} stories</span></div>' for k, v in top)
-         or '<div class="rail-item">No live tags</div>') + "</div>",
+        (rows or '<div class="rail-item">No live tags</div>') + "</div>",
         unsafe_allow_html=True,
     )
 
@@ -107,14 +120,14 @@ def _right_rail(items):
         q = strip.get(w)
         rows += (f'<div class="rail-item"><b>{ui.esc(w)}</b> — '
                  + (f'<span class="num {ui.chg_cls(q.change_pct)}">{q.change_pct:+.2f}%</span>'
-                    if q else '<span style="color:#98A2B3;">n/a</span>') + "</div>")
+                    if q else '<span style="color:#909288;">n/a</span>') + "</div>")
     st.markdown(f'<div class="rail-card"><div class="rt">Watchlist</div>{rows}</div>',
                 unsafe_allow_html=True)
 
     saved = st.session_state.get("saved_articles", [])
     rows = ("".join(f'<div class="rail-item"><a href="{ui.esc(s["link"])}" target="_blank">'
                     f'{ui.esc(s["title"][:70])}</a></div>' for s in saved[:6])
-            or '<div class="rail-item" style="color:#98A2B3;">Bookmark articles from '
+            or '<div class="rail-item" style="color:#909288;">Bookmark articles from '
                'Market News</div>')
     st.markdown(f'<div class="rail-card"><div class="rt">Saved Articles</div>{rows}</div>',
                 unsafe_allow_html=True)

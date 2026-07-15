@@ -18,7 +18,9 @@ from datetime import datetime, timedelta, timezone
 import requests
 import streamlit as st
 
-FF_FEEDS = [
+FF_FEEDS = [  # primary host + mirror, this week + next week
+    "https://nfs.faireconomy.media/ff_calendar_thisweek.json",
+    "https://nfs.faireconomy.media/ff_calendar_nextweek.json",
     "https://cdn-nfs.faireconomy.media/ff_calendar_thisweek.json",
     "https://cdn-nfs.faireconomy.media/ff_calendar_nextweek.json",
 ]
@@ -44,12 +46,16 @@ def _te_key() -> str | None:
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def _fetch_forexfactory() -> list[dict]:
-    out = []
+    out, seen = [], set()
     for url in FF_FEEDS:
+        name = url.rsplit("/", 1)[-1]
+        if name in seen:
+            continue
         try:
             r = requests.get(url, timeout=12,
                              headers={"User-Agent": "Mozilla/5.0"})
             r.raise_for_status()
+            seen.add(name)
             for x in r.json():
                 when = x.get("date") or ""
                 out.append({
