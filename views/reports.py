@@ -97,7 +97,7 @@ def page_settings():
         'Target premium sources per spec: Bloomberg, Reuters, IMF, individual central '
         'banks, J.P. Morgan, RiscFlash (commodities & currencies), Trading Economics. '
         'Current free stand-ins: yfinance (markets/FX/commodities), public RSS wires '
-        '(news), World Bank (regional macro), Trading Economics guest (calendar). '
+        '(news), World Bank + SARB Web API (regional macro; SA live from SARB), Forex Factory public feed (calendar; TE key optional). '
         'Each lives in <code>data_sources/</code> behind a stable interface — swapping a '
         'provider does not touch the views.</div>',
         unsafe_allow_html=True,
@@ -106,7 +106,7 @@ def page_settings():
     st.markdown(
         '<div class="card"><b>Secrets (Streamlit Cloud → App → Settings → Secrets)</b><br>'
         '<code>APP_PASSWORD = "..."</code> — access gate (required in production)<br>'
-        '<code>TE_API_KEY = "user:key"</code> — Trading Economics calendar (optional)'
+        '<code>TE_API_KEY = "user:key"</code> — optional — upgrades calendar to full country coverage incl. SA/India'
         '</div>',
         unsafe_allow_html=True,
     )

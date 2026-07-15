@@ -214,10 +214,11 @@ def page_announcements():
 
 def page_calendar():
     ui.section("Economic Calendar", "Central banks · inflation · GDP · employment · PMI · rates")
+    st.caption(f"Provider: {calendar_data.provider_label()}")
     if not calendar_data.has_full_access():
-        st.info("Running on Trading Economics guest access, which covers a sample "
-                "country set only. Add TE_API_KEY in Streamlit Secrets for full "
-                "coverage of the watchlist countries.", icon="🔑")
+        st.info("Free Forex Factory feed covers major currencies only. Add "
+                "TE_API_KEY in Streamlit Secrets to include South Africa and "
+                "India releases.", icon="🔑")
     days = st.slider("Days ahead", 1, 14, 7)
     cal = calendar_data.get_calendar(days_ahead=days)
     if not cal:

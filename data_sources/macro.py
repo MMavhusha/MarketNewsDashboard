@@ -29,9 +29,9 @@ WB_INDICATORS = {
 # Indicator -> (free source now, target premium source)
 PROVIDER_REGISTRY = {
     "GDP Growth (YoY %)": ("World Bank / IMF WEO", "IMF / Trading Economics"),
-    "Inflation, CPI (YoY %)": ("World Bank", "Trading Economics / national stats"),
+    "Inflation, CPI (YoY %)": ("World Bank + SARB Web API (SA)", "Trading Economics / national stats"),
     "Unemployment Rate (%)": ("World Bank / ILO", "Trading Economics / national stats"),
-    "Policy Rate (%)": ("— key required —", "Central bank releases (Fed, ECB, SARB, BoE, PBoC, RBI)"),
+    "Policy Rate (%)": ("SARB Web API (SA, live) — other regions key required", "Central bank releases (Fed, ECB, SARB, BoE, PBoC, RBI)"),
     "Manufacturing PMI": ("— key required —", "Trading Economics / S&P Global"),
     "10Y Government Yield (%)": ("— key required —", "Trading Economics / Bloomberg"),
     "FX vs USD": ("yfinance", "RiscFlash / Bloomberg"),

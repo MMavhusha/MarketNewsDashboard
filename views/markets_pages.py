@@ -5,7 +5,7 @@ import pandas as pd
 import streamlit as st
 
 from components import charts, ui
-from data_sources import macro, markets
+from data_sources import macro, markets, sarb
 
 
 def page_commodities():
@@ -124,6 +124,21 @@ def page_regional_macro():
             q = markets.get_quotes([(fx_name, fx_tk)])[0]
             with cols[3]:
                 st.markdown(ui.market_card_html(q), unsafe_allow_html=True)
+
+            if region == "South Africa":
+                groups = sarb.get_sa_indicators()
+                if groups:
+                    ui.section("Live SARB releases", "SARB public Web API · no key")
+                    for glabel, rows in groups.items():
+                        with st.expander(glabel, expanded=(glabel == "Key rates & prices")):
+                            for r in rows:
+                                st.markdown(
+                                    f'<div class="cal-row"><span class="cty" style="width:340px;">{ui.esc(r["name"])}</span>'
+                                    f'<span class="ev">{ui.esc(r["agency"])} · {ui.esc(r["date"])}</span>'
+                                    f'<span class="cal-val num">{ui.esc(r["value"])} {ui.esc(r["unit"])}</span></div>',
+                                    unsafe_allow_html=True)
+                else:
+                    ui.empty_state("SARB Web API unreachable right now.")
 
             ind_pick = st.selectbox("Indicator history (10y)", list(macro.WB_INDICATORS.keys()),
                                     key=f"ind_{iso}")
