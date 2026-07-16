@@ -93,17 +93,25 @@ def page_weekly_key_events():
     for i, n in enumerate(log):
         n.setdefault("history", [])
         if editing == i:
-            # chat-style: the card itself becomes the editor
-            new_text = st.text_area("Edit note", value=n["text"], key=f"nt_{i}",
-                                    height=90, label_visibility="collapsed")
-            material = st.checkbox(
-                "Material change — record in change history",
-                value=True, key=f"nm_{i}",
-                help="Untick for typo/spelling fixes; the text updates without "
-                     "a history entry.")
-            s1, s2, _ = st.columns([1, 1, 10])
-            if s1.button("Save", key=f"ns_{i}", type="primary",
-                         disabled=not author.strip()):
+            # the note card itself becomes the editor: ONE tile, textarea
+            # blended in, declaration + actions on a single row inside it
+            with st.container(border=True, key=f"note_editor_{i}"):
+                new_text = st.text_area("Edit note", value=n["text"],
+                                        key=f"nt_{i}", height=90,
+                                        label_visibility="collapsed")
+                r1, r2, r3, _ = st.columns([3.2, 0.7, 0.9, 2.2],
+                                           vertical_alignment="center")
+                change_type = r1.radio(
+                    "Declare this change",
+                    ["Material — record", "Minor — don't record"],
+                    index=None, horizontal=True, key=f"nm_{i}",
+                    label_visibility="collapsed")
+                material = (change_type or "").startswith("Material")
+                save = r2.button("Save", key=f"ns_{i}", type="primary",
+                                 disabled=not (author.strip() and change_type),
+                                 help="Declare material or minor first")
+                cancel = r3.button("Cancel", key=f"nc_{i}")
+            if save:
                 if new_text.strip() and new_text.strip() != n["text"]:
                     if material:
                         stamp = datetime.now(ZoneInfo("Africa/Johannesburg")).strftime(
@@ -114,7 +122,7 @@ def page_weekly_key_events():
                     n["text"] = new_text.strip()
                 st.session_state.pop("note_editing", None)
                 st.rerun()
-            if s2.button("Cancel", key=f"nc_{i}"):
+            if cancel:
                 st.session_state.pop("note_editing", None)
                 st.rerun()
             continue

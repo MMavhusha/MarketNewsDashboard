@@ -14,9 +14,16 @@ from data_sources import calendar_data, markets, news
 # ------------------------------------------------------------ shared bits
 def render_summary_strip():
     quotes = markets.get_summary_strip()
-    mode = st.pills("View", ["Priority markets", "All markets"],
-                    default="Priority markets", key="sum_mode",
-                    label_visibility="collapsed") or "Priority markets"
+    r1, r2 = st.columns([2, 1])
+    with r1:
+        mode = st.pills("View", ["Priority markets", "All markets"],
+                        default="Priority markets", key="sum_mode",
+                        label_visibility="collapsed") or "Priority markets"
+    with r2:
+        period = st.pills("Chart period", ["1M", "1D (today)"], default="1M",
+                          key="sum_period",
+                          label_visibility="collapsed") or "1M"
+    intraday_mode = period.startswith("1D")
     if mode == "Priority markets":
         show = [q for q in quotes if q.name in markets.SUMMARY_PRIMARY]
         show.sort(key=lambda q: markets.SUMMARY_PRIMARY.index(q.name))
@@ -24,27 +31,31 @@ def render_summary_strip():
     else:
         show = quotes
         ncols = 3
-    intraday = markets.get_intraday([(q.name, q.ticker) for q in show])
+    intraday = (markets.get_intraday([(q.name, q.ticker) for q in show])
+                if intraday_mode else {})
     per = (len(show) + ncols - 1) // ncols
     cols = st.columns(ncols, gap="medium")
     for i, col in enumerate(cols):
         chunk = show[i * per:(i + 1) * per]
         with col, st.container(border=True):
             for q in chunk:
-                fig, period = None, ""
-                if q.ok:
+                fig, tag = None, ""
+                if q.ok and intraday_mode:
                     today = intraday.get(q.ticker)
                     prev = (q.price - q.change) if q.change is not None else None
                     if today and prev:
                         fig = charts.intraday_spark(today, prev, height=34)
-                        period = "1D"
-                    elif len(q.spark) > 2:
-                        fig = charts.sparkline(q.spark, height=34)
-                        period = "1M"
-                ui.summary_row(q, fig, key=f"spark_{mode[:3]}_{q.ticker}",
-                               period=period)
-    ui.legend("1D chart: solid line = today's session, dotted = prior close · "
-              "1M shown where intraday is unavailable")
+                        tag = "1D"
+                    else:
+                        tag = "no intraday feed"
+                elif q.ok and len(q.spark) > 2:
+                    fig = charts.sparkline(q.spark, height=34, fill=False)
+                    tag = "1M"
+                ui.summary_row(q, fig, key=f"spark_{mode[:3]}_{period[:2]}_{q.ticker}",
+                               period=tag)
+    if intraday_mode:
+        ui.legend("1D: solid line = today's session · dotted = prior close · "
+                  "closed markets show no intraday feed")
 
 
 def _story_row(item, show_importance=False):
@@ -287,6 +298,12 @@ def page_shock_alerts():
 
 
 # ------------------------------------------------------------ announcements
+
+_CAT_COLORS = {"Dividends": "#2A8B7C", "Leadership": "#7E6CA5",
+               "Earnings": "#1F3864", "M&A": "#FF671D",
+               "Capital raises": "#1B7B9C", "Buybacks": "#1E8052",
+               "Guidance": "#B0212C"}
+
 def page_announcements():
     ann = news.get_announcements()
     if not ann:
@@ -313,8 +330,9 @@ def page_announcements():
     earlier = [a for a in view if a not in today]
 
     def row(a):
+        rail = _CAT_COLORS.get(a["category"], "#C9CBC4")
         st.markdown(
-            f'''<div class="ann-row">{ui.badge(a["category"], "blue")}
+            f'''<div class="ann-row" style="border-left:4px solid {rail};">{ui.badge(a["category"], "blue")}
             <span class="a-t"><a href="{ui.esc(a["link"])}" target="_blank"
             title="{ui.esc(a["title"])}">{ui.esc(a["title"])}</a></span>
             <span class="a-m">{ui.esc(a.get("source") or "Wire")} ·
@@ -400,6 +418,6 @@ def page_calendar():
         if hdr != day:
             day = hdr
             ui.cal_day_header(hdr)
-        ui.cal_row(e)
+        ui.tl_row(e)
     st.caption("Importance is the provider's market-impact rating. No in-app "
                "estimation is performed.")

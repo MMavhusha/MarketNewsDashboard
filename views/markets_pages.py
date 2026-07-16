@@ -112,7 +112,7 @@ def page_currencies():
         for col, chunk in zip((c1, c2), (quotes[:half], quotes[half:])):
             with col:
                 for x in chunk:
-                    fig = (charts.sparkline(x.spark, height=32)
+                    fig = (charts.sparkline(x.spark, height=32, fill=False)
                            if x.ok and len(x.spark) > 2 else None)
                     ui.summary_row(x, fig, key=f"fxrow_{x.ticker}", period="1M")
 

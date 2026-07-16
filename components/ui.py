@@ -87,18 +87,26 @@ def alert_card(a: dict):
     )
 
 
+CAT_COLORS = {"Dividends": "#2A8B7C", "Leadership": "#7E6CA5",
+              "Earnings": "#1B7B9C", "M&A": "#B0212C",
+              "Capital raises": "#F2C84A", "Buybacks": "#1E8052",
+              "Guidance": "#A0683C"}
+
+
 def cal_row(e: dict):
     imp = importance_badge(e["importance"])
     when = esc(e.get("time") or e["date"])
     exp, prev = esc(e["expected"]), esc(e["previous"])
     right = (f'<div>Consensus <b>{exp}</b></div>'
              f'<div>Previous <b>{prev}</b></div>')
+    sev = {"High": "tl-high", "Medium": "tl-med"}.get(e["importance"], "")
     st.markdown(
-        f'''<div class="cal-row">
-        <span class="cty">{esc(e["country"])}</span>
-        <span class="ev">{imp} {esc(e["event"])}</span>
-        <span class="tm num">{when}</span>
-        <span class="cal-val num" style="width:230px;">{right}</span>
+        f'''<div class="tl-row">
+        <span class="tl-time num">{when}</span>
+        <span class="tl-dot {sev}"></span>
+        <span class="tl-body"><span class="cty">{esc(e["country"])}</span>
+        {imp} {esc(e["event"])}</span>
+        <span class="cal-val num" style="width:210px;">{right}</span>
         </div>''',
         unsafe_allow_html=True,
     )
@@ -145,10 +153,9 @@ def summary_row(q, spark_fig=None, key="", period=""):
     c1, c2, c3 = st.columns([2.2, 1.2, 1.2], vertical_alignment="center")
     from data_sources.markets import SUMMARY_SUBTITLES
     sub = SUMMARY_SUBTITLES.get(q.name, "")
-    if period:
-        sub = f"{sub} · {period} chart" if sub else f"{period} chart"
+    chip = f'<span class="pbdg">{esc(period)}</span>' if period else ""
     with c1:
-        st.markdown(f'<div class="sum-nm">{esc(q.name)}</div>'
+        st.markdown(f'<div class="sum-nm">{esc(q.name)} {chip}</div>'
                     f'<div class="sum-sub">{esc(sub)}</div>',
                     unsafe_allow_html=True)
     with c2:
@@ -167,3 +174,21 @@ def summary_row(q, spark_fig=None, key="", period=""):
                         '<div class="sum-sub" style="text-align:right;">retrying</div>',
                         unsafe_allow_html=True)
     st.markdown('<div class="row-sep"></div>', unsafe_allow_html=True)
+
+
+def tl_row(e: dict):
+    """Timeline row for the economic calendar: time gutter, impact dot, card."""
+    import streamlit as st
+    sev = ("tl-high" if e["importance"] == "High"
+           else "tl-medium" if e["importance"] == "Medium" else "")
+    st.markdown(
+        f'''<div class="tl-row {sev}">
+        <div class="tl-gutter num">{esc((e.get("time") or "")[:5])}</div>
+        <div class="tl-line"><span class="tl-dot"></span></div>
+        <div class="tl-card">
+          <span class="t-cty">{esc(e["country"])}</span>
+          <span class="t-ev">{esc(e["event"])}</span>
+          <span class="t-vals num">Consensus <b>{esc(e["expected"])}</b><br>
+          Previous <b>{esc(e["previous"])}</b></span>
+        </div></div>''',
+        unsafe_allow_html=True)

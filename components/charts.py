@@ -13,7 +13,7 @@ TEXT = "#4C4D52"
 
 
 def sparkline(values: list[float], height: int = 42,
-              label: str = "") -> go.Figure:
+              label: str = "", fill: bool = True) -> go.Figure:
     color = GREEN if values and values[-1] >= values[0] else RED
     fig = go.Figure(go.Scatter(
         y=values, mode="lines", line=dict(width=1.6, color=color),
@@ -99,30 +99,24 @@ def multi_line(df: pd.DataFrame, title: str = "", height: int = 340,
                       smoothing=0.6),
             hovertemplate=f"{col} · %{{x}}: %{{y:,.2f}}<extra></extra>",
         ))
-        # collect for collision-free labelling after all traces are known
-        _labels.append((float(series.values[-1]), series.index[-1],
-                        str(col), hl))
-    # spread end labels so they never overlap
+        _labels.append((float(series.values[-1]), str(col), hl, color))
+    # Ranked label column at a fixed right margin: slots are evenly spaced in
+    # paper coordinates, ordered by final value, coloured to match each line —
+    # overlap is structurally impossible regardless of the data.
     if _labels:
-        ys = [l[0] for l in _labels]
-        span = (max(ys) - min(ys)) or 1.0
-        gap = span * max(0.10, 16.0 / max(height - 90, 120))
-        order = sorted(_labels, key=lambda l: l[0])
-        placed = []
-        for y, *_ in order:
-            placed.append(y if not placed else max(y, placed[-1] + gap))
-        overflow = placed[-1] - (max(ys) + span * 0.05)
-        if overflow > 0:  # keep labels inside the plot: shift the stack down
-            placed = [p - overflow for p in placed]
-        for (y, x, name, hl), y_adj in zip(order, placed):
+        _labels.sort(key=lambda l: l[0], reverse=True)
+        n = len(_labels)
+        top, bottom = 0.92, 0.08
+        for i, (_, name, hl, color) in enumerate(_labels):
+            slot = top if n == 1 else top - i * ((top - bottom) / (n - 1))
             fig.add_annotation(
-                x=x, y=y_adj, text=f"<b>{name}</b>" if hl else name,
-                font=dict(size=10.5, color="#FF671D" if hl else "#8A8C84",
-                          family="Lato"),
-                showarrow=False, xanchor="left", xshift=6, yanchor="middle")
+                xref="paper", yref="paper", x=1.02, y=slot,
+                text=f"<b>{name}</b>" if hl else name,
+                font=dict(size=11, color=color, family="Lato"),
+                showarrow=False, xanchor="left", yanchor="middle")
     fig.update_layout(
         title=dict(text=title, font=dict(size=13, color=TEXT, family="Lato")),
-        height=height, margin=dict(l=10, r=110, t=36 if title else 10, b=10),
+        height=height, margin=dict(l=10, r=130, t=36 if title else 10, b=10),
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font=dict(family="Lato", size=11, color=TEXT),
         xaxis=dict(showgrid=False, zeroline=False,

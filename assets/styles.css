@@ -9,6 +9,11 @@ html, body, [class*="css"], .stApp {
   font-family: 'Lato', -apple-system, 'Segoe UI', Roboto, sans-serif !important;
   color: #212322;
 }
+/* Native Streamlit widgets (labels, inputs, buttons, checkboxes, captions)
+   default to Source Sans — force the brand face everywhere except icon fonts */
+.stApp *:not(i):not([class*="material-symbols"]):not([data-testid="stIconMaterial"]):not([class*="bi-"]):not([class*="icon"]) {
+  font-family: 'Lato', -apple-system, 'Segoe UI', Roboto, sans-serif !important;
+}
 .stApp { background: #F2F2F2; }
 
 /* Hide Streamlit chrome but KEEP the sidebar expand control */
@@ -346,3 +351,67 @@ div[data-testid="stExpander"] summary {
 .pagehead .ph-sub { font-size: 12px; color: #909288; margin-top: 4px; }
 .pagehead .ph-meta { font-size: 11px; color: #909288; text-align: right; line-height: 1.6; }
 .pagehead .ph-meta b { color: #212322; }
+
+
+/* ---------- Calendar timeline ---------- */
+.tl-row { display: flex; gap: 12px; margin-bottom: 0; }
+.tl-gutter { width: 84px; text-align: right; font-size: 11px; font-weight: 700;
+  color: #4C4D52; padding-top: 10px; flex-shrink: 0; }
+.tl-line { width: 14px; position: relative; flex-shrink: 0; }
+.tl-line::before { content: ""; position: absolute; left: 6px; top: 0; bottom: 0;
+  width: 2px; background: #E2E3E0; }
+.tl-dot { position: absolute; left: 2px; top: 13px; width: 10px; height: 10px;
+  border-radius: 50%; background: #C9CBC4; border: 2px solid #FFFFFF;
+  box-shadow: 0 0 0 1px #C9CBC4; }
+.tl-high .tl-dot { background: #FF671D; box-shadow: 0 0 0 1px #FF671D; }
+.tl-medium .tl-dot { background: #F2C84A; box-shadow: 0 0 0 1px #F2C84A; }
+.tl-card { flex: 1; background: #FFFFFF; border: 1px solid #E2E3E0;
+  border-radius: 8px; padding: 8px 12px; margin-bottom: 8px;
+  display: flex; align-items: center; gap: 12px; font-size: 12px; }
+.tl-card .t-ev { flex: 1; font-weight: 700; color: #212322; }
+.tl-card .t-cty { width: 110px; color: #4C4D52; font-weight: 600; }
+.tl-card .t-vals { text-align: right; color: #212322; font-size: 11px;
+  line-height: 1.5; white-space: nowrap; }
+
+/* Period badge on summary rows */
+.pbdg {
+  display: inline-block; font-size: 9px; font-weight: 700; color: #909288;
+  background: #F2F2F2; border: 1px solid #E2E3E0; border-radius: 4px;
+  padding: 0 5px; vertical-align: 2px; letter-spacing: .5px;
+}
+
+/* Economic calendar: timeline spine */
+.tl-row {
+  display: flex; align-items: center; gap: 12px; position: relative;
+  padding: 9px 14px 9px 4px; font-size: 12px;
+  border-bottom: 1px solid #F2F2F2;
+}
+.tl-row:last-child { border-bottom: none; }
+.tl-time { width: 88px; color: #6B6D64; text-align: right; }
+.tl-dot {
+  width: 9px; height: 9px; border-radius: 50%; background: #C9CBC4;
+  flex-shrink: 0; box-shadow: 0 0 0 3px #FFFFFF, 0 0 0 4px #E2E3E0;
+}
+.tl-high { background: #FF671D; }
+.tl-med { background: #F2C84A; }
+.tl-body { flex: 1; color: #212322; }
+.tl-body .cty { font-weight: 700; color: #212322; margin-right: 6px; }
+
+/* Announcements: ledger rows with category colour */
+.ann-row .a-cat {
+  font-size: 11px; font-weight: 700; width: 92px; flex-shrink: 0;
+}
+
+/* Note editor: textarea blends into its card so editing reads as one tile */
+div[class*="st-key-note_editor_"] div[data-testid="stTextArea"] textarea {
+  border: none !important; background: transparent !important;
+  box-shadow: none !important; padding: 2px 2px !important;
+  font-size: 12.5px;
+}
+div[class*="st-key-note_editor_"] div[data-baseweb="textarea"] {
+  border: none !important; background: transparent !important;
+}
+div[class*="st-key-note_editor_"] .stCheckbox { margin-top: 4px; }
+div[class*="st-key-note_editor_"] .stCheckbox label p { font-size: 11px !important; }
+div[class*="st-key-note_editor_"] .stRadio label p { font-size: 11px !important; }
+div[class*="st-key-note_editor_"] .stRadio { margin: 0; }

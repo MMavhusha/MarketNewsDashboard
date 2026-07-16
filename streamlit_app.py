@@ -72,6 +72,7 @@ def sidebar() -> str:
                 "container": {"padding": "0", "background-color": "transparent"},
                 "icon": {"font-size": "13px", "color": "#FF671D"},
                 "nav-link": {
+                    "font-family": "Lato, sans-serif",
                     "font-size": "12.5px", "font-weight": "500",
                     "color": "#212322", "padding": "7px 14px",
                     "border-radius": "7px", "margin": "2px 8px",
