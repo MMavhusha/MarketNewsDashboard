@@ -6,7 +6,7 @@ from __future__ import annotations
 import html as _html
 from datetime import datetime, timezone
 
-from data_sources import calendar_data, macro, markets, news
+from data_sources import calendar_data, macro, markets, news, notes_store
 
 
 def _e(s) -> str:
@@ -118,6 +118,17 @@ Sources as attributed per section</div></div>"""]
         parts.append(_news_block(
             [i for i in items if i["importance"] == "High"], 8,
             "Weekly key events"))
+
+    try:
+        notes = (notes_store.load()[0] if notes_store.enabled() else [])
+    except Exception:
+        notes = []
+    if notes:
+        blocks = "".join(
+            f'<div class="item"><div class="s">{_e(n["text"])}</div>'
+            f'<div class="m">{_e(n["author"])} · {_e(n["when"])}</div></div>'
+            for n in notes[:8])
+        parts.append(f"<h2>Editorial notes</h2>{blocks}")
 
     parts.append("<div class='disc'>This content is based on supplied information "
                  "and existing documents. It may contain inaccuracies and should "

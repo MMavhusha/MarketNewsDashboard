@@ -129,6 +129,7 @@ def get_calendar(days_ahead: int = 7) -> list[dict]:
     key = _te_key()
     rows = (_fetch_trading_economics(key, days_ahead) if key
             else _fetch_forexfactory())
+    rows = rows + _curated_za()
     now = datetime.now(timezone.utc)
     horizon = now + timedelta(days=days_ahead)
 
@@ -160,3 +161,30 @@ def feed_status() -> dict:
     rows = _fetch_forexfactory()
     return {"name": "Forex Factory calendar", "ok": bool(rows),
             "detail": f"{len(rows)} events (this + next week)"}
+
+
+def _curated_za() -> list[dict]:
+    """Team-curated SA events (SARB MPC, Stats SA releases) from
+    data/za_calendar.json in the repo — the app never invents dates.
+    Format: [{"date": "2026-07-23T15:00:00+02:00", "country": "South Africa",
+              "event": "SARB MPC rate decision", "importance": "High",
+              "source": "SARB (curated)"}]"""
+    import json as _json
+    from pathlib import Path
+    f = Path(__file__).resolve().parents[1] / "data" / "za_calendar.json"
+    try:
+        rows = _json.loads(f.read_text())
+    except Exception:
+        return []
+    out = []
+    for x in rows:
+        when = x.get("date", "")
+        day, tm = _nice(when)
+        out.append({"country": x.get("country", "South Africa"),
+                    "event": x.get("event", ""), "date": when[:16].replace("T", " "),
+                    "day": day, "time": tm, "_dt": when,
+                    "expected": x.get("expected", "—"),
+                    "previous": x.get("previous", "—"),
+                    "importance": x.get("importance", "High"),
+                    "source": x.get("source", "RisCura curated")})
+    return out

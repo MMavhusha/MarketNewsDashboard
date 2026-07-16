@@ -9,6 +9,7 @@ from __future__ import annotations
 import html
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 import streamlit as st
@@ -97,9 +98,11 @@ def get_news(max_per_feed: int = 12) -> list[dict]:
     if feedparser is None:
         return []
     items, seen = [], set()
-    for source, url, default_region in FEEDS:
+    with ThreadPoolExecutor(max_workers=len(FEEDS)) as ex:
+        parsed_feeds = list(ex.map(
+            lambda f: (f[0], f[2], feedparser.parse(f[1])), FEEDS))
+    for source, default_region, parsed in parsed_feeds:
         try:
-            parsed = feedparser.parse(url)
             for e in parsed.entries[:max_per_feed]:
                 title = _clean(getattr(e, "title", ""))
                 if not title or title.lower() in seen:
@@ -152,8 +155,16 @@ def fmt_time(dt) -> str:
 
 # Company announcements: keyword RSS queries as free stand-ins for a
 # corporate-actions wire (SENS / Bloomberg CACS in future).
+# SENS candidate feeds (parsed defensively; JSE issuer announcements)
+SENS_FEEDS = [
+    ("Moneyweb SENS", "https://www.moneyweb.co.za/tools-and-data/sens/feed/"),
+    ("Sharenet SENS", "https://www.sharenet.co.za/v3/rss/sens.php"),
+]
+
 ANNOUNCEMENT_QUERIES = [
     ("Dividends", "dividend+declaration+when:7d"),
+    ("Dividends", "JSE+dividend+declaration+when:7d"),
+    ("Earnings", "JSE+results+trading+statement+when:7d"),
     ("Leadership", "CEO+appointed+OR+CEO+resigns+when:7d"),
     ("Earnings", "quarterly+earnings+results+when:2d"),
     ("M&A", "merger+OR+acquisition+announced+when:7d"),
@@ -167,7 +178,24 @@ ANNOUNCEMENT_QUERIES = [
 def get_announcements(max_per_cat: int = 5) -> list[dict]:
     if feedparser is None:
         return []
-    out = []
+    out, seen = [], set()
+    # JSE SENS wires first (authoritative issuer announcements when reachable)
+    for label, url in SENS_FEEDS:
+        try:
+            parsed = feedparser.parse(url)
+            for e in parsed.entries[:20]:
+                title = _clean(getattr(e, "title", ""))
+                if not title or title.lower() in seen:
+                    continue
+                seen.add(title.lower())
+                ts = getattr(e, "published_parsed", None)
+                when = (datetime.fromtimestamp(time.mktime(ts), tz=timezone.utc)
+                        if ts else None)
+                out.append({"category": "SENS (JSE)", "title": title,
+                            "link": getattr(e, "link", ""), "published": when,
+                            "source": label})
+        except Exception:
+            continue
     for cat, q in ANNOUNCEMENT_QUERIES:
         url = f"https://news.google.com/rss/search?q={q}&hl=en-US&gl=US&ceid=US:en"
         try:
@@ -178,6 +206,9 @@ def get_announcements(max_per_cat: int = 5) -> list[dict]:
                     continue
                 ts = getattr(e, "published_parsed", None)
                 when = datetime.fromtimestamp(time.mktime(ts), tz=timezone.utc) if ts else None
+                if title.lower() in seen:
+                    continue
+                seen.add(title.lower())
                 out.append({"category": cat, "title": title,
                             "link": getattr(e, "link", ""), "published": when,
                             "source": _clean(getattr(getattr(e, "source", None), "title", "") if hasattr(e, "source") else "")})

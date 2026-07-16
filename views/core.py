@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 import streamlit as st
 
 from components import charts, ui
-from data_sources import calendar_data, markets, news
+from data_sources import app_state, calendar_data, markets, news
 
 
 # ------------------------------------------------------------ shared bits
@@ -185,6 +185,7 @@ def _right_rail(items):
                                      "until sign-in and shared storage exist.")
         if picked != watch:
             st.session_state["watchlist"] = picked
+            app_state.persist("update watchlist")
             st.rerun()
 
     saved = st.session_state.get("saved_articles", [])
@@ -193,7 +194,8 @@ def _right_rail(items):
             or '<div class="rail-item" style="color:#909288;">Save stories with the '
                '🔖 button on the Market News page. Saved items last for your '
                'browser session.</div>')
-    st.markdown(f'<div class="rail-card"><div class="rt">Saved Articles</div>{rows}</div>',
+    st.markdown(f'<div class="rail-card"><div class="rt">Saved Articles'
+                f'{" (team)" if app_state.enabled() else ""}</div>{rows}</div>',
                 unsafe_allow_html=True)
 
     alerts = markets.get_shock_alerts()
@@ -250,6 +252,7 @@ def page_market_news():
                 saved = st.session_state.setdefault("saved_articles", [])
                 if item["title"] not in [s["title"] for s in saved]:
                     saved.insert(0, {"title": item["title"], "link": item["link"]})
+                    app_state.persist("save article")
                 st.toast("Saved — see Saved Articles on the Executive Summary.")
 
 

@@ -112,6 +112,8 @@ def main():
     if st.session_state.pop("_auth_warn", False):
         st.warning("No APP_PASSWORD secret configured — the app is running "
                    "unprotected (development mode).", icon="🔓")
+    from data_sources import app_state
+    app_state.ensure_loaded()
     page = sidebar()
     topbar(page)
     PAGES[page][1]()

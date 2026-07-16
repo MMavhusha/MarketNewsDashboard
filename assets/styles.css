@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&display=swap');
-
 /* ---------- RisCura brand (spec v1.4 web palette) ----------
    Orange #FF671D · Anthracite #003B71 · Charcoal #212322
    Stone #909288 · Ice #B7DCE1 · Paper #F2F2F2
@@ -185,22 +183,6 @@ section[data-testid="stSidebar"] * { color: #212322; }
 .metric-sub { font-size: 11px; color: #909288; margin-top: 2px; }
 .metric-pending { font-size: 12px; color: #909288; margin-top: 6px; line-height: 1.4; }
 
-/* ---------- Buttons / inputs ---------- */
-.stButton > button, .stDownloadButton > button {
-  border-radius: 8px; border: 1px solid #C9CBC4; background: #FFFFFF;
-  color: #003B71; font-weight: 600; font-size: 12px; padding: 4px 14px;
-}
-.stButton > button:hover, .stDownloadButton > button:hover {
-  border-color: #FF671D; color: #FF671D;
-}
-.stDownloadButton > button {
-  background: #FF671D; border-color: #FF671D; color: #FFFFFF;
-}
-.stDownloadButton > button:hover { background: #E55A15; color: #FFFFFF; }
-.stTextInput input, .stSelectbox div[data-baseweb="select"] {
-  border-radius: 8px !important; font-size: 13px !important;
-}
-a { color: #003B71; } a:hover { color: #FF671D; }
 .js-plotly-plot .plotly .modebar { display: none !important; }
 
 
@@ -249,21 +231,6 @@ section[data-testid="stSidebar"] .stButton > button:hover {
 div[data-testid="stVerticalBlockBorderWrapper"] {
   border-radius: 10px !important; border-color: #E2E3E0 !important;
   background: #FFFFFF;
-}
-
-/* ---------- Pills (instrument selectors) ---------- */
-button[data-testid="stBaseButton-pills"], button[data-testid="stBaseButton-pillsActive"] {
-  border-radius: 999px !important; font-size: 12px !important; font-weight: 600 !important;
-  text-transform: none;
-  padding: 3px 14px !important; border: 1px solid #E2E3E0 !important;
-  background: #FFFFFF !important; color: #212322 !important;
-}
-button[data-testid="stBaseButton-pillsActive"] {
-  background: #FF671D !important; border-color: #FF671D !important;
-  color: #FFFFFF !important;
-}
-button[data-testid="stBaseButton-pills"]:hover {
-  border-color: #FF671D !important; color: #FF671D !important;
 }
 
 /* ---------- Detail panel KPIs ---------- */

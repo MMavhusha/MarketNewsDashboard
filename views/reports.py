@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 import streamlit as st
 
 from components import report_builder, ui
-from data_sources import calendar_data, macro, markets, news
+from data_sources import calendar_data, macro, markets, news, notes_store
 
 NAMED_SOURCES = [
     ("Bloomberg", "News, markets, corporate actions", "Public RSS wires / yfinance"),
@@ -73,8 +73,39 @@ def page_weekly_key_events():
             with c2:
                 _releases_block()
 
-    ui.section("Editorial notes", "Commentary for the week · authored entries")
-    log = st.session_state.setdefault("weekly_notes_log", [])
+    shared = notes_store.enabled()
+    ui.section("Editorial notes",
+               "Commentary for the week · " +
+               ("shared, saved to the repo with a full commit audit trail"
+                if shared else "authored entries"))
+    if shared:
+        try:
+            log, sha = notes_store.load()
+        except Exception:
+            st.warning("Note store unreachable (GitHub API) — showing "
+                       "session-only notes for now.", icon="⚠️")
+            shared, log, sha = False, st.session_state.setdefault(
+                "weekly_notes_log", []), None
+    else:
+        log, sha = st.session_state.setdefault("weekly_notes_log", []), None
+
+    def _persist(action: str):
+        nonlocal sha
+        if not shared:
+            st.session_state["weekly_notes_log"] = log
+            return True
+        try:
+            sha = notes_store.save(log, sha, st.session_state.get(
+                "note_author", ""), action)
+            return True
+        except notes_store.Conflict:
+            st.warning("Someone saved changes while you were editing — the "
+                       "latest notes have been reloaded; please re-apply your "
+                       "change.", icon="⚠️")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Could not save to the repo: {e}")
+            return False
     c1, c2 = st.columns([1, 3])
     author = c1.text_input("Your name", value=st.session_state.get("note_author", ""),
                            placeholder="e.g. Antonie")
@@ -86,8 +117,9 @@ def page_weekly_key_events():
         stamp = datetime.now(ZoneInfo("Africa/Johannesburg")).strftime("%d %b %Y %H:%M SAST")
         log.insert(0, {"author": author.strip(), "when": stamp,
                        "text": note.strip(), "history": []})
-        st.session_state.pop("note_draft", None)  # clear the draft box
-        st.rerun()
+        if _persist("add note"):
+            st.session_state.pop("note_draft", None)  # clear the draft box
+            st.rerun()
 
     editing = st.session_state.get("note_editing")
     for i, n in enumerate(log):
@@ -120,6 +152,7 @@ def page_weekly_key_events():
                             "editor": author.strip(), "when": stamp,
                             "diff": _word_diff(n["text"], new_text.strip())})
                     n["text"] = new_text.strip()
+                    _persist("edit note")
                 st.session_state.pop("note_editing", None)
                 st.rerun()
             if cancel:
@@ -141,6 +174,7 @@ def page_weekly_key_events():
         if b2.button("Delete", key=f"nd_{i}", disabled=not author.strip(),
                      help="Enter your name above to delete"):
             log.pop(i)
+            _persist("delete note")
             st.rerun()
         if n["history"]:
             with b3.popover(f"History ({len(n['history'])})"):
@@ -150,11 +184,15 @@ def page_weekly_key_events():
                         <span style="color:#909288;font-size:10.5px;">edited by
                         <b>{ui.esc(h["editor"])}</b> · {ui.esc(h["when"])}</span></div>''',
                         unsafe_allow_html=True)
-    st.caption("Names are self-declared; material edits are attributed with "
-               "word-level change highlights, minor fixes (e.g. spelling) update "
-               "the text silently. Verified identity requires OIDC sign-in via "
-               "IT app registration; durable shared notes need a small external "
-               "store.")
+    if shared:
+        st.caption("Notes are shared with the whole team and every save is a "
+                   "git commit in the repo (immutable audit trail). Names are "
+                   "self-declared until OIDC sign-in is added via IT.")
+    else:
+        st.caption("Session-only mode: add a GITHUB_TOKEN secret (fine-grained, "
+                   "Contents read/write on this repo) to make notes shared, "
+                   "durable and fully audited via git history. Names are "
+                   "self-declared until OIDC sign-in is added.")
 
 
 def _word_diff(old: str, new: str) -> str:
@@ -290,12 +328,16 @@ def page_settings():
                            key=f"thr_c_{k}")
             new_t[k] = (w2, c2)
     b1, b2, _ = st.columns([1, 1, 4])
+    from data_sources import app_state
     if b1.button("Apply thresholds", type="primary"):
         st.session_state["alert_thresholds"] = new_t
-        st.toast("Alert thresholds updated.")
+        app_state.persist("update alert thresholds")
+        st.toast("Alert thresholds updated"
+                 + (" and saved for the team." if app_state.enabled() else "."))
         st.rerun()
     if b2.button("Reset to defaults"):
         st.session_state.pop("alert_thresholds", None)
+        app_state.persist("reset alert thresholds")
         st.rerun()
 
     ui.section("Secrets", "Streamlit Cloud → App → Settings → Secrets")
