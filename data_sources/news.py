@@ -65,11 +65,110 @@ def _clean(text: str) -> str:
     return html.unescape(re.sub(r"\s+", " ", text)).strip()
 
 
+
+
+# ---------------- Directional sentiment engine (no LLM) ----------------
+# Finance sentiment is directional: "unemployment falls" is GOOD while
+# "growth falls" is BAD — the same verb flips meaning with the subject.
+# Pipeline: (1) decisive multiword phrases, (2) subject×direction pairs,
+# (3) negation flips, (4) residual single-word lexicon as a tiebreaker.
+# Known ceiling: multi-entity headlines, sarcasm and complex causality still
+# misread — that class needs a language model.
+
+_PHRASES = {
+    "better than expected": 2, "beats estimates": 2, "beat expectations": 2,
+    "tops forecasts": 2, "record high": 2, "eases fears": 2, "fears ease": 2,
+    "tensions ease": 2, "rate cut hopes": 2, "rate cut bets": 2,
+    "soft landing": 1, "upgrades outlook": 2, "raises guidance": 2,
+    "worse than expected": -2, "misses estimates": -2, "missed expectations": -2,
+    "record low": -2, "profit warning": -2, "cuts forecast": -2,
+    "cuts guidance": -2, "lowers outlook": -2, "rate hike fears": -2,
+    "hard landing": -2, "trade war": -1, "load shedding": -1,
+    "state of disaster": -2, "downgrades outlook": -2,
+}
+
+# Subjects that are GOOD news when they rise (and bad when they fall)
+_GOOD_UP = {"growth", "gdp", "profit", "profits", "earnings", "stocks",
+            "shares", "markets", "equities", "rand", "exports", "employment",
+            "hiring", "jobs", "confidence", "sales", "output", "production",
+            "demand", "investment", "reserves", "surplus", "wages"}
+# Subjects that are BAD news when they rise (and good when they fall)
+_BAD_UP = {"inflation", "unemployment", "deficit", "debt", "defaults",
+           "bankruptcies", "tariffs", "tensions", "fears", "costs",
+           "joblessness", "insolvencies", "arrears", "volatility",
+           "shortages", "outages"}
+
+_UP_VERBS = {"rise", "rises", "rising", "rose", "jump", "jumps", "jumped",
+             "surge", "surges", "surged", "climb", "climbs", "climbed",
+             "soar", "soars", "soared", "gain", "gains", "gained", "rally",
+             "rallies", "rallied", "rebound", "rebounds", "accelerate",
+             "accelerates", "strengthen", "strengthens", "improves",
+             "improve", "improved", "grows", "grew", "beats", "beat",
+             "higher", "up"}
+_DOWN_VERBS = {"fall", "falls", "falling", "fell", "drop", "drops",
+               "dropped", "slump", "slumps", "slumped", "plunge", "plunges",
+               "plunged", "sink", "sinks", "sank", "slide", "slides", "slid",
+               "ease", "eases", "eased", "cool", "cools", "cooled", "slow",
+               "slows", "slowed", "weaken", "weakens", "weakened", "tumble",
+               "tumbles", "tumbled", "decline", "declines", "declined",
+               "shrink", "shrinks", "shrank", "misses", "missed", "lower",
+               "down"}
+_NEGATORS = {"not", "no", "without", "fails", "fail", "unlikely", "denies",
+             "denied", "halts"}
+
+
+def _sentiment(text: str) -> str:
+    t = text.lower()
+    score = 0
+    for phrase, val in _PHRASES.items():
+        if phrase in t:
+            score += val
+    toks = re.findall(r"[a-z&']+", t)
+    for i, tok in enumerate(toks):
+        subj = (1 if tok in _GOOD_UP else -1 if tok in _BAD_UP else 0)
+        if not subj:
+            continue
+        # Subject→verb order dominates English headlines: scan the tokens
+        # AFTER the subject first, then nearest-first backwards (for
+        # "falling inflation" constructions). A flat mixed window wrongly
+        # binds a subject to the previous clause's verb.
+        direction = 0
+        for w in toks[i + 1:i + 4]:
+            if w in _UP_VERBS:
+                direction = 1
+                break
+            if w in _DOWN_VERBS:
+                direction = -1
+                break
+        if not direction:
+            for w in reversed(toks[max(0, i - 2):i]):
+                if w in _UP_VERBS:
+                    direction = 1
+                    break
+                if w in _DOWN_VERBS:
+                    direction = -1
+                    break
+        if not direction:
+            continue
+        pair = subj * direction  # good×up=+, bad×up=−, bad×down=+, good×down=−
+        if any(w in _NEGATORS for w in toks[max(0, i - 3):i]):
+            pair = -pair
+        score += 2 * pair
+    if score == 0:  # tiebreaker: legacy single-word lexicon
+        words = set(toks)
+        score = len(words & _POS) - len(words & _NEG)
+    return "Positive" if score > 0 else "Negative" if score < 0 else "Neutral", score
+
+
+def _sentiment_label(text: str) -> str:
+    return _sentiment(text)[0]
+
+
 def _classify(title: str, summary: str, default_region: str = "") -> dict:
     t = f"{title} {summary}".lower()
     words = set(re.findall(r"[a-z&']+", t))
     pos, neg = len(words & _POS), len(words & _NEG)
-    sentiment = "Positive" if pos > neg else "Negative" if neg > pos else "Neutral"
+    sentiment, _sc = _sentiment(t)
 
     # Region = keyword match only; an outlet's nationality does not make a
     # story about that country (a SA site covering a US IPO is Global).
@@ -90,6 +189,7 @@ def _classify(title: str, summary: str, default_region: str = "") -> dict:
 
     tags = [k for k in _HIGH_IMPORTANCE if k in t][:3]
     return {"sentiment": sentiment, "region": region, "asset": asset,
+            "confident": abs(_sc) >= 2,
             "importance": importance, "score": score, "tags": tags}
 
 
@@ -120,15 +220,19 @@ def get_news(max_per_feed: int = 12) -> list[dict]:
             continue
     items.sort(key=lambda i: (i["score"], i["published"] or datetime.min.replace(tzinfo=timezone.utc)),
                reverse=True)
-    try:  # optional AI classification (see data_sources/ai_enrich.py)
+    try:  # optional AI classification — triaged to control token cost:
+        # the rules engine's confident verdicts stand; the model only sees
+        # headlines the rules found ambiguous (plus the hero, for its "why").
         from data_sources import ai_enrich
         if ai_enrich.enabled() and items:
             top = items[:25]
+            queue = [it for i, it in enumerate(top)
+                     if i == 0 or not it.get("confident")][:15]
             fields = ai_enrich.classify_batch(
-                tuple((i["title"], i["summary"]) for i in top))
+                tuple((i["title"], i["summary"]) for i in queue))
             for idx, f in fields.items():
-                if idx < len(top):
-                    top[idx].update(f)
+                if idx < len(queue):
+                    queue[idx].update(f)
             items.sort(key=lambda i: (i["score"], i["published"] or
                                       datetime.min.replace(tzinfo=timezone.utc)),
                        reverse=True)

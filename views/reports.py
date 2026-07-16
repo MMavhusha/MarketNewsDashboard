@@ -338,11 +338,14 @@ def page_settings():
     rows.append(_fred.feed_status())
     try:
         from data_sources import ai_enrich
-        rows.append({"name": "AI classification (Claude)",
+        rows.append({"name": "AI classification",
                      "ok": ai_enrich.enabled(),
-                     "detail": ("active — model-tagged sentiment/importance"
+                     "detail": ((f"active via {ai_enrich.provider_label()} — "
+                                 "triaged: the model classifies only headlines "
+                                 "the rules engine finds ambiguous")
                                 if ai_enrich.enabled() else
-                                "off — add ANTHROPIC_API_KEY to enable")})
+                                "off — add LLM_API_KEY (Gemini/Groq/etc.) or "
+                                "ANTHROPIC_API_KEY to enable")})
     except Exception:
         pass
     for r in rows:
@@ -406,7 +409,8 @@ def page_settings():
         '<code>TE_API_KEY = "user:key"</code> — optional; upgrades calendar to full '
         'country coverage incl. SA/India<br>'
         '<code>FRED_API_KEY = "..."</code> — optional, free (fred.stlouisfed.org); fills US/Euro-Area policy rates and the US 10Y from Fed/ECB series (120 req/min limit, used a handful of times per day)<br>'
-        '<code>ANTHROPIC_API_KEY = "sk-ant-..."</code> — optional; upgrades news '
+        '<code>LLM_API_KEY = "..."</code> — optional; any OpenAI-compatible provider (defaults to Google Gemini free tier, model gemini-2.5-flash; override with LLM_API_BASE / LLM_MODEL for Groq, Databricks, Mistral)<br>'
+        '<code>ANTHROPIC_API_KEY = "sk-ant-..."</code> — optional alternative; upgrades news '
         'sentiment/importance/region tagging and the hero rationale from keyword '
         'rules to model classification (no forecasting)</div>',
         unsafe_allow_html=True,

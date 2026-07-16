@@ -24,6 +24,18 @@ def test_sentiment_and_importance():
     assert hi["importance"] == "High"
 
 
+def test_directional_sentiment():
+    cases = [("Rate cut hopes lift stocks to record high", "Positive"),
+             ("Unemployment falls to decade low", "Positive"),
+             ("Inflation surges past forecasts", "Negative"),
+             ("Growth slows as demand weakens", "Negative"),
+             ("SARB decision eases recession fears", "Positive"),
+             ("Company misses estimates as costs jump", "Negative"),
+             ("Falling inflation lifts consumer confidence", "Positive")]
+    for text, want in cases:
+        assert _classify(text, "", "")["sentiment"] == want, text
+
+
 def test_clean_strips_html():
     assert _clean("<b>Rate&amp;nbsp;cut</b>  news") == "Rate&nbsp;cut news".replace("&nbsp;", "\xa0") or "Rate" in _clean("<b>Rate</b> news")
 
