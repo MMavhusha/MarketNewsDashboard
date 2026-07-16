@@ -19,8 +19,11 @@ headingFont = "Lato:https://fonts.googleapis.com/css2?family=Lato:wght@300;400;7
 baseFontSize = 14
 headingFontSizes = ["26px", "20px", "16px", "14px", "13px", "12px"]
 headingFontWeights = [900, 700, 700, 700, 700, 700]
-# Brand chart order (orange = the RisCura data point)
-chartCategoricalColors = ["#FF671D", "#1F3864", "#909288", "#2A8B7C", "#B0212C", "#F2C84A", "#26B7E6"]
+# Native-widget chart palette (dataframe sparklines etc.) leads with a quiet
+# neutral per Tufte: sparklines are datawords, not accents. Custom Plotly
+# charts in components/charts.py hardcode the brand orange-first order, where
+# orange marks THE emphasised series — not every series.
+chartCategoricalColors = ["#9A9C94", "#1F3864", "#2A8B7C", "#B0212C", "#F2C84A", "#26B7E6", "#FF671D"]
 # Semantic palette (spec bans pure red / tech green)
 greenColor = "#1E8052"
 redColor = "#B0212C"
@@ -28,7 +31,7 @@ orangeColor = "#FF671D"
 blueColor = "#003B71"
 grayColor = "#909288"
 yellowColor = "#F2C84A"
-dataframeBorderColor = "#E2E3E0"
+dataframeBorderColor = "#ECECEA"
 dataframeHeaderBackgroundColor = "#F2F2F2"
 
 [theme.sidebar]

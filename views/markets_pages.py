@@ -109,7 +109,7 @@ def page_currencies():
                 f"For narrative context, see stories tagged FX under Market News.")
     _detail_panel(q, "Rate", key="fx_chart", note=note)
 
-    ui.section("All pairs at a glance", "Sortable · click a row to open it above")
+    ui.section("All pairs at a glance", "Sortable — click a column header · open any pair via the pills above")
     ok_q = [x for x in quotes if x.ok]
     asof = next((x.asof for x in ok_q if x.asof), "latest close")
     df = pd.DataFrame({
@@ -125,7 +125,7 @@ def page_currencies():
             return "color: #909288"
         return "color: #1E8052" if v >= 0 else "color: #B0212C"
 
-    event = st.dataframe(
+    st.dataframe(
         df.style.map(_pcol, subset=["1D %"]),
         hide_index=True, use_container_width=True, row_height=42,
         height=int(42 * (len(ok_q) + 1)) + 6,
@@ -135,26 +135,20 @@ def page_currencies():
             "Last": st.column_config.NumberColumn(format="%.4f", width="small"),
             "1D %": st.column_config.NumberColumn(format="%+.2f%%", width="small"),
         },
-        on_select="rerun", selection_mode="single-row", key="fx_grid")
-    try:
-        rows = event.selection.rows
-        if rows:
-            chosen = df.iloc[rows[0]]["Pair"]
-            if chosen != pick:
-                st.session_state["fx_pick"] = chosen
-                st.rerun()
-    except Exception:
-        pass
-    ui.legend(f"As at {asof} · 1D % vs prior close · sparkline shows one month "
-              "of daily closes · sort any column by clicking its header")
+        key="fx_grid")
+    ui.legend(f"As at {asof} · 1D % vs prior close · sparklines show the shape "
+              "of one month of daily closes, each on its own scale")
 
 
 def _sarb_repo():
-    for rows in sarb.get_sa_indicators().values():
+    """SARB names the policy rate the 'Repurchase rate' — match both forms."""
+    groups = sarb.get_sa_indicators()
+    for rows in groups.values():
         for r in rows:
-            if "repo" in r["name"].lower():
+            n = r["name"].lower()
+            if "repurchase" in n or "repo" in n:
                 return r
-    return None
+    return {"_reachable": bool(groups)} if groups else None
 
 
 _PENDING = {
@@ -181,9 +175,11 @@ def page_regional_macro():
                               f"{cell[0]} · World Bank" if cell else "World Bank unreachable"))
             if region == "South Africa":
                 repo = _sarb_repo()
+                if repo is not None and "_reachable" in repo:
+                    repo = None  # API fine; series name not matched
                 cells.append(("Policy Rate (%)", ui.esc(repo["value"]) if repo else None,
                               f'{repo["date"]} · SARB Web API' if repo
-                              else "SARB Web API unreachable"))
+                              else "not published under a recognised series name — see the SARB tiles below"))
             else:
                 cells.append(("Policy Rate (%)", None, _PENDING["Policy Rate (%)"]))
             if region == "United States":
