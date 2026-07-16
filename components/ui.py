@@ -91,9 +91,8 @@ def cal_row(e: dict):
     imp = importance_badge(e["importance"])
     when = esc(e.get("time") or e["date"])
     exp, prev = esc(e["expected"]), esc(e["previous"])
-    right = (f'Consensus <b>{exp}</b> · Previous <b>{prev}</b>'
-             if (exp, prev) != ("—", "—") else
-             '<span style="color:#909288;">no consensus published</span>')
+    right = (f'<div>Consensus <b>{exp}</b></div>'
+             f'<div>Previous <b>{prev}</b></div>')
     st.markdown(
         f'''<div class="cal-row">
         <span class="cty">{esc(e["country"])}</span>

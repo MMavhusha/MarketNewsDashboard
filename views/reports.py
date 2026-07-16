@@ -90,6 +90,7 @@ def page_weekly_key_events():
 
     editing = st.session_state.get("note_editing")
     for i, n in enumerate(log):
+        n.setdefault("history", [])  # notes created before edit-support existed
         edited = (f' · last edited by <b>{ui.esc(n["history"][-1]["editor"])}</b> '
                   f'· {ui.esc(n["history"][-1]["when"])}' if n["history"] else "")
         st.markdown(
@@ -221,6 +222,32 @@ def page_settings():
                "predictions anywhere in this application. Each provider lives in "
                "data_sources/ behind a stable interface; swapping one does not touch "
                "the views.")
+
+    ui.section("Alert thresholds", "Set by the PM team · applied immediately")
+    st.caption("A move beyond the warning level raises a Warning alert; beyond "
+               "the critical level, a Critical alert. Percent of prior close. "
+               "Session-scoped until sign-in and shared storage are added.")
+    cur = dict(markets.get_thresholds())
+    labels = {"index": "Indices", "fx": "FX", "commodity": "Commodities",
+              "crypto": "Crypto"}
+    cols = st.columns(4)
+    new_t = {}
+    for col, (k, lab) in zip(cols, labels.items()):
+        with col:
+            w, c = cur.get(k, markets.DEFAULT_THRESHOLDS[k])
+            w2 = st.slider(f"{lab} — warning %", 0.5, 10.0, float(w), 0.25,
+                           key=f"thr_w_{k}")
+            c2 = st.slider(f"{lab} — critical %", w2, 15.0, max(float(c), w2), 0.25,
+                           key=f"thr_c_{k}")
+            new_t[k] = (w2, c2)
+    b1, b2, _ = st.columns([1, 1, 4])
+    if b1.button("Apply thresholds", type="primary"):
+        st.session_state["alert_thresholds"] = new_t
+        st.toast("Alert thresholds updated.")
+        st.rerun()
+    if b2.button("Reset to defaults"):
+        st.session_state.pop("alert_thresholds", None)
+        st.rerun()
 
     ui.section("Secrets", "Streamlit Cloud → App → Settings → Secrets")
     st.markdown(

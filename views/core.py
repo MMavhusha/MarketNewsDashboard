@@ -137,18 +137,19 @@ def _right_rail(items):
                 '<div class="rt">Trending Topics</div></div>',
                 unsafe_allow_html=True)
     if top:
-        labels = {f"{k.upper()} · {v}": k for k, v in top}
-        pick = st.pills("Topics", list(labels.keys()), default=None,
-                        key="trend_pick", label_visibility="collapsed")
-        if pick:
-            tag = labels[pick]
-            stories = [it for it in items if tag in it.get("tags", [])]
-            rows = "".join(
-                f'<div class="rail-item"><a href="{ui.esc(it["link"])}" '
-                f'target="_blank">{ui.esc(it["title"][:90])}</a></div>'
-                for it in stories)
-            st.markdown(f'<div class="rail-card">{rows}</div>',
-                        unsafe_allow_html=True)
+        with st.container(key="trend_wrap"):
+            labels = {f"{k.title()} · {v}": k for k, v in top}
+            pick = st.pills("Topics", list(labels.keys()), default=None,
+                            key="trend_pick", label_visibility="collapsed")
+            if pick:
+                tag = labels[pick]
+                stories = [it for it in items if tag in it.get("tags", [])]
+                rows = "".join(
+                    f'<div class="rail-item"><a href="{ui.esc(it["link"])}" '
+                    f'target="_blank">{ui.esc(it["title"][:90])}</a></div>'
+                    for it in stories)
+                st.markdown(f'<div class="rail-card">{rows}</div>',
+                            unsafe_allow_html=True)
     else:
         st.markdown('<div class="rail-card"><div class="rail-item">No live '
                     'tags</div></div>', unsafe_allow_html=True)
@@ -231,7 +232,26 @@ def page_market_news():
 
 
 # ------------------------------------------------------------ shock alerts
+_ALERT_ASSET = {"index": "Equities", "fx": "FX", "commodity": "Commodities",
+                "crypto": "Crypto"}
+
+
+def _wire_sentiment(asset_class: str) -> str:
+    counts = {"Positive": 0, "Negative": 0, "Neutral": 0}
+    for it in news.get_news():
+        if it["asset"] == asset_class:
+            counts[it["sentiment"]] += 1
+    total = sum(counts.values())
+    if not total:
+        return ""
+    return (f'Wire sentiment for {asset_class} stories: '
+            f'{counts["Negative"]} negative · {counts["Positive"]} positive · '
+            f'{counts["Neutral"]} neutral (observed coverage, not a forecast)')
+
+
 def page_shock_alerts():
+    t = markets.get_thresholds()
+    kinds = {tk: k for _, tk, k, _ in markets.SUMMARY_STRIP}
     alerts = markets.get_shock_alerts()
     if not alerts:
         ui.empty_state("No instrument in the tracked universe moved beyond warning or "
@@ -244,6 +264,11 @@ def page_shock_alerts():
         c1, c2 = st.columns([12, 1])
         with c1:
             ui.alert_card(a)
+            kind = next((k for n, tk, k, _ in markets.SUMMARY_STRIP
+                         if n == a["assets"]), "index")
+            senti = _wire_sentiment(_ALERT_ASSET.get(kind, "Equities"))
+            if senti:
+                ui.legend(senti)
         with c2:
             if st.button("✕", key=f"dis_{i}", help="Dismiss"):
                 dismissed.add(a["title"])
@@ -251,8 +276,11 @@ def page_shock_alerts():
         shown += 1
     if alerts and shown == 0:
         ui.empty_state("All active alerts dismissed for this session.")
-    st.caption("Thresholds — indices 2%/3.5% · FX 1.5%/3% · commodities 3%/6% · "
-               "crypto 5%/10% (warning/critical).")
+    st.caption(f"Active thresholds (warning/critical) — indices "
+               f"{t['index'][0]}%/{t['index'][1]}% · FX {t['fx'][0]}%/{t['fx'][1]}% · "
+               f"commodities {t['commodity'][0]}%/{t['commodity'][1]}% · "
+               f"crypto {t['crypto'][0]}%/{t['crypto'][1]}%. "
+               "Your team can adjust these under Settings → Alert thresholds.")
 
 
 # ------------------------------------------------------------ announcements
@@ -312,10 +340,10 @@ def page_announcements():
 
 
 # ------------------------------------------------------------ calendar
-# ------------------------------------------------------------ calendar
 def page_calendar():
-    ui.legend("Orange edge = high impact · Gold = medium · hover an event for "
-              "Consensus vs Previous · times in SAST")
+    """Agenda view — the standard pattern across ForexFactory, Investing.com
+    and Bloomberg WECO: chronological rows grouped by day, filterable by
+    impact and country."""
     horizon = st.pills("Horizon", ["Next 7 days", "Next 14 days"],
                        default="Next 7 days", key="cal_h") or "Next 7 days"
     days_ahead = 7 if horizon.startswith("Next 7") else 14
@@ -324,61 +352,42 @@ def page_calendar():
         ui.empty_state("No calendar data returned by the provider.")
         return
 
+    f1, f2 = st.columns([1, 2])
+    imp_pick = f1.pills("Impact", ["All", "High", "Medium"], default="All",
+                        key="cal_imp") or "All"
+    countries = sorted({e["country"] for e in cal})
+    ctry_pick = f2.multiselect("Countries", countries, default=[],
+                               placeholder="All countries")
+    view = cal
+    if imp_pick == "High":
+        view = [e for e in view if e["importance"] == "High"]
+    elif imp_pick == "Medium":
+        view = [e for e in view if e["importance"] in ("High", "Medium")]
+    if ctry_pick:
+        view = [e for e in view if e["country"] in ctry_pick]
+    ui.legend(f"{len(view)} events · rows ordered by time within each day · "
+              "times in SAST · Consensus = market forecast before release, "
+              "Previous = prior reading")
+
+    if not view:
+        ui.empty_state("No events match the current filters.")
+        return
+    day = None
     sast = ZoneInfo("Africa/Johannesburg")
-    today = datetime.now(sast).date()
-    by_day: dict = {}
-    for e in cal:
+    today_hdr = None
+    for e in view:
         try:
             dt = datetime.fromisoformat(e["_dt"].replace("Z", "+00:00"))
             if dt.tzinfo is None:
                 dt = dt.replace(tzinfo=timezone.utc)
-            by_day.setdefault(dt.astimezone(sast).date(), []).append(e)
+            d = dt.astimezone(sast).date()
+            hdr = d.strftime("%A %d %B") + (
+                " · today" if d == datetime.now(sast).date() else "")
         except Exception:
-            continue
-    rank = {"High": 0, "Medium": 1, "Low": 2}
-    for d in by_day:
-        by_day[d].sort(key=lambda e: (rank.get(e["importance"], 3),
-                                      e.get("time") or ""))
-
-    for week_start in range(0, days_ahead, 7):
-        days = [today + timedelta(days=week_start + i) for i in range(7)]
-        cols = st.columns(7, gap="small")
-        for col, d in zip(cols, days):
-            events = by_day.get(d, [])
-            today_cls = " cal-col-today" if d == today else ""
-            chips = ""
-            for e in events[:6]:
-                sev = ("ev-high" if e["importance"] == "High"
-                       else "ev-medium" if e["importance"] == "Medium" else "")
-                chips += (f'<div class="cal-ev {sev}" title="{ui.esc(e["event"])} — '
-                          f'Consensus {ui.esc(e["expected"])}, Previous '
-                          f'{ui.esc(e["previous"])}">'
-                          f'<div class="e-t">{ui.esc((e.get("time") or "")[:5])}</div>'
-                          f'<div class="e-n">{ui.esc(e["event"][:44])}</div>'
-                          f'<div class="e-c">{ui.esc(e["country"])}</div></div>')
-            more = (f'<div class="e-c" style="text-align:center;">+{len(events)-6} '
-                    f'more — see day detail ↓</div>' if len(events) > 6 else "")
-            col.markdown(
-                f'<div class="cal-col{today_cls}"><div class="cal-col-h">'
-                f'{d.strftime("%a")}<span class="d">{d.day}</span></div>'
-                f'{chips}{more}</div>',
-                unsafe_allow_html=True)
-        st.markdown(" ")
-    ui.legend("Chips show highest-impact events first · select a day below for "
-              "the full list")
-
-    day_opts = {f"{d.strftime('%a %d %b')} ({len(evs)})": d
-                for d, evs in sorted(by_day.items()) if evs}
-    if day_opts:
-        today_lbl = next((k for k, v in day_opts.items() if v == today), None)
-        pick = st.pills("Day detail", list(day_opts.keys()),
-                        default=today_lbl or list(day_opts.keys())[0],
-                        key="cal_day_pick")
-        if pick:
-            d = day_opts[pick]
-            ui.cal_day_header(d.strftime("%A %d %B"))
-            for e in by_day[d]:
-                ui.cal_row(e)
-    st.caption("Consensus = the market's forecast before release; Previous = the "
-               "prior period's reading. Importance is the provider's market-impact "
-               "rating. No in-app estimation.")
+            hdr = e.get("day") or "Scheduled"
+        if hdr != day:
+            day = hdr
+            ui.cal_day_header(hdr)
+        ui.cal_row(e)
+    st.caption("Importance is the provider's market-impact rating. No in-app "
+               "estimation is performed.")

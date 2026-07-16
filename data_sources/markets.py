@@ -200,10 +200,15 @@ def get_movers(top_n: int = 6, universe: str = "core") -> tuple[list[Quote], lis
 
 # ------------------------------------------------------------ shock alerts
 # Derived, factual display of observed moves — thresholds only, no forecasting.
-_THRESHOLDS = {
+DEFAULT_THRESHOLDS = {
     "index": (2.0, 3.5), "fx": (1.5, 3.0),
     "commodity": (3.0, 6.0), "crypto": (5.0, 10.0),
 }
+
+
+def get_thresholds() -> dict:
+    """PM-adjustable (Settings page); session-scoped until auth/storage exist."""
+    return st.session_state.get("alert_thresholds", DEFAULT_THRESHOLDS)
 
 
 def get_shock_alerts() -> list[dict]:
@@ -213,7 +218,7 @@ def get_shock_alerts() -> list[dict]:
     for q in quotes:
         if not q.ok or q.change_pct is None:
             continue
-        warn, crit = _THRESHOLDS.get(kinds.get(q.ticker, "index"), (2.0, 3.5))
+        warn, crit = get_thresholds().get(kinds.get(q.ticker, "index"), (2.0, 3.5))
         mag = abs(q.change_pct)
         if mag >= crit:
             sev = "Critical"

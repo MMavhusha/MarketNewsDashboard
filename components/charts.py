@@ -44,8 +44,10 @@ def intraday_spark(values: list[float], prev_close: float,
     up = values[-1] >= prev_close
     color = GREEN if up else RED
     fig = go.Figure(go.Scatter(
-        y=values, mode="lines", line=dict(width=1.6, color=color),
+        y=values, mode="lines", line=dict(width=1.8, color=color),
         hoverinfo="skip"))
+    fig.add_trace(go.Scatter(x=[len(values) - 1], y=[values[-1]], mode="markers",
+                             marker=dict(size=5, color=color), hoverinfo="skip"))
     fig.add_hline(y=prev_close, line_dash="dot", line_width=1,
                   line_color="#B9BBB4")
     lo = min(min(values), prev_close)
@@ -111,11 +113,15 @@ def multi_line(df: pd.DataFrame, title: str = "", height: int = 340,
     if _labels:
         ys = [l[0] for l in _labels]
         span = (max(ys) - min(ys)) or 1.0
-        gap = span * 0.07
+        gap = span * max(0.10, 16.0 / max(height - 90, 120))
+        order = sorted(_labels, key=lambda l: l[0])
         placed = []
-        for y, x, name, hl in sorted(_labels, key=lambda l: l[0]):
-            y_adj = y if not placed else max(y, placed[-1] + gap)
-            placed.append(y_adj)
+        for y, *_ in order:
+            placed.append(y if not placed else max(y, placed[-1] + gap))
+        overflow = placed[-1] - (max(ys) + span * 0.05)
+        if overflow > 0:  # keep labels inside the plot: shift the stack down
+            placed = [p - overflow for p in placed]
+        for (y, x, name, hl), y_adj in zip(order, placed):
             fig.add_annotation(
                 x=x, y=y_adj, text=f"<b>{name}</b>" if hl else name,
                 font=dict(size=10.5, color="#FF671D" if hl else "#8A8C84",
