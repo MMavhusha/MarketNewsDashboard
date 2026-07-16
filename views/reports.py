@@ -106,24 +106,60 @@ def page_weekly_key_events():
         except Exception as e:
             st.error(f"Could not save to the repo: {e}")
             return False
-    c1, c2 = st.columns([1, 3])
-    author = c1.text_input("Your name", value=st.session_state.get("note_author", ""),
-                           placeholder="e.g. Antonie")
-    st.session_state["note_author"] = author
-    note = c2.text_area("Note", height=90, key="note_draft",
-                        placeholder="Add commentary for the week...")
-    if st.button("Add note", type="primary",
-                 disabled=not (author.strip() and note.strip())):
-        stamp = datetime.now(ZoneInfo("Africa/Johannesburg")).strftime("%d %b %Y %H:%M SAST")
-        log.insert(0, {"author": author.strip(), "when": stamp,
+    # -- identity: asked once, then a quiet "Posting as" line --
+    author = st.session_state.get("note_author", "").strip()
+    if not author or st.session_state.get("_edit_identity"):
+        c1, c2, _ = st.columns([1.4, 0.6, 3])
+        name_in = c1.text_input("Your name", value=author,
+                                placeholder="e.g. Antonie")
+        if c2.button("Set", disabled=not name_in.strip()):
+            st.session_state["note_author"] = name_in.strip()
+            st.session_state.pop("_edit_identity", None)
+            st.rerun()
+        author = ""
+    else:
+        i1, i2, _ = st.columns([2.4, 0.6, 4])
+        i1.markdown(
+            f'<div style="font-size:12px;color:#909288;padding-top:6px;">'
+            f'{ui.badge(author[:1].upper(), "blue")} Posting as '
+            f'<b style="color:#212322;">{ui.esc(author)}</b></div>',
+            unsafe_allow_html=True)
+        if i2.button("Change", key="chg_id"):
+            st.session_state["_edit_identity"] = True
+            st.rerun()
+
+    # -- compact compose bar --
+    cc1, cc2 = st.columns([6, 0.9], vertical_alignment="bottom")
+    note = cc1.text_area("Note", height=68, key="note_draft",
+                         label_visibility="collapsed",
+                         placeholder="Add a note for the week…")
+    if cc2.button("Add", type="primary", use_container_width=True,
+                  disabled=not (author and note.strip())):
+        stamp = datetime.now(ZoneInfo("Africa/Johannesburg")).strftime(
+            "%d %b %Y %H:%M SAST")
+        log.insert(0, {"author": author, "when": stamp,
                        "text": note.strip(), "history": []})
         if _persist("add note"):
             st.session_state.pop("note_draft", None)  # clear the draft box
             st.rerun()
 
+    def _week_of(n):
+        try:
+            d = datetime.strptime(n["when"][:11], "%d %b %Y").date()
+            monday = d - timedelta(days=d.weekday())
+            return monday
+        except Exception:
+            return None
+
     editing = st.session_state.get("note_editing")
+    current_week = None
     for i, n in enumerate(log):
         n.setdefault("history", [])
+        wk = _week_of(n)
+        if wk != current_week:
+            current_week = wk
+            ui.cal_day_header(f"Week of {wk.strftime('%d %B %Y')}" if wk
+                              else "Earlier")
         if editing == i:
             # the note card itself becomes the editor: ONE tile, textarea
             # blended in, declaration + actions on a single row inside it
@@ -164,7 +200,8 @@ def page_weekly_key_events():
                   f'· {ui.esc(n["history"][-1]["when"])}' if n["history"] else "")
         st.markdown(
             f'''<div class="news-card"><div class="sm">{ui.esc(n["text"])}</div>
-            <div class="mt"><b>{ui.esc(n["author"])}</b> · {ui.esc(n["when"])}{edited}</div></div>''',
+            <div class="mt">{ui.badge((n["author"] or "?")[:1].upper(), "blue")}
+            <b>{ui.esc(n["author"])}</b> · {ui.esc(n["when"])}{edited}</div></div>''',
             unsafe_allow_html=True)
         b1, b2, b3, _ = st.columns([0.7, 0.9, 1.6, 7])
         if b1.button("Edit", key=f"ne_{i}", disabled=not author.strip(),

@@ -36,7 +36,7 @@ section[data-testid="stSidebar"] {
 /* ---------- Sidebar (letterhead: white, grey wordmark, orange bar) ---------- */
 section[data-testid="stSidebar"] {
   background: #FFFFFF; border-right: 1px solid #E2E3E0;
-  min-width: 264px !important;
+  min-width: 284px !important;
 }
 section[data-testid="stSidebar"] * { color: #212322; }
 .sb-brand { display: flex; align-items: stretch; gap: 8px; padding: 20px 14px 4px 14px; }
@@ -53,7 +53,7 @@ section[data-testid="stSidebar"] * { color: #212322; }
 }
 
 /* ---------- Section headers ---------- */
-.sec-h { display: flex; align-items: center; justify-content: space-between; margin: 20px 0 10px 0; }
+.sec-h { display: flex; align-items: center; justify-content: space-between; margin: 30px 0 12px 0; }
 .sec-h .t { font-size: 13px; font-weight: 700; color: #212322; text-transform: uppercase; letter-spacing: 1.1px; border-left: 3px solid #FF671D; padding-left: 9px; }
 .sec-h .s { font-size: 11px; color: #909288; }
 .sec-rule { flex: 1; height: 1px; background: linear-gradient(90deg, #FFD3BC, #E2E3E0 40%); margin: 0 14px; }
@@ -61,14 +61,14 @@ section[data-testid="stSidebar"] * { color: #212322; }
 /* ---------- Cards ---------- */
 .card {
   background: #FFFFFF; border: 1px solid #E2E3E0; border-radius: 10px;
-  padding: 16px 18px; box-shadow: 0 1px 2px rgba(0,59,113,.05);
+  padding: 16px 18px; box-shadow: 0 1px 2px rgba(0,59,113,.03);
   transition: box-shadow .15s ease; height: 100%;
 }
 .card:hover { box-shadow: 0 4px 14px rgba(0,59,113,.10); }
 
 .mkt-card {
   background: #FFFFFF; border: 1px solid #E2E3E0; border-radius: 10px;
-  padding: 12px 14px 8px 14px; box-shadow: 0 1px 2px rgba(0,59,113,.05);
+  padding: 12px 14px 8px 14px; box-shadow: 0 1px 2px rgba(0,59,113,.03);
   border-top: 3px solid #FF671D; transition: box-shadow .15s ease;
   min-height: 108px;
 }
@@ -97,8 +97,8 @@ section[data-testid="stSidebar"] * { color: #212322; }
 
 /* ---------- News cards ---------- */
 .news-card {
-  background: #FFFFFF; border: 1px solid #E2E3E0; border-radius: 10px;
-  padding: 14px 16px; margin-bottom: 10px; box-shadow: 0 1px 2px rgba(0,59,113,.05);
+  background: #FFFFFF; border: 1px solid #ECECEA; border-radius: 10px;
+  padding: 14px 16px; margin-bottom: 10px; box-shadow: 0 1px 2px rgba(0,59,113,.03);
   transition: box-shadow .15s ease;
 }
 .news-card:hover { box-shadow: 0 4px 14px rgba(0,59,113,.10); }
@@ -126,7 +126,7 @@ section[data-testid="stSidebar"] * { color: #212322; }
 .alert {
   border-radius: 10px; padding: 13px 16px; margin-bottom: 9px;
   background: #FFFFFF; border: 1px solid #E2E3E0; border-left-width: 4px;
-  box-shadow: 0 1px 2px rgba(0,59,113,.05);
+  box-shadow: 0 1px 2px rgba(0,59,113,.03);
 }
 .alert .ti { font-size: 13px; font-weight: 700; color: #212322; }
 .alert .ds { font-size: 12px; color: #4C4D52; margin-top: 3px; }
@@ -160,8 +160,8 @@ section[data-testid="stSidebar"] * { color: #212322; }
 
 /* ---------- Right rail ---------- */
 .rail-card {
-  background: #FFFFFF; border: 1px solid #E2E3E0; border-radius: 10px;
-  padding: 14px 16px; margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0,59,113,.05);
+  background: #FFFFFF; border: 1px solid #ECECEA; border-radius: 10px;
+  padding: 14px 16px; margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0,59,113,.03);
 }
 .rail-card .rt { font-size: 11px; font-weight: 700; color: #212322; border-left: 3px solid #FF671D; padding-left: 8px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
 .rail-item { font-size: 12px; color: #212322; padding: 5px 0; border-bottom: 1px solid #F2F2F2; }
@@ -204,7 +204,7 @@ section[data-testid="stSidebar"] * { color: #212322; }
 div[data-testid="stExpander"] {
   background: #FFFFFF; border: 1px solid #E2E3E0 !important;
   border-radius: 10px !important; margin-bottom: 8px;
-  box-shadow: 0 1px 2px rgba(0,59,113,.05);
+  box-shadow: 0 1px 2px rgba(0,59,113,.03);
 }
 div[data-testid="stExpander"] summary {
   font-size: 12px !important; font-weight: 700; color: #212322;
@@ -348,7 +348,7 @@ div[data-testid="stExpander"] summary {
 div[class*="st-key-note_editor_"] > div[data-testid="stVerticalBlockBorderWrapper"],
 div[class*="st-key-note_editor_"][data-testid="stVerticalBlockBorderWrapper"] {
   background: #FFFFFF !important; border: 1px solid #E2E3E0 !important;
-  border-radius: 10px !important; box-shadow: 0 1px 2px rgba(0,59,113,.05);
+  border-radius: 10px !important; box-shadow: 0 1px 2px rgba(0,59,113,.03);
   padding: 6px 8px;
 }
 div[class*="st-key-note_editor_"] div[data-testid="stTextArea"] textarea,
