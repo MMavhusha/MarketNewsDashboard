@@ -41,7 +41,8 @@ PAGES = {
 def sidebar() -> str:
     with st.sidebar:
         st.markdown(
-            '<div class="sb-brand"><span class="logo">Ris<span>Cura</span></span></div>'
+            '<div class="sb-brand"><span class="wordmark">RISCURA</span>'
+            '<span class="obar"></span></div>'
             '<div class="sb-sub">MARKET NEWS</div>',
             unsafe_allow_html=True,
         )
@@ -55,12 +56,12 @@ def sidebar() -> str:
             key="main_nav",
             styles={
                 "container": {"padding": "0", "background-color": "transparent"},
-                "icon": {"font-size": "13px", "color": "#9FBAD0"},
+                "icon": {"font-size": "13px", "color": "#FF671D"},
                 "nav-link": {
                     "font-size": "12.5px", "font-weight": "500",
-                    "color": "#D8E6EE", "padding": "7px 14px",
+                    "color": "#212322", "padding": "7px 14px",
                     "border-radius": "7px", "margin": "2px 8px",
-                    "--hover-color": "#1F3864",
+                    "--hover-color": "#FFF1E9",
                 },
                 "nav-link-selected": {
                     "background-color": "#FF671D", "color": "#FFFFFF",
@@ -69,7 +70,7 @@ def sidebar() -> str:
             },
         )
         st.markdown(
-            f'<div class="sb-sub" style="margin-top:14px;">'
+            f'<div class="sb-sub" style="margin-top:14px;letter-spacing:.4px;">'
             f'<span class="live-dot"></span>Free-tier live data<br>'
             f'Refreshed {markets.last_refresh()}</div>',
             unsafe_allow_html=True,

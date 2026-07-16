@@ -46,9 +46,9 @@ def fmt_chg(q) -> str:
 
 def market_card_html(q) -> str:
     if not q.ok:
-        return (f'<div class="mkt-card"><div class="nm">{esc(q.name)}</div>'
-                f'<div class="vl" style="color:#98A2B3;font-size:13px;">unavailable</div>'
-                f'<div class="ts">source did not respond</div></div>')
+        return (f'<div class="mkt-card mkt-na"><div class="nm">{esc(q.name)}</div>'
+                f'<div class="vl" style="color:#909288;">—</div>'
+                f'<div class="ts">retrying at next refresh</div></div>')
     return (
         f'<div class="mkt-card"><div class="nm">{esc(q.name)}</div>'
         f'<div class="vl num">{q.fmt.format(q.price)}</div>'
@@ -106,9 +106,11 @@ def cal_row(e: dict):
 
 
 def cal_day_header(day: str):
-    st.markdown(f'<div style="font-size:11px;font-weight:700;color:#003B71;'
-                f'letter-spacing:1px;text-transform:uppercase;margin:12px 0 6px 2px;">'
-                f'{esc(day)}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="cal-day">{esc(day)}</div>', unsafe_allow_html=True)
+
+
+def legend(text: str):
+    st.markdown(f'<div class="legend">{esc(text)}</div>', unsafe_allow_html=True)
 
 
 def mover_row(q) -> str:

@@ -82,16 +82,23 @@ class Quote:
 
 # ---------------------------------------------------------------- fetch
 @st.cache_data(ttl=300, show_spinner=False)
+def _download_cached(tickers: tuple[str, ...], period: str = "1mo") -> pd.DataFrame:
+    """Batch OHLC download. Raises on total failure so empty results are
+    NOT cached — the next run retries instead of pinning a dead cache."""
+    df = yf.download(
+        list(tickers), period=period, interval="1d",
+        group_by="ticker", auto_adjust=True, progress=False, threads=True,
+    )
+    if not isinstance(df, pd.DataFrame) or df.empty:
+        raise RuntimeError("empty batch")
+    return df
+
+
 def _download(tickers: tuple[str, ...], period: str = "1mo") -> pd.DataFrame:
-    """Batch OHLC download; returns empty frame on any failure."""
     if yf is None:
         return pd.DataFrame()
     try:
-        df = yf.download(
-            list(tickers), period=period, interval="1d",
-            group_by="ticker", auto_adjust=True, progress=False, threads=True,
-        )
-        return df if isinstance(df, pd.DataFrame) else pd.DataFrame()
+        return _download_cached(tickers, period)
     except Exception:
         return pd.DataFrame()
 
@@ -125,18 +132,38 @@ def get_quotes(items: list[tuple], period: str = "1mo") -> list[Quote]:
                 q.asof = pd.Timestamp(s.index[-1]).strftime("%d %b %Y")
             except Exception:
                 q.asof = None
+        if not q.ok:  # per-ticker retry: single fetch often succeeds when
+            s2 = get_history(ticker, "1mo")       # a batch member fails
+            if len(s2) >= 2:
+                last, prev = float(s2.iloc[-1]), float(s2.iloc[-2])
+                q.price, q.change = last, last - prev
+                q.change_pct = (last / prev - 1.0) * 100 if prev else None
+                q.spark = [float(x) for x in s2.tail(22).tolist()]
+                try:
+                    q.asof = pd.Timestamp(s2.index[-1]).strftime("%d %b %Y")
+                except Exception:
+                    q.asof = None
         out.append(q)
     return out
 
 
 @st.cache_data(ttl=300, show_spinner=False)
+def _history_cached(ticker: str, period: str) -> pd.Series:
+    df = yf.download(ticker, period=period, interval="1d",
+                     auto_adjust=True, progress=False)
+    if df is None or df.empty:
+        raise RuntimeError("empty")
+    s = df["Close"].dropna()
+    if isinstance(s, pd.DataFrame):
+        s = s.iloc[:, 0].dropna()
+    return s
+
+
 def get_history(ticker: str, period: str = "1y") -> pd.Series:
     if yf is None:
         return pd.Series(dtype=float)
     try:
-        df = yf.download(ticker, period=period, interval="1d",
-                         auto_adjust=True, progress=False)
-        return df["Close"].dropna() if not df.empty else pd.Series(dtype=float)
+        return _history_cached(ticker, period)
     except Exception:
         return pd.Series(dtype=float)
 

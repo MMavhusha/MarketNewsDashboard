@@ -67,8 +67,7 @@ def page_executive_summary():
                         day = e["day"]
                         ui.cal_day_header(day)
                     ui.cal_row(e)
-                st.caption("Consensus = market forecast · Previous = prior reading · "
-                           "times in SAST")
+                ui.legend("Consensus = forecast · Previous = prior · SAST")
             else:
                 ui.empty_state("Calendar feed unavailable right now.")
 
@@ -76,6 +75,10 @@ def page_executive_summary():
         extended = st.toggle("Include extended universe (global indices, other FX)",
                              value=False, key="mv_ext")
         gainers, losers = markets.get_movers(universe="extended" if extended else "core")
+        n = len({q.ticker for q in gainers + losers})
+        ui.legend(("Core + extended universe" if extended else
+                   "Requested instruments only") + f" · showing top/bottom from "
+                  f"{len(markets.CORE_MOVERS) + (len(markets.EXTENDED_MOVERS) if extended else 0)} tracked")
         c1, c2 = st.columns(2, gap="medium")
         with c1:
             st.markdown('<div class="card"><div class="rt" style="font-size:11px;'
