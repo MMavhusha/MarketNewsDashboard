@@ -58,3 +58,9 @@ def get_sa_indicators() -> dict[str, list[dict]]:
         except Exception:
             continue
     return out
+
+
+def feed_status() -> dict:
+    groups = get_sa_indicators()
+    n = sum(len(v) for v in groups.values())
+    return {"name": "SARB Web API", "ok": bool(n), "detail": f"{n} series"}

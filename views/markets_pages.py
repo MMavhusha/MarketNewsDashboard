@@ -30,17 +30,21 @@ def _detail_panel(q, unit: str, key: str, note: str = ""):
         f'<span class="dh-meta">{ui.esc(unit)} · {ui.esc(q.asof or "")}</span></div>',
         unsafe_allow_html=True)
 
-    hist = markets.get_history(q.ticker, "1y")
+    rng = st.pills("Range", ["1M", "6M", "1Y", "5Y"], default="1Y",
+                   key=f"rng_{key}", label_visibility="collapsed") or "1Y"
+    hist = markets.get_history(q.ticker,
+                               {"1M": "1mo", "6M": "6mo",
+                                "1Y": "1y", "5Y": "5y"}[rng])
     k1, k2, k3, k4 = st.columns(4)
     m1 = _pct(q.spark[-1], q.spark[0]) if len(q.spark) > 1 else None
+    rchg = (_pct(float(hist.iloc[-1]), float(hist.iloc[0]))
+            if len(hist) > 1 else None)
     kpis = [("1M change", f"{m1:+.2f}%" if m1 is not None else "—",
              ui.chg_cls(m1)),
-            ("52W high", q.fmt.format(float(hist.max())) if len(hist) else "—", ""),
-            ("52W low", q.fmt.format(float(hist.min())) if len(hist) else "—", ""),
-            ("1Y change", (f"{_pct(float(hist.iloc[-1]), float(hist.iloc[0])):+.2f}%"
-                           if len(hist) > 1 else "—"),
-             ui.chg_cls(_pct(float(hist.iloc[-1]), float(hist.iloc[0]))
-                        if len(hist) > 1 else None))]
+            (f"{rng} high", q.fmt.format(float(hist.max())) if len(hist) else "—", ""),
+            (f"{rng} low", q.fmt.format(float(hist.min())) if len(hist) else "—", ""),
+            (f"{rng} change", f"{rchg:+.2f}%" if rchg is not None else "—",
+             ui.chg_cls(rchg))]
     for col, (label, val, cls) in zip((k1, k2, k3, k4), kpis):
         with col:
             st.markdown(f'<div class="kpi"><div class="k-label">{label}</div>'
@@ -50,7 +54,7 @@ def _detail_panel(q, unit: str, key: str, note: str = ""):
     if len(hist):
         st.plotly_chart(charts.line_chart(hist, "", y_title=unit, height=320),
                         use_container_width=True, config={"displayModeBar": False},
-                        key=key)
+                        key=f"{key}_{rng}")
     if note:
         st.caption(note)
 

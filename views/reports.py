@@ -230,6 +230,36 @@ def page_reports():
 
 
 def page_settings():
+    ui.section("Feed status", "Live diagnostics per source")
+    from data_sources import calendar_data as _cal, news as _news, sarb as _sarb
+    rows = []
+    strip_ok = sum(1 for q in markets.get_summary_strip() if q.ok)
+    rows.append({"name": "yfinance markets", "ok": strip_ok > 0,
+                 "detail": f"{strip_ok}/9 strip instruments returning data"})
+    rows += _news.get_feed_status()
+    rows.append(_cal.feed_status())
+    rows.append(_sarb.feed_status())
+    try:
+        from data_sources import ai_enrich
+        rows.append({"name": "AI classification (Claude)",
+                     "ok": ai_enrich.enabled(),
+                     "detail": ("active — model-tagged sentiment/importance"
+                                if ai_enrich.enabled() else
+                                "off — add ANTHROPIC_API_KEY to enable")})
+    except Exception:
+        pass
+    for r in rows:
+        dot = ("#1E8052" if r["ok"] else "#B0212C")
+        st.markdown(
+            f'<div class="cal-row"><span style="width:10px;height:10px;'
+            f'border-radius:50%;background:{dot};flex-shrink:0;"></span>'
+            f'<span class="cty" style="width:240px;">{ui.esc(r["name"])}</span>'
+            f'<span class="ev">{ui.esc(r["detail"])}</span></div>',
+            unsafe_allow_html=True)
+    st.caption("A red source means the provider is unreachable or empty right "
+               "now — the app degrades to explicit 'unavailable' states, never "
+               "substitute data.")
+
     ui.section("Data Sources", "Target premium source → current free stand-in")
     for name, role, standin in NAMED_SOURCES:
         st.markdown(
@@ -273,7 +303,10 @@ def page_settings():
         '<div class="card">'
         '<code>APP_PASSWORD = "..."</code> — access gate (required in production)<br>'
         '<code>TE_API_KEY = "user:key"</code> — optional; upgrades calendar to full '
-        'country coverage incl. SA/India</div>',
+        'country coverage incl. SA/India<br>'
+        '<code>ANTHROPIC_API_KEY = "sk-ant-..."</code> — optional; upgrades news '
+        'sentiment/importance/region tagging and the hero rationale from keyword '
+        'rules to model classification (no forecasting)</div>',
         unsafe_allow_html=True,
     )
     st.markdown(" ")

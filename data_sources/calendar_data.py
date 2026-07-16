@@ -154,3 +154,9 @@ def provider_label() -> str:
 
 def has_full_access() -> bool:
     return _te_key() is not None
+
+
+def feed_status() -> dict:
+    rows = _fetch_forexfactory()
+    return {"name": "Forex Factory calendar", "ok": bool(rows),
+            "detail": f"{len(rows)} events (this + next week)"}

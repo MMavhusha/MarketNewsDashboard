@@ -211,10 +211,25 @@ def get_thresholds() -> dict:
     return st.session_state.get("alert_thresholds", DEFAULT_THRESHOLDS)
 
 
+def _alert_universe() -> tuple[list[tuple], dict]:
+    """Strip + spec commodities + FX majors (deduped) with their kinds."""
+    items, kinds, seen = [], {}, set()
+    for n, t, k, f in SUMMARY_STRIP:
+        items.append((n, t, k, f)); kinds[t] = k; seen.add(t)
+    for n, t, _u in COMMODITIES:
+        if t not in seen:
+            items.append((n, t, "commodity", "{:,.2f}")); kinds[t] = "commodity"; seen.add(t)
+    for n, t in FX_MAJORS:
+        if t not in seen:
+            k = "index" if "Index" in n else "fx"
+            items.append((n, t, k, "{:,.4f}")); kinds[t] = k; seen.add(t)
+    return items, kinds
+
+
 def get_shock_alerts() -> list[dict]:
     alerts = []
-    quotes = get_quotes(SUMMARY_STRIP)
-    kinds = {t: k for _, t, k, _ in SUMMARY_STRIP}
+    universe, kinds = _alert_universe()
+    quotes = get_quotes(universe)
     for q in quotes:
         if not q.ok or q.change_pct is None:
             continue
@@ -283,3 +298,18 @@ def get_intraday(items: list[tuple]) -> dict[str, list[float]]:
         except Exception:
             continue
     return out
+
+
+def watchable_names() -> list[str]:
+    names = [n for n, *_ in SUMMARY_STRIP]
+    names += [n for n, _t, _u in COMMODITIES if n not in names]
+    names += [n for n, _t in FX_MAJORS if n not in names]
+    return names
+
+
+def get_watch_quotes(names: list[str]) -> dict[str, Quote]:
+    """Live quotes for watchlist names, drawn from the cached universes."""
+    lookup: dict[str, Quote] = {}
+    for q in get_summary_strip() + get_commodities() + get_fx():
+        lookup.setdefault(q.name, q)
+    return {n: lookup[n] for n in names if n in lookup}

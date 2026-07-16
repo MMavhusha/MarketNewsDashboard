@@ -125,8 +125,9 @@ def empty_state(msg: str):
 
 
 def hero(item: dict, time_str: str):
-    why = ("Elevated importance based on macro keywords and breadth of coverage; "
-           f"most relevant to <b>{esc(item['asset'])}</b> in <b>{esc(item['region'])}</b>.")
+    why = esc(item.get("why")) if item.get("why") else (
+        "Elevated importance based on macro keywords and breadth of coverage; "
+        f"most relevant to <b>{esc(item['asset'])}</b> in <b>{esc(item['region'])}</b>.")
     st.markdown(
         f'''<div class="hero">
         <div class="kicker">Top market story</div>

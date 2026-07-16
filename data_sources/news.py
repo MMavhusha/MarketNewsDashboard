@@ -117,6 +117,20 @@ def get_news(max_per_feed: int = 12) -> list[dict]:
             continue
     items.sort(key=lambda i: (i["score"], i["published"] or datetime.min.replace(tzinfo=timezone.utc)),
                reverse=True)
+    try:  # optional AI classification (see data_sources/ai_enrich.py)
+        from data_sources import ai_enrich
+        if ai_enrich.enabled() and items:
+            top = items[:25]
+            fields = ai_enrich.classify_batch(
+                tuple((i["title"], i["summary"]) for i in top))
+            for idx, f in fields.items():
+                if idx < len(top):
+                    top[idx].update(f)
+            items.sort(key=lambda i: (i["score"], i["published"] or
+                                      datetime.min.replace(tzinfo=timezone.utc)),
+                       reverse=True)
+    except Exception:
+        pass
     return items
 
 
@@ -169,4 +183,19 @@ def get_announcements(max_per_cat: int = 5) -> list[dict]:
                             "source": _clean(getattr(getattr(e, "source", None), "title", "") if hasattr(e, "source") else "")})
         except Exception:
             continue
+    return out
+
+
+@st.cache_data(ttl=900, show_spinner=False)
+def get_feed_status() -> list[dict]:
+    """Diagnostics: per-feed reachability and entry counts."""
+    out = []
+    for source, url, _dr in FEEDS:
+        try:
+            parsed = feedparser.parse(url) if feedparser else None
+            n = len(parsed.entries) if parsed else 0
+            ok = bool(n) and not getattr(parsed, "bozo", False)
+            out.append({"name": source, "ok": ok, "detail": f"{n} entries"})
+        except Exception as e:
+            out.append({"name": source, "ok": False, "detail": str(e)[:60]})
     return out

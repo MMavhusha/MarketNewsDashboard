@@ -165,15 +165,27 @@ def _right_rail(items):
                     'tags</div></div>', unsafe_allow_html=True)
 
     watch = st.session_state.setdefault("watchlist", ["USD/ZAR", "Brent Crude", "Gold"])
-    strip = {q.name: q for q in markets.get_summary_strip() if q.ok}
+    quotes = markets.get_watch_quotes(watch)
     rows = ""
     for w in watch:
-        q = strip.get(w)
+        q = quotes.get(w)
         rows += (f'<div class="rail-item"><b>{ui.esc(w)}</b> — '
                  + (f'<span class="num {ui.chg_cls(q.change_pct)}">{q.change_pct:+.2f}%</span>'
-                    if q else '<span style="color:#909288;">n/a</span>') + "</div>")
-    st.markdown(f'<div class="rail-card"><div class="rt">Watchlist</div>{rows}</div>',
-                unsafe_allow_html=True)
+                    if q and q.ok and q.change_pct is not None
+                    else '<span style="color:#909288;">n/a</span>') + "</div>")
+    st.markdown(f'<div class="rail-card"><div class="rt">Watchlist</div>'
+                f'{rows or chr(38)}</div>', unsafe_allow_html=True)
+    with st.popover("Edit watchlist", use_container_width=True):
+        picked = st.multiselect("Instruments", markets.watchable_names(),
+                                default=[w for w in watch
+                                         if w in markets.watchable_names()],
+                                key="watch_edit",
+                                help="Tracked across indices, the spec "
+                                     "commodities and FX majors. Session-scoped "
+                                     "until sign-in and shared storage exist.")
+        if picked != watch:
+            st.session_state["watchlist"] = picked
+            st.rerun()
 
     saved = st.session_state.get("saved_articles", [])
     rows = ("".join(f'<div class="rail-item"><a href="{ui.esc(s["link"])}" target="_blank">'
