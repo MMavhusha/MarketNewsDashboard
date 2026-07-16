@@ -81,20 +81,78 @@ def page_weekly_key_events():
     st.session_state["note_author"] = author
     note = c2.text_area("Note", height=90, key="note_draft",
                         placeholder="Add commentary for the week...")
-    if st.button("Add note", type="primary", disabled=not (author.strip() and note.strip())):
+    if st.button("Add note", type="primary",
+                 disabled=not (author.strip() and note.strip())):
         stamp = datetime.now(ZoneInfo("Africa/Johannesburg")).strftime("%d %b %Y %H:%M SAST")
-        log.insert(0, {"author": author.strip(), "when": stamp, "text": note.strip()})
+        log.insert(0, {"author": author.strip(), "when": stamp,
+                       "text": note.strip(), "history": []})
         st.rerun()
-    for n in log:
+
+    editing = st.session_state.get("note_editing")
+    for i, n in enumerate(log):
+        edited = (f' · last edited by <b>{ui.esc(n["history"][-1]["editor"])}</b> '
+                  f'· {ui.esc(n["history"][-1]["when"])}' if n["history"] else "")
         st.markdown(
             f'''<div class="news-card"><div class="sm">{ui.esc(n["text"])}</div>
-            <div class="mt"><b>{ui.esc(n["author"])}</b> · {ui.esc(n["when"])}</div></div>''',
+            <div class="mt"><b>{ui.esc(n["author"])}</b> · {ui.esc(n["when"])}{edited}</div></div>''',
             unsafe_allow_html=True)
-    st.caption("Entries are stamped with the name provided and last for this "
-               "browser session. Verified identity (login email) requires OIDC "
-               "sign-in (e.g. Entra ID) — supported by Streamlit but needs an app "
-               "registration from IT; durable shared notes additionally need a "
-               "small external store.")
+        b1, b2, _ = st.columns([1, 1, 8])
+        if b1.button("Edit", key=f"ne_{i}"):
+            st.session_state["note_editing"] = i
+            st.rerun()
+        if b2.button("Delete", key=f"nd_{i}",
+                     disabled=not author.strip(),
+                     help="Enter your name above to delete"):
+            log.pop(i)
+            st.rerun()
+        if n["history"]:
+            with st.expander(f"Change history ({len(n['history'])})"):
+                for h in n["history"]:
+                    st.markdown(
+                        f'''<div class="rail-item">{h["diff"]}<br>
+                        <span style="color:#909288;font-size:10.5px;">edited by
+                        <b>{ui.esc(h["editor"])}</b> · {ui.esc(h["when"])}</span></div>''',
+                        unsafe_allow_html=True)
+        if editing == i:
+            new_text = st.text_area("Edit note", value=n["text"], key=f"nt_{i}",
+                                    height=90)
+            s1, s2, _ = st.columns([1, 1, 8])
+            if s1.button("Save", key=f"ns_{i}", type="primary",
+                         disabled=not author.strip()):
+                if new_text.strip() and new_text.strip() != n["text"]:
+                    stamp = datetime.now(ZoneInfo("Africa/Johannesburg")).strftime(
+                        "%d %b %Y %H:%M SAST")
+                    n["history"].append({
+                        "editor": author.strip(), "when": stamp,
+                        "diff": _word_diff(n["text"], new_text.strip())})
+                    n["text"] = new_text.strip()
+                st.session_state.pop("note_editing", None)
+                st.rerun()
+            if s2.button("Cancel", key=f"nc_{i}"):
+                st.session_state.pop("note_editing", None)
+                st.rerun()
+    st.caption("Names are self-declared and edits are attributed with word-level "
+               "change highlights. Verified identity (login email) requires OIDC "
+               "sign-in (e.g. Entra ID via IT app registration); durable shared "
+               "notes additionally need a small external store.")
+
+
+def _word_diff(old: str, new: str) -> str:
+    """Word-level diff: removals struck through in burgundy, additions
+    highlighted in orange."""
+    import difflib
+    parts = []
+    for tok in difflib.ndiff(old.split(), new.split()):
+        w = ui.esc(tok[2:])
+        if tok.startswith("  "):
+            parts.append(w)
+        elif tok.startswith("- "):
+            parts.append(f'<span style="color:#B0212C;text-decoration:'
+                         f'line-through;">{w}</span>')
+        elif tok.startswith("+ "):
+            parts.append(f'<span style="background:#FFE1D0;color:#8A3A00;'
+                         f'border-radius:3px;padding:0 2px;">{w}</span>')
+    return " ".join(parts)
 
 
 def _moves_block():

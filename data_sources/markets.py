@@ -242,3 +242,39 @@ def last_refresh() -> str:
 
 def clear_caches():
     st.cache_data.clear()
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _intraday_cached(tickers: tuple[str, ...]) -> pd.DataFrame:
+    df = yf.download(list(tickers), period="2d", interval="15m",
+                     group_by="ticker", auto_adjust=True, progress=False,
+                     threads=True)
+    if not isinstance(df, pd.DataFrame) or df.empty:
+        raise RuntimeError("empty intraday batch")
+    return df
+
+
+def get_intraday(items: list[tuple]) -> dict[str, list[float]]:
+    """{ticker: today's session closes} — empty dict/list on failure."""
+    if yf is None:
+        return {}
+    tickers = tuple(i[1] for i in items)
+    try:
+        df = _intraday_cached(tickers)
+    except Exception:
+        return {}
+    single = len(tickers) == 1
+    out: dict[str, list[float]] = {}
+    for item in items:
+        t = item[1]
+        try:
+            ser = (df["Close"] if single else df[t]["Close"]).dropna()
+            if ser.empty:
+                continue
+            last_day = ser.index[-1].date()
+            today = ser[[ts.date() == last_day for ts in ser.index]]
+            if len(today) >= 3:
+                out[t] = [float(x) for x in today.tolist()]
+        except Exception:
+            continue
+    return out

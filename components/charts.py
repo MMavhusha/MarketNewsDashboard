@@ -12,7 +12,8 @@ GRID = "#ECECEA"
 TEXT = "#4C4D52"
 
 
-def sparkline(values: list[float], height: int = 42) -> go.Figure:
+def sparkline(values: list[float], height: int = 42,
+              label: str = "") -> go.Figure:
     color = GREEN if values and values[-1] >= values[0] else RED
     fig = go.Figure(go.Scatter(
         y=values, mode="lines", line=dict(width=1.6, color=color),
@@ -30,6 +31,35 @@ def sparkline(values: list[float], height: int = 42) -> go.Figure:
         lo, hi = min(values), max(values)
         pad = (hi - lo) * 0.1 or 1
         fig.update_yaxes(range=[lo - pad, hi + pad])
+    if label:
+        fig.add_annotation(x=0, y=1, xref="paper", yref="paper", text=label,
+                           showarrow=False, xanchor="left", yanchor="top",
+                           font=dict(size=8.5, color="#B9BBB4", family="Lato"))
+    return fig
+
+
+def intraday_spark(values: list[float], prev_close: float,
+                   height: int = 42) -> go.Figure:
+    """Windows-widget style: today's session line vs dashed prior close."""
+    up = values[-1] >= prev_close
+    color = GREEN if up else RED
+    fig = go.Figure(go.Scatter(
+        y=values, mode="lines", line=dict(width=1.6, color=color),
+        hoverinfo="skip"))
+    fig.add_hline(y=prev_close, line_dash="dot", line_width=1,
+                  line_color="#B9BBB4")
+    lo = min(min(values), prev_close)
+    hi = max(max(values), prev_close)
+    pad = (hi - lo) * 0.15 or 1
+    fig.update_layout(
+        height=height, margin=dict(l=0, r=0, t=0, b=0),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        xaxis=dict(visible=False),
+        yaxis=dict(visible=False, range=[lo - pad, hi + pad]),
+        showlegend=False)
+    fig.add_annotation(x=0, y=1, xref="paper", yref="paper", text="1D",
+                       showarrow=False, xanchor="left", yanchor="top",
+                       font=dict(size=8.5, color="#B9BBB4", family="Lato"))
     return fig
 
 
@@ -58,6 +88,7 @@ def multi_line(df: pd.DataFrame, title: str = "", height: int = 340,
     muted greys, direct end-of-line labels instead of a legend."""
     muted = ["#B9BBB4", "#9FA199", "#C9CBC4", "#8A8C84", "#AFB6C4"]
     fig = go.Figure()
+    _labels: list = []
     mi = 0
     for col in df.columns:
         series = df[col].dropna()
@@ -73,12 +104,23 @@ def multi_line(df: pd.DataFrame, title: str = "", height: int = 340,
                       smoothing=0.6),
             hovertemplate=f"{col} · %{{x}}: %{{y:,.2f}}<extra></extra>",
         ))
-        fig.add_annotation(
-            x=series.index[-1], y=float(series.values[-1]),
-            text=f"<b>{col}</b>" if hl else str(col),
-            font=dict(size=10.5, color="#FF671D" if hl else "#8A8C84",
-                      family="Lato"),
-            showarrow=False, xanchor="left", xshift=6)
+        # collect for collision-free labelling after all traces are known
+        _labels.append((float(series.values[-1]), series.index[-1],
+                        str(col), hl))
+    # spread end labels so they never overlap
+    if _labels:
+        ys = [l[0] for l in _labels]
+        span = (max(ys) - min(ys)) or 1.0
+        gap = span * 0.07
+        placed = []
+        for y, x, name, hl in sorted(_labels, key=lambda l: l[0]):
+            y_adj = y if not placed else max(y, placed[-1] + gap)
+            placed.append(y_adj)
+            fig.add_annotation(
+                x=x, y=y_adj, text=f"<b>{name}</b>" if hl else name,
+                font=dict(size=10.5, color="#FF671D" if hl else "#8A8C84",
+                          family="Lato"),
+                showarrow=False, xanchor="left", xshift=6, yanchor="middle")
     fig.update_layout(
         title=dict(text=title, font=dict(size=13, color=TEXT, family="Lato")),
         height=height, margin=dict(l=10, r=110, t=36 if title else 10, b=10),

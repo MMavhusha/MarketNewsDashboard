@@ -24,15 +24,24 @@ def render_summary_strip():
     else:
         show = quotes
         ncols = 3
+    intraday = markets.get_intraday([(q.name, q.ticker) for q in show])
     per = (len(show) + ncols - 1) // ncols
     cols = st.columns(ncols, gap="medium")
     for i, col in enumerate(cols):
         chunk = show[i * per:(i + 1) * per]
         with col, st.container(border=True):
             for q in chunk:
-                fig = (charts.sparkline(q.spark, height=34)
-                       if q.ok and len(q.spark) > 2 else None)
+                fig = None
+                if q.ok:
+                    today = intraday.get(q.ticker)
+                    prev = (q.price - q.change) if q.change is not None else None
+                    if today and prev:
+                        fig = charts.intraday_spark(today, prev, height=34)
+                    elif len(q.spark) > 2:
+                        fig = charts.sparkline(q.spark, height=34, label="1M")
                 ui.summary_row(q, fig, key=f"spark_{mode[:3]}_{q.ticker}")
+    ui.legend("1D chart: solid line = today's session, dotted = prior close · "
+              "1M shown where intraday is unavailable")
 
 
 def _story_row(item, show_importance=False):
@@ -127,18 +136,22 @@ def _right_rail(items):
     st.markdown('<div class="rail-card" style="margin-bottom:4px;">'
                 '<div class="rt">Trending Topics</div></div>',
                 unsafe_allow_html=True)
-    with st.container(key="trend_topics"):
-        if not top:
-            st.markdown('<div class="rail-card"><div class="rail-item">No live '
-                        'tags</div></div>', unsafe_allow_html=True)
-        for k, v in top:
-            stories = [it for it in items if k in it.get("tags", [])]
-            with st.expander(f"{k.upper()}  ·  {v} {'story' if v == 1 else 'stories'}"):
-                for it in stories:
-                    st.markdown(
-                        f'<div class="rail-item"><a href="{ui.esc(it["link"])}" '
-                        f'target="_blank">{ui.esc(it["title"][:90])}</a></div>',
+    if top:
+        labels = {f"{k.upper()} · {v}": k for k, v in top}
+        pick = st.pills("Topics", list(labels.keys()), default=None,
+                        key="trend_pick", label_visibility="collapsed")
+        if pick:
+            tag = labels[pick]
+            stories = [it for it in items if tag in it.get("tags", [])]
+            rows = "".join(
+                f'<div class="rail-item"><a href="{ui.esc(it["link"])}" '
+                f'target="_blank">{ui.esc(it["title"][:90])}</a></div>'
+                for it in stories)
+            st.markdown(f'<div class="rail-card">{rows}</div>',
                         unsafe_allow_html=True)
+    else:
+        st.markdown('<div class="rail-card"><div class="rail-item">No live '
+                    'tags</div></div>', unsafe_allow_html=True)
 
     watch = st.session_state.setdefault("watchlist", ["USD/ZAR", "Brent Crude", "Gold"])
     strip = {q.name: q for q in markets.get_summary_strip() if q.ok}
@@ -268,23 +281,37 @@ def page_announcements():
             {ui.esc(news.fmt_time(a["published"]))}</span></div>''',
             unsafe_allow_html=True)
 
-    ui.cal_day_header(f"Today · {len(today)}")
-    if today:
-        for a in today[:20]:
+    from itertools import groupby
+    sast = ZoneInfo("Africa/Johannesburg")
+
+    def day_of(a):
+        return a["published"].astimezone(sast).date() if a["published"] else None
+
+    dated = [a for a in view if a["published"]]
+    undated = [a for a in view if not a["published"]]
+    groups = [(d, list(g)) for d, g in groupby(dated, key=day_of)]
+    visible, archived = groups[:3], groups[3:]
+    for d, items_g in visible:
+        ui.cal_day_header(d.strftime("%A %d %B") +
+                          (" · today" if d == datetime.now(sast).date() else ""))
+        for a in items_g[:15]:
             row(a)
-    else:
-        ui.empty_state("No announcements captured in the last 24 hours for this "
-                       "category.")
-    if earlier:
-        ui.cal_day_header(f"Earlier this week · {len(earlier)}")
-        for a in earlier[:8]:
-            row(a)
-        if len(earlier) > 8:
-            with st.expander(f"Older announcements ({len(earlier) - 8})"):
-                for a in earlier[8:40]:
+    if archived:
+        lo = archived[-1][0].strftime("%d %b")
+        hi = archived[0][0].strftime("%d %b")
+        n = sum(len(g) for _, g in archived)
+        with st.expander(f"{lo} – {hi} · {n} announcements"):
+            for d, items_g in archived:
+                ui.cal_day_header(d.strftime("%A %d %B"))
+                for a in items_g[:15]:
                     row(a)
+    if undated:
+        with st.expander(f"Undated wire items · {len(undated)}"):
+            for a in undated[:15]:
+                row(a)
 
 
+# ------------------------------------------------------------ calendar
 # ------------------------------------------------------------ calendar
 def page_calendar():
     ui.legend("Orange edge = high impact · Gold = medium · hover an event for "
@@ -330,7 +357,7 @@ def page_calendar():
                           f'<div class="e-n">{ui.esc(e["event"][:44])}</div>'
                           f'<div class="e-c">{ui.esc(e["country"])}</div></div>')
             more = (f'<div class="e-c" style="text-align:center;">+{len(events)-6} '
-                    f'more</div>' if len(events) > 6 else "")
+                    f'more — see day detail ↓</div>' if len(events) > 6 else "")
             col.markdown(
                 f'<div class="cal-col{today_cls}"><div class="cal-col-h">'
                 f'{d.strftime("%a")}<span class="d">{d.day}</span></div>'
@@ -343,7 +370,9 @@ def page_calendar():
     day_opts = {f"{d.strftime('%a %d %b')} ({len(evs)})": d
                 for d, evs in sorted(by_day.items()) if evs}
     if day_opts:
-        pick = st.pills("Day detail", list(day_opts.keys()), default=None,
+        today_lbl = next((k for k, v in day_opts.items() if v == today), None)
+        pick = st.pills("Day detail", list(day_opts.keys()),
+                        default=today_lbl or list(day_opts.keys())[0],
                         key="cal_day_pick")
         if pick:
             d = day_opts[pick]
