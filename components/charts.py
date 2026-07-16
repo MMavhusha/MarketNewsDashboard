@@ -31,10 +31,6 @@ def sparkline(values: list[float], height: int = 42,
         lo, hi = min(values), max(values)
         pad = (hi - lo) * 0.1 or 1
         fig.update_yaxes(range=[lo - pad, hi + pad])
-    if label:
-        fig.add_annotation(x=0, y=1, xref="paper", yref="paper", text=label,
-                           showarrow=False, xanchor="left", yanchor="top",
-                           font=dict(size=8.5, color="#B9BBB4", family="Lato"))
     return fig
 
 
@@ -59,9 +55,6 @@ def intraday_spark(values: list[float], prev_close: float,
         xaxis=dict(visible=False),
         yaxis=dict(visible=False, range=[lo - pad, hi + pad]),
         showlegend=False)
-    fig.add_annotation(x=0, y=1, xref="paper", yref="paper", text="1D",
-                       showarrow=False, xanchor="left", yanchor="top",
-                       font=dict(size=8.5, color="#B9BBB4", family="Lato"))
     return fig
 
 

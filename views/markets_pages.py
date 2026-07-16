@@ -106,18 +106,15 @@ def page_currencies():
     _detail_panel(q, "Rate", key="fx_chart", note=note)
 
     ui.section("All pairs at a glance", "Latest vs prior session · 1M mini-chart")
-    c1, c2 = st.columns(2, gap="medium")
-    half = (len(quotes) + 1) // 2
-    chunks = [quotes[:half], quotes[half:]]
-    for col, chunk in zip((c1, c2), chunks):
-        with col, st.container(border=True):
-            for x in chunk:
-                fig = (charts.sparkline(x.spark, height=32, label="1M")
-                       if x.ok and len(x.spark) > 2 else None)
-                ui.summary_row(x, fig, key=f"fxrow_{x.ticker}")
-            for _ in range(half - len(chunk)):  # keep both panels equal height
-                st.markdown('<div style="height:64px;"></div>',
-                            unsafe_allow_html=True)
+    with st.container(border=True):
+        c1, c2 = st.columns(2, gap="large")
+        half = (len(quotes) + 1) // 2
+        for col, chunk in zip((c1, c2), (quotes[:half], quotes[half:])):
+            with col:
+                for x in chunk:
+                    fig = (charts.sparkline(x.spark, height=32)
+                           if x.ok and len(x.spark) > 2 else None)
+                    ui.summary_row(x, fig, key=f"fxrow_{x.ticker}", period="1M")
 
 
 def _sarb_repo():

@@ -138,12 +138,15 @@ def hero(item: dict, time_str: str):
     )
 
 
-def summary_row(q, spark_fig=None, key=""):
-    """Widget-style row: name/sub | sparkline | value/%."""
+def summary_row(q, spark_fig=None, key="", period=""):
+    """Widget-style row: name/sub | sparkline | value/%. The chart period
+    ('1D'/'1M') is shown in the subtitle, never over the chart."""
     import streamlit as st  # local to avoid circulars at import time
     c1, c2, c3 = st.columns([2.2, 1.2, 1.2], vertical_alignment="center")
     from data_sources.markets import SUMMARY_SUBTITLES
     sub = SUMMARY_SUBTITLES.get(q.name, "")
+    if period:
+        sub = f"{sub} · {period} chart" if sub else f"{period} chart"
     with c1:
         st.markdown(f'<div class="sum-nm">{esc(q.name)}</div>'
                     f'<div class="sum-sub">{esc(sub)}</div>',

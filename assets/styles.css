@@ -82,10 +82,10 @@ section[data-testid="stSidebar"] * { color: #212322; }
 }
 .mkt-card:hover { box-shadow: 0 4px 14px rgba(255,103,29,.18); }
 .mkt-na { border-top-color: #C9CBC4; }
-.mkt-card .nm { font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 700; color: #909288; text-transform: uppercase; letter-spacing: .6px; }
+.mkt-card .nm { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 700; color: #909288; text-transform: uppercase; letter-spacing: .6px; }
 .mkt-card .vl { font-size: 17px; font-weight: 700; color: #212322; margin-top: 2px; white-space: nowrap; }
 .mkt-card .ch { font-size: 11px; font-weight: 700; margin-top: 1px; white-space: nowrap; }
-.mkt-card .ts { font-size: 10px; color: #909288; margin-top: 2px; }
+.mkt-card .ts { font-size: 11px; color: #909288; margin-top: 2px; }
 .up { color: #1E8052; } .dn { color: #B0212C; } .flat { color: #6B6D64; }
 
 /* ---------- Hero (brand gradient background, white text) ---------- */
@@ -114,7 +114,7 @@ section[data-testid="stSidebar"] * { color: #212322; }
 .news-card .hl a { color: #212322; text-decoration: none; }
 .news-card .hl a:hover { color: #FF671D; }
 .news-card .sm { font-size: 12px; color: #4C4D52; margin-top: 5px; line-height: 1.5; }
-.news-card .mt { font-size: 10.5px; color: #909288; margin-top: 8px; }
+.news-card .mt { font-size: 11px; color: #909288; margin-top: 8px; }
 .news-card .mt b { color: #4C4D52; font-weight: 700; }
 
 /* ---------- Badges ---------- */
@@ -138,7 +138,7 @@ section[data-testid="stSidebar"] * { color: #212322; }
 }
 .alert .ti { font-size: 13px; font-weight: 700; color: #212322; }
 .alert .ds { font-size: 12px; color: #4C4D52; margin-top: 3px; }
-.alert .mt { font-size: 10.5px; color: #909288; margin-top: 6px; }
+.alert .mt { font-size: 11px; color: #909288; margin-top: 6px; }
 .al-critical { border-left-color: #B0212C; }
 .al-warning  { border-left-color: #F2C84A; }
 .al-info     { border-left-color: #003B71; }
@@ -192,7 +192,7 @@ section[data-testid="stSidebar"] * { color: #212322; }
 /* ---------- Buttons / inputs ---------- */
 .stButton > button, .stDownloadButton > button {
   border-radius: 8px; border: 1px solid #C9CBC4; background: #FFFFFF;
-  color: #003B71; font-weight: 700; font-size: 12.5px; padding: 4px 14px;
+  color: #003B71; font-weight: 600; font-size: 12px; padding: 4px 14px;
 }
 .stButton > button:hover, .stDownloadButton > button:hover {
   border-color: #FF671D; color: #FF671D;
@@ -218,7 +218,7 @@ a { color: #003B71; } a:hover { color: #FF671D; }
 
 /* One-line legend */
 .legend {
-  font-size: 10.5px; color: #909288; white-space: nowrap;
+  font-size: 11px; color: #909288; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis; margin: 4px 0 8px 0;
 }
 
@@ -246,7 +246,7 @@ section[data-testid="stSidebar"] .stButton > button:hover {
 
 /* ---------- Market summary as list rows (widget style) ---------- */
 .sum-nm { font-size: 13px; font-weight: 700; color: #212322; line-height: 1.2; }
-.sum-sub { font-size: 10.5px; color: #909288; }
+.sum-sub { font-size: 11px; color: #909288; }
 .sum-val { font-size: 13.5px; font-weight: 700; color: #212322; text-align: right; }
 .sum-pct { font-size: 12px; font-weight: 700; text-align: right; }
 .row-sep { height: 1px; background: #F2F2F2; margin: 2px 0 8px 0; }
@@ -257,7 +257,8 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
 
 /* ---------- Pills (instrument selectors) ---------- */
 button[data-testid="stBaseButton-pills"], button[data-testid="stBaseButton-pillsActive"] {
-  border-radius: 999px !important; font-size: 12px !important; font-weight: 700 !important;
+  border-radius: 999px !important; font-size: 12px !important; font-weight: 600 !important;
+  text-transform: none;
   padding: 3px 14px !important; border: 1px solid #E2E3E0 !important;
   background: #FFFFFF !important; color: #212322 !important;
 }
@@ -272,11 +273,11 @@ button[data-testid="stBaseButton-pills"]:hover {
 /* ---------- Detail panel KPIs ---------- */
 .kpi { background: #FFFFFF; border: 1px solid #E2E3E0; border-radius: 10px;
   padding: 12px 16px; }
-.kpi .k-label { font-size: 10.5px; font-weight: 700; color: #909288;
+.kpi .k-label { font-size: 11px; font-weight: 700; color: #909288;
   text-transform: uppercase; letter-spacing: .6px; }
 .kpi .k-val { font-size: 20px; font-weight: 900; color: #212322; margin-top: 2px;
   white-space: nowrap; }
-.kpi .k-sub { font-size: 10.5px; color: #909288; margin-top: 1px; }
+.kpi .k-sub { font-size: 11px; color: #909288; margin-top: 1px; }
 .detail-head { display: flex; align-items: baseline; gap: 14px; margin: 4px 0 2px 0; }
 .detail-head .dh-name { font-size: 21px; font-weight: 900; color: #212322; }
 .detail-head .dh-price { font-size: 21px; font-weight: 900; color: #212322; }
@@ -309,20 +310,39 @@ button[data-testid="stBaseButton-pills"]:hover {
   white-space: nowrap; text-overflow: ellipsis; }
 .ann-row .a-t a { color: #212322; text-decoration: none; }
 .ann-row .a-t a:hover { color: #FF671D; }
-.ann-row .a-m { font-size: 10.5px; color: #909288; white-space: nowrap; }
+.ann-row .a-m { font-size: 11px; color: #909288; white-space: nowrap; }
 
 /* Trending topic expanders: intentional compact styling */
 /* Trending pills: even two-per-row grid in the rail, sentence case */
 .st-key-trend_wrap button[data-testid="stBaseButton-pills"],
 .st-key-trend_wrap button[data-testid="stBaseButton-pillsActive"] {
   min-width: 47% !important; justify-content: center;
-  font-size: 11px !important; font-weight: 600 !important;
-  text-transform: capitalize; padding: 3px 8px !important;
+  font-size: 12px !important; font-weight: 600 !important;
+  padding: 3px 8px !important;
 }
 .st-key-trend_wrap .rail-item { font-size: 11.5px; line-height: 1.35; }
 
 /* Expander summaries: clean sentence case */
 div[data-testid="stExpander"] summary {
   text-transform: none; letter-spacing: 0;
-  font-size: 12.5px !important; font-weight: 600 !important; color: #212322 !important;
+  font-size: 12px !important; font-weight: 600 !important; color: #212322 !important;
 }
+
+
+/* ---------- Page header: editorial, no box (Apollo-style) ---------- */
+.pagehead {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  padding: 10px 2px 14px 2px; margin-bottom: 18px;
+  border-bottom: 1px solid #E2E3E0;
+}
+.pagehead .ph-title {
+  font-size: 22px; font-weight: 900; color: #212322; letter-spacing: -0.3px;
+  line-height: 1.15;
+}
+.pagehead .ph-accent {
+  display: block; width: 34px; height: 4px; background: #FF671D;
+  border-radius: 2px; margin-bottom: 8px;
+}
+.pagehead .ph-sub { font-size: 12px; color: #909288; margin-top: 4px; }
+.pagehead .ph-meta { font-size: 11px; color: #909288; text-align: right; line-height: 1.6; }
+.pagehead .ph-meta b { color: #212322; }

@@ -86,56 +86,67 @@ def page_weekly_key_events():
         stamp = datetime.now(ZoneInfo("Africa/Johannesburg")).strftime("%d %b %Y %H:%M SAST")
         log.insert(0, {"author": author.strip(), "when": stamp,
                        "text": note.strip(), "history": []})
+        st.session_state.pop("note_draft", None)  # clear the draft box
         st.rerun()
 
     editing = st.session_state.get("note_editing")
     for i, n in enumerate(log):
-        n.setdefault("history", [])  # notes created before edit-support existed
-        edited = (f' · last edited by <b>{ui.esc(n["history"][-1]["editor"])}</b> '
-                  f'· {ui.esc(n["history"][-1]["when"])}' if n["history"] else "")
-        st.markdown(
-            f'''<div class="news-card"><div class="sm">{ui.esc(n["text"])}</div>
-            <div class="mt"><b>{ui.esc(n["author"])}</b> · {ui.esc(n["when"])}{edited}</div></div>''',
-            unsafe_allow_html=True)
-        b1, b2, _ = st.columns([1, 1, 8])
-        if b1.button("Edit", key=f"ne_{i}"):
-            st.session_state["note_editing"] = i
-            st.rerun()
-        if b2.button("Delete", key=f"nd_{i}",
-                     disabled=not author.strip(),
-                     help="Enter your name above to delete"):
-            log.pop(i)
-            st.rerun()
-        if n["history"]:
-            with st.expander(f"Change history ({len(n['history'])})"):
-                for h in n["history"]:
-                    st.markdown(
-                        f'''<div class="rail-item">{h["diff"]}<br>
-                        <span style="color:#909288;font-size:10.5px;">edited by
-                        <b>{ui.esc(h["editor"])}</b> · {ui.esc(h["when"])}</span></div>''',
-                        unsafe_allow_html=True)
+        n.setdefault("history", [])
         if editing == i:
+            # chat-style: the card itself becomes the editor
             new_text = st.text_area("Edit note", value=n["text"], key=f"nt_{i}",
-                                    height=90)
-            s1, s2, _ = st.columns([1, 1, 8])
+                                    height=90, label_visibility="collapsed")
+            material = st.checkbox(
+                "Material change — record in change history",
+                value=True, key=f"nm_{i}",
+                help="Untick for typo/spelling fixes; the text updates without "
+                     "a history entry.")
+            s1, s2, _ = st.columns([1, 1, 10])
             if s1.button("Save", key=f"ns_{i}", type="primary",
                          disabled=not author.strip()):
                 if new_text.strip() and new_text.strip() != n["text"]:
-                    stamp = datetime.now(ZoneInfo("Africa/Johannesburg")).strftime(
-                        "%d %b %Y %H:%M SAST")
-                    n["history"].append({
-                        "editor": author.strip(), "when": stamp,
-                        "diff": _word_diff(n["text"], new_text.strip())})
+                    if material:
+                        stamp = datetime.now(ZoneInfo("Africa/Johannesburg")).strftime(
+                            "%d %b %Y %H:%M SAST")
+                        n["history"].append({
+                            "editor": author.strip(), "when": stamp,
+                            "diff": _word_diff(n["text"], new_text.strip())})
                     n["text"] = new_text.strip()
                 st.session_state.pop("note_editing", None)
                 st.rerun()
             if s2.button("Cancel", key=f"nc_{i}"):
                 st.session_state.pop("note_editing", None)
                 st.rerun()
-    st.caption("Names are self-declared and edits are attributed with word-level "
-               "change highlights. Verified identity (login email) requires OIDC "
-               "sign-in (e.g. Entra ID via IT app registration); durable shared "
-               "notes additionally need a small external store.")
+            continue
+
+        edited = (f' · last edited by <b>{ui.esc(n["history"][-1]["editor"])}</b> '
+                  f'· {ui.esc(n["history"][-1]["when"])}' if n["history"] else "")
+        st.markdown(
+            f'''<div class="news-card"><div class="sm">{ui.esc(n["text"])}</div>
+            <div class="mt"><b>{ui.esc(n["author"])}</b> · {ui.esc(n["when"])}{edited}</div></div>''',
+            unsafe_allow_html=True)
+        b1, b2, b3, _ = st.columns([0.7, 0.9, 1.6, 7])
+        if b1.button("Edit", key=f"ne_{i}", disabled=not author.strip(),
+                     help="Enter your name above to edit"):
+            st.session_state["note_editing"] = i
+            st.rerun()
+        if b2.button("Delete", key=f"nd_{i}", disabled=not author.strip(),
+                     help="Enter your name above to delete"):
+            log.pop(i)
+            st.rerun()
+        if n["history"]:
+            with b3.popover(f"History ({len(n['history'])})"):
+                for h in n["history"]:
+                    st.markdown(
+                        f'''<div class="rail-item">{h["diff"]}<br>
+                        <span style="color:#909288;font-size:10.5px;">edited by
+                        <b>{ui.esc(h["editor"])}</b> · {ui.esc(h["when"])}</span></div>''',
+                        unsafe_allow_html=True)
+    st.caption("Names are self-declared; material edits are attributed with "
+               "word-level change highlights, minor fixes (e.g. spelling) update "
+               "the text silently. Verified identity requires OIDC sign-in via "
+               "IT app registration; durable shared notes need a small external "
+               "store.")
 
 
 def _word_diff(old: str, new: str) -> str:

@@ -31,15 +31,18 @@ def render_summary_strip():
         chunk = show[i * per:(i + 1) * per]
         with col, st.container(border=True):
             for q in chunk:
-                fig = None
+                fig, period = None, ""
                 if q.ok:
                     today = intraday.get(q.ticker)
                     prev = (q.price - q.change) if q.change is not None else None
                     if today and prev:
                         fig = charts.intraday_spark(today, prev, height=34)
+                        period = "1D"
                     elif len(q.spark) > 2:
-                        fig = charts.sparkline(q.spark, height=34, label="1M")
-                ui.summary_row(q, fig, key=f"spark_{mode[:3]}_{q.ticker}")
+                        fig = charts.sparkline(q.spark, height=34)
+                        period = "1M"
+                ui.summary_row(q, fig, key=f"spark_{mode[:3]}_{q.ticker}",
+                               period=period)
     ui.legend("1D chart: solid line = today's session, dotted = prior close · "
               "1M shown where intraday is unavailable")
 
@@ -291,9 +294,18 @@ def page_announcements():
                        "actions wire can replace this source in future.")
         return
     cats = sorted({a["category"] for a in ann})
-    pick = st.pills("Category", ["All"] + cats, default="All", key="ann_cat",
-                    label_visibility="collapsed") or "All"
+    cc1, cc2 = st.columns([2.4, 1])
+    with cc1:
+        pick = st.pills("Category", ["All"] + cats, default="All", key="ann_cat",
+                        label_visibility="collapsed") or "All"
+    company = cc2.text_input("Company", key="ann_co",
+                             placeholder="Search company or keyword",
+                             label_visibility="collapsed")
     view = ann if pick == "All" else [a for a in ann if a["category"] == pick]
+    if company:
+        cl = company.lower()
+        view = [a for a in view if cl in a["title"].lower()
+                or cl in (a.get("source") or "").lower()]
     now = datetime.now(timezone.utc)
     view = sorted(view, key=lambda a: a["published"] or now - timedelta(days=30),
                   reverse=True)

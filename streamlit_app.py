@@ -83,11 +83,6 @@ def sidebar() -> str:
                 },
             },
         )
-        st.markdown(
-            f'<div class="sb-sub" style="margin-top:14px;letter-spacing:.4px;">'
-            f'<span class="live-dot"></span>Live · refreshed {markets.last_refresh()}</div>',
-            unsafe_allow_html=True,
-        )
         if st.button("↻ Refresh data", use_container_width=True):
             markets.clear_caches()
             st.rerun()
@@ -97,12 +92,13 @@ def sidebar() -> str:
 def topbar(page: str):
     subtitle = PAGES[page][2]
     st.markdown(
-        f'''<div class="topbar">
-        <div><div class="tb-title">{page}</div>
-        <div class="tb-meta" style="text-align:left;">{subtitle}</div></div>
-        <div class="tb-meta"><span class="live-dot"></span>Last refresh
+        f'''<div class="pagehead">
+        <div><span class="ph-accent"></span>
+        <div class="ph-title">{page}</div>
+        <div class="ph-sub">{subtitle}</div></div>
+        <div class="ph-meta"><span class="live-dot"></span>Last refresh
         <b>{markets.last_refresh()}</b><br>
-        Sources: yfinance · public RSS wires · World Bank · SARB · Forex Factory</div>
+        yfinance · public RSS wires · World Bank · SARB · Forex Factory</div>
         </div>''',
         unsafe_allow_html=True,
     )
