@@ -169,7 +169,7 @@ def get_history(ticker: str, period: str = "1y") -> pd.Series:
         return pd.Series(dtype=float)
 
 
-SUMMARY_PRIMARY = ["JSE ALSI", "USD/ZAR", "S&P 500", "Gold", "Brent Crude"]
+SUMMARY_PRIMARY = ["JSE ALSI", "USD/ZAR", "S&P 500", "EUR/USD", "Gold", "Brent Crude"]
 
 SUMMARY_SUBTITLES = {
     "S&P 500": "US large cap", "NASDAQ": "US tech", "FTSE 100": "UK large cap",

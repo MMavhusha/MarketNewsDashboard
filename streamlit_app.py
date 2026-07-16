@@ -24,17 +24,31 @@ def inject_css():
 
 
 PAGES = {
-    "Executive Summary": ("speedometer2", core.page_executive_summary),
-    "Market News": ("newspaper", core.page_market_news),
-    "Market Shock Alerts": ("exclamation-triangle", core.page_shock_alerts),
-    "Company Announcements": ("megaphone", core.page_announcements),
-    "Economic Calendar": ("calendar3", core.page_calendar),
-    "Commodities": ("minecart-loaded", markets_pages.page_commodities),
-    "Currencies": ("currency-exchange", markets_pages.page_currencies),
-    "Regional Macro": ("globe2", markets_pages.page_regional_macro),
-    "Weekly Key Events": ("star", reports.page_weekly_key_events),
-    "Reports": ("file-earmark-text", reports.page_reports),
-    "Settings": ("gear", reports.page_settings),
+    # Ordered for a PM's morning workflow: brief -> what needs attention ->
+    # what's coming -> narrative -> corporate actions -> markets detail ->
+    # slower context -> weekly synthesis -> outputs -> admin.
+    "Executive Summary": ("speedometer2", core.page_executive_summary,
+                          "Morning briefing · overnight moves, top stories, alerts"),
+    "Market Shock Alerts": ("exclamation-triangle", core.page_shock_alerts,
+                            "Threshold breaches on observed session moves"),
+    "Economic Calendar": ("calendar3", core.page_calendar,
+                          "Scheduled releases and events · week view"),
+    "Market News": ("newspaper", core.page_market_news,
+                    "Filterable wire coverage with sentiment and importance"),
+    "Company Announcements": ("megaphone", core.page_announcements,
+                              "Dividends · leadership · earnings · M&A · capital actions"),
+    "Currencies": ("currency-exchange", markets_pages.page_currencies,
+                   "Majors vs USD · select a pair for its full panel"),
+    "Commodities": ("minecart-loaded", markets_pages.page_commodities,
+                    "Spec instruments · select one for its full panel · SA BoP impact"),
+    "Regional Macro": ("globe2", markets_pages.page_regional_macro,
+                       "SA · US · Euro Area · UK · China · India"),
+    "Weekly Key Events": ("star", reports.page_weekly_key_events,
+                          "The week's most important releases and developments"),
+    "Reports": ("file-earmark-text", reports.page_reports,
+                "Weekly executive summary · monthly full pack · HTML download"),
+    "Settings": ("gear", reports.page_settings,
+                 "Providers, keys, refresh"),
 }
 
 
@@ -81,9 +95,11 @@ def sidebar() -> str:
 
 
 def topbar(page: str):
+    subtitle = PAGES[page][2]
     st.markdown(
         f'''<div class="topbar">
-        <div class="tb-title">{page}</div>
+        <div><div class="tb-title">{page}</div>
+        <div class="tb-meta" style="text-align:left;">{subtitle}</div></div>
         <div class="tb-meta"><span class="live-dot"></span>Last refresh
         <b>{markets.last_refresh()}</b><br>
         Sources: yfinance · public RSS wires · World Bank · SARB · Forex Factory</div>

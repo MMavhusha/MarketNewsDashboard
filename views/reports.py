@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import streamlit as st
 
@@ -20,56 +21,111 @@ NAMED_SOURCES = [
 
 
 def page_weekly_key_events():
-    ui.section("Weekly Key Events",
-               "This week's most important releases, market events and developments")
-    st.caption("Auto-compiled from live sources: high-importance news of the past week, "
-               "upcoming calendar releases and the week's largest observed moves. "
-               "Replaces the former Key Inflection section.")
+    st.caption("Auto-compiled from live sources: the week's most important stories, "
+               "upcoming releases and largest observed moves. Replaces the former "
+               "Key Inflection section.")
 
-    items = [i for i in news.get_news() if i["importance"] == "High"]
+    all_items = news.get_news()
     week_ago = datetime.now(timezone.utc) - timedelta(days=7)
-    weekly = [i for i in items if (i["published"] or week_ago) >= week_ago]
+    recent = [i for i in all_items if (i["published"] or week_ago) >= week_ago]
+    weekly = [i for i in recent if i["importance"] == "High"]
+    backfilled = False
+    if len(weekly) < 5:  # quiet week: backfill with medium-importance stories
+        weekly = weekly + [i for i in recent if i["importance"] == "Medium"][:5 - len(weekly)]
+        backfilled = True
 
-    c1, c2 = st.columns([1.6, 1], gap="medium")
-    with c1:
-        ui.section("Key macro & market stories", "High importance, past 7 days")
+    def stories(block):
+        for item in block:
+            st.markdown(
+                f'''<div class="ann-row">{ui.importance_badge(item["importance"])}
+                {ui.sentiment_badge(item["sentiment"])}
+                <span class="a-t"><a href="{ui.esc(item["link"])}" target="_blank"
+                title="{ui.esc(item["title"])}">{ui.esc(item["title"])}</a></span>
+                <span class="a-m">{ui.esc(item["source"])} ·
+                {ui.esc(news.fmt_time(item["published"]))}</span></div>''',
+                unsafe_allow_html=True)
+
+    many = len(weekly) >= 6
+    if many:
+        c1, c2 = st.columns([1.6, 1], gap="medium")
+        with c1:
+            ui.section("Key macro & market stories",
+                       "Past 7 days" + (" · incl. medium importance" if backfilled else ""))
+            stories(weekly[:10])
+        side = c2
+    else:
+        ui.section("Key macro & market stories",
+                   "Past 7 days" + (" · incl. medium importance" if backfilled else ""))
         if weekly:
-            for item in weekly[:10]:
-                st.markdown(
-                    f'''<div class="ann-row">{ui.sentiment_badge(item["sentiment"])}
-                    <span class="a-t"><a href="{ui.esc(item["link"])}" target="_blank"
-                    title="{ui.esc(item["title"])}">{ui.esc(item["title"])}</a></span>
-                    <span class="a-m">{ui.esc(item["source"])} ·
-                    {ui.esc(news.fmt_time(item["published"]))}</span></div>''',
-                    unsafe_allow_html=True)
+            stories(weekly)
         else:
-            ui.empty_state("No high-importance stories captured this week (or feeds "
+            ui.empty_state("No qualifying stories captured this week (or feeds "
                            "unreachable).")
-    with c2:
-        ui.section("Week's largest moves", "")
-        gainers, losers = markets.get_movers(top_n=4)
-        st.markdown('<div class="card">' +
-                    "".join(ui.mover_row(q) for q in gainers + losers) +
-                    "</div>", unsafe_allow_html=True)
+        side = st.container()
 
-        ui.section("Upcoming releases", "Next 7 days")
-        cal = calendar_data.get_calendar()
-        high = [e for e in cal if e["importance"] == "High"] or cal
-        if high:
-            for e in high[:6]:
-                ui.cal_row(e)
+    with side:
+        if many:
+            _moves_and_releases(stacked=True)
         else:
-            ui.empty_state("Calendar feed unavailable right now.")
+            c1, c2 = st.columns(2, gap="medium")
+            with c1:
+                _moves_block()
+            with c2:
+                _releases_block()
 
-    ui.section("Editorial notes", "Commentary for the week")
-    notes = st.text_area("Notes (kept for this session; persisted storage can be added "
-                         "via a lightweight DB later)",
-                         value=st.session_state.get("weekly_notes", ""), height=140)
-    st.session_state["weekly_notes"] = notes
+    ui.section("Editorial notes", "Commentary for the week · authored entries")
+    log = st.session_state.setdefault("weekly_notes_log", [])
+    c1, c2 = st.columns([1, 3])
+    author = c1.text_input("Your name", value=st.session_state.get("note_author", ""),
+                           placeholder="e.g. Antonie")
+    st.session_state["note_author"] = author
+    note = c2.text_area("Note", height=90, key="note_draft",
+                        placeholder="Add commentary for the week...")
+    if st.button("Add note", type="primary", disabled=not (author.strip() and note.strip())):
+        stamp = datetime.now(ZoneInfo("Africa/Johannesburg")).strftime("%d %b %Y %H:%M SAST")
+        log.insert(0, {"author": author.strip(), "when": stamp, "text": note.strip()})
+        st.rerun()
+    for n in log:
+        st.markdown(
+            f'''<div class="news-card"><div class="sm">{ui.esc(n["text"])}</div>
+            <div class="mt"><b>{ui.esc(n["author"])}</b> · {ui.esc(n["when"])}</div></div>''',
+            unsafe_allow_html=True)
+    st.caption("Entries are stamped with the name provided and last for this "
+               "browser session. Verified identity (login email) requires OIDC "
+               "sign-in (e.g. Entra ID) — supported by Streamlit but needs an app "
+               "registration from IT; durable shared notes additionally need a "
+               "small external store.")
+
+
+def _moves_block():
+    ui.section("Week's largest moves", "")
+    gainers, losers = markets.get_movers(top_n=4)
+    st.markdown('<div class="card">' +
+                "".join(ui.mover_row(q) for q in gainers + losers) +
+                "</div>", unsafe_allow_html=True)
+
+
+def _releases_block():
+    ui.section("Upcoming releases", "Next 7 days")
+    cal = calendar_data.get_calendar()
+    high = [e for e in cal if e["importance"] == "High"] or cal
+    if high:
+        day = None
+        for e in high[:6]:
+            if e.get("day") and e["day"] != day:
+                day = e["day"]
+                ui.cal_day_header(day)
+            ui.cal_row(e)
+    else:
+        ui.empty_state("Calendar feed unavailable right now.")
+
+
+def _moves_and_releases(stacked=False):
+    _moves_block()
+    _releases_block()
 
 
 def page_reports():
-    ui.section("Reporting", "Weekly = Executive Summary only · Monthly = full pack")
     mode = st.radio("Report mode", ["Weekly — Executive Summary", "Monthly — Full pack"],
                     horizontal=True)
     monthly = mode.startswith("Monthly")

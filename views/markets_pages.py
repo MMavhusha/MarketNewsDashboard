@@ -61,7 +61,6 @@ def page_commodities():
     units = {n: u for n, _, u in markets.COMMODITIES}
     names = [q.name for q in quotes]
 
-    ui.section("Commodities", "Select an instrument for its full panel")
     pick = st.pills("Instrument", names, default=names[0], key="cmd_pick",
                     label_visibility="collapsed") or names[0]
     q = next(x for x in quotes if x.name == pick)
@@ -92,7 +91,6 @@ def page_currencies():
     quotes = markets.get_fx()
     names = [q.name for q in quotes]
 
-    ui.section("Currencies vs USD", "Select a pair for its full panel")
     pick = st.pills("Pair", names, default="USD/ZAR" if "USD/ZAR" in names else names[0],
                     key="fx_pick", label_visibility="collapsed") or names[0]
     q = next(x for x in quotes if x.name == pick)
@@ -134,8 +132,6 @@ _PENDING = {
 
 
 def page_regional_macro():
-    ui.section("Regional Macroeconomic Dashboard",
-               "South Africa · United States · Euro Area · United Kingdom · China · India")
     st.caption("Indicator set mirrors the macro pack. Live free sources fill what "
                "they can (World Bank, SARB, yfinance); the rest shows its named "
                "target source. No estimation is performed.")
@@ -192,14 +188,30 @@ def page_regional_macro():
                 groups = sarb.get_sa_indicators()
                 if groups:
                     ui.section("Live SARB releases", "SARB public Web API · no key")
-                    for glabel, rows in groups.items():
-                        with st.expander(glabel, expanded=(glabel == "Key rates & prices")):
-                            for r in rows:
-                                st.markdown(
-                                    f'<div class="cal-row"><span class="cty" style="width:340px;">{ui.esc(r["name"])}</span>'
-                                    f'<span class="ev">{ui.esc(r["agency"])} · {ui.esc(r["date"])}</span>'
-                                    f'<span class="cal-val num">{ui.esc(r["value"])} {ui.esc(r["unit"])}</span></div>',
-                                    unsafe_allow_html=True)
+                    key_rows = groups.get("Key rates & prices") or next(iter(groups.values()))
+                    tiles = key_rows[:8]
+                    tcols = st.columns(4)
+                    for i, r in enumerate(tiles):
+                        with tcols[i % 4]:
+                            st.markdown(
+                                f'<div class="kpi" style="margin-bottom:10px;">'
+                                f'<div class="k-label" title="{ui.esc(r["name"])}">{ui.esc(r["name"][:34])}</div>'
+                                f'<div class="k-val num">{ui.esc(r["value"])}'
+                                f'<span style="font-size:11px;font-weight:400;color:#909288;"> {ui.esc(r["unit"])}</span></div>'
+                                f'<div class="k-sub">{ui.esc(r["agency"])} · {ui.esc(r["date"])}</div></div>',
+                                unsafe_allow_html=True)
+                    other = {g: rows for g, rows in groups.items() if rows is not key_rows}
+                    n_other = sum(len(v) for v in other.values()) + max(0, len(key_rows) - 8)
+                    if n_other:
+                        with st.expander(f"All published series ({n_other})"):
+                            for glabel, rows in groups.items():
+                                start = 8 if rows is key_rows else 0
+                                for r in rows[start:]:
+                                    st.markdown(
+                                        f'<div class="cal-row"><span class="cty" style="width:340px;">{ui.esc(r["name"])}</span>'
+                                        f'<span class="ev">{ui.esc(glabel)} · {ui.esc(r["agency"])} · {ui.esc(r["date"])}</span>'
+                                        f'<span class="cal-val num">{ui.esc(r["value"])} {ui.esc(r["unit"])}</span></div>',
+                                        unsafe_allow_html=True)
 
             ind_pick = st.pills("History (10y)", list(macro.WB_INDICATORS.keys()),
                                 default="GDP Growth (YoY %)", key=f"ind_{iso}")

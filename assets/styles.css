@@ -310,3 +310,13 @@ button[data-testid="stBaseButton-pills"]:hover {
 .ann-row .a-t a { color: #212322; text-decoration: none; }
 .ann-row .a-t a:hover { color: #FF671D; }
 .ann-row .a-m { font-size: 10.5px; color: #909288; white-space: nowrap; }
+
+/* Trending topic expanders: intentional compact styling */
+.st-key-trend_topics div[data-testid="stExpander"] { margin-bottom: 6px; }
+.st-key-trend_topics div[data-testid="stExpander"] summary {
+  font-size: 11px !important; font-weight: 700 !important;
+  letter-spacing: .8px; text-transform: uppercase; color: #212322 !important;
+  padding: 7px 10px !important;
+}
+.st-key-trend_topics div[data-testid="stExpander"] summary:hover { color: #FF671D !important; }
+.st-key-trend_topics .rail-item { font-size: 11.5px; line-height: 1.35; }

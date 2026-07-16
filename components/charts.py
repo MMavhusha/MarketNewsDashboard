@@ -52,32 +52,56 @@ def line_chart(series: pd.Series, title: str = "", height: int = 300,
     return fig
 
 
-def multi_line(df: pd.DataFrame, title: str = "", height: int = 320,
-               y_title: str = "") -> go.Figure:
-    palette = ["#FF671D", "#1F3864", "#909288", "#2A8B7C", "#B0212C", "#F2C84A"]  # brand chart order (Ice too light on white)
+def multi_line(df: pd.DataFrame, title: str = "", height: int = 340,
+               y_title: str = "", highlight: str = "South Africa") -> go.Figure:
+    """Editorial comparison: highlighted series in RisCura orange, peers in
+    muted greys, direct end-of-line labels instead of a legend."""
+    muted = ["#B9BBB4", "#9FA199", "#C9CBC4", "#8A8C84", "#AFB6C4"]
     fig = go.Figure()
-    for i, col in enumerate(df.columns):
+    mi = 0
+    for col in df.columns:
+        series = df[col].dropna()
+        if series.empty:
+            continue
+        hl = str(col) == highlight
+        color = "#FF671D" if hl else muted[mi % len(muted)]
+        if not hl:
+            mi += 1
         fig.add_trace(go.Scatter(
-            x=df.index, y=df[col], mode="lines", name=str(col),
-            line=dict(width=2, color=palette[i % len(palette)]),
+            x=series.index, y=series.values, mode="lines", name=str(col),
+            line=dict(width=3 if hl else 1.8, color=color, shape="spline",
+                      smoothing=0.6),
+            hovertemplate=f"{col} · %{{x}}: %{{y:,.2f}}<extra></extra>",
         ))
+        fig.add_annotation(
+            x=series.index[-1], y=float(series.values[-1]),
+            text=f"<b>{col}</b>" if hl else str(col),
+            font=dict(size=10.5, color="#FF671D" if hl else "#8A8C84",
+                      family="Lato"),
+            showarrow=False, xanchor="left", xshift=6)
     fig.update_layout(
         title=dict(text=title, font=dict(size=13, color=TEXT, family="Lato")),
-        height=height, margin=dict(l=10, r=10, t=36 if title else 10, b=10),
+        height=height, margin=dict(l=10, r=110, t=36 if title else 10, b=10),
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font=dict(family="Lato", size=11, color=TEXT),
-        xaxis=dict(gridcolor=GRID, zeroline=False, title=dict(text="Year", font=dict(size=11))),
-        yaxis=dict(gridcolor=GRID, zeroline=False, title=dict(text=y_title, font=dict(size=11))),
-        legend=dict(orientation="h", y=-0.22, font=dict(size=10.5)),
+        xaxis=dict(showgrid=False, zeroline=False,
+                   title=dict(text="Year", font=dict(size=11))),
+        yaxis=dict(gridcolor=GRID, zeroline=False,
+                   title=dict(text=y_title, font=dict(size=11))),
+        showlegend=False,
     )
     return fig
 
 
 def bar_years(pairs: list[tuple[int, float]], title: str = "",
               height: int = 260, y_title: str = "%") -> go.Figure:
+    """Annual observations: neutral bars, latest year emphasised in RisCura
+    orange (level series carry no good/bad meaning, so no green/red)."""
     years = [p[0] for p in pairs]
     vals = [p[1] for p in pairs]
-    colors = [GREEN if v >= 0 else RED for v in vals]
+    colors = ["#C9CBC4"] * len(vals)
+    if colors:
+        colors[-1] = "#FF671D"
     fig = go.Figure(go.Bar(x=years, y=vals, marker_color=colors,
                            hovertemplate="%{x}: %{y:,.2f}<extra></extra>"))
     fig.update_layout(
@@ -85,7 +109,7 @@ def bar_years(pairs: list[tuple[int, float]], title: str = "",
         height=height, margin=dict(l=10, r=10, t=36 if title else 10, b=10),
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font=dict(family="Lato", size=11, color=TEXT),
-        xaxis=dict(gridcolor=GRID, zeroline=False, type="category",
+        xaxis=dict(showgrid=False, zeroline=False, type="category",
                    title=dict(text="Year", font=dict(size=11))),
         yaxis=dict(gridcolor=GRID, zeroline=True, zerolinecolor="#C9CBC4",
                    title=dict(text=y_title, font=dict(size=11))),

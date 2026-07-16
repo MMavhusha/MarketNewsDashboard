@@ -2,9 +2,10 @@
 Company Announcements, Economic Calendar."""
 from __future__ import annotations
 
-import streamlit as st
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
+
+import streamlit as st
 
 from components import charts, ui
 from data_sources import calendar_data, markets, news
@@ -13,35 +14,39 @@ from data_sources import calendar_data, markets, news
 # ------------------------------------------------------------ shared bits
 def render_summary_strip():
     quotes = markets.get_summary_strip()
-    primary = [q for q in quotes if q.name in markets.SUMMARY_PRIMARY]
-    rest = [q for q in quotes if q.name not in markets.SUMMARY_PRIMARY]
-    c1, c2 = st.columns(2, gap="medium")
-    halves = [primary[: (len(primary) + 1) // 2], primary[(len(primary) + 1) // 2:]]
-    for col, half in zip((c1, c2), halves):
+    mode = st.pills("View", ["Priority markets", "All markets"],
+                    default="Priority markets", key="sum_mode",
+                    label_visibility="collapsed") or "Priority markets"
+    if mode == "Priority markets":
+        show = [q for q in quotes if q.name in markets.SUMMARY_PRIMARY]
+        show.sort(key=lambda q: markets.SUMMARY_PRIMARY.index(q.name))
+        ncols = 2
+    else:
+        show = quotes
+        ncols = 3
+    per = (len(show) + ncols - 1) // ncols
+    cols = st.columns(ncols, gap="medium")
+    for i, col in enumerate(cols):
+        chunk = show[i * per:(i + 1) * per]
         with col, st.container(border=True):
-            for q in half:
-                fig = charts.sparkline(q.spark, height=34) if q.ok and len(q.spark) > 2 else None
-                ui.summary_row(q, fig, key=f"spark_{q.ticker}")
-    with st.expander(f"View all markets ({len(rest)} more)"):
-        cc1, cc2 = st.columns(2, gap="medium")
-        halves = [rest[: (len(rest) + 1) // 2], rest[(len(rest) + 1) // 2:]]
-        for col, half in zip((cc1, cc2), halves):
-            with col:
-                for q in half:
-                    fig = charts.sparkline(q.spark, height=34) if q.ok and len(q.spark) > 2 else None
-                    ui.summary_row(q, fig, key=f"spark2_{q.ticker}")
+            for q in chunk:
+                fig = (charts.sparkline(q.spark, height=34)
+                       if q.ok and len(q.spark) > 2 else None)
+                ui.summary_row(q, fig, key=f"spark_{mode[:3]}_{q.ticker}")
 
 
-def _news_block(items, limit, key_prefix="n"):
-    if not items:
-        ui.empty_state("News feeds are currently unreachable. Check network access "
-                       "or configure premium wires in Settings.")
-        return
-    for i, item in enumerate(items[:limit]):
-        ui.news_card(item, news.fmt_time(item["published"]))
+def _story_row(item, show_importance=False):
+    imp = ui.importance_badge(item["importance"]) if show_importance else ""
+    st.markdown(
+        f'''<div class="ann-row">{ui.sentiment_badge(item["sentiment"])}{imp}
+        <span class="a-t"><a href="{ui.esc(item["link"])}" target="_blank"
+        title="{ui.esc(item["title"])}">{ui.esc(item["title"])}</a></span>
+        <span class="a-m">{ui.esc(item["source"])} ·
+        {ui.esc(news.fmt_time(item["published"]))}</span></div>''',
+        unsafe_allow_html=True)
 
 
-# ------------------------------------------------------------ pages
+# ------------------------------------------------------------ exec summary
 def page_executive_summary():
     main, rail = st.columns([3.2, 1], gap="medium")
 
@@ -53,13 +58,18 @@ def page_executive_summary():
         else:
             ui.empty_state("No live news available for the hero story.")
 
-        ui.section("Global Market Summary", "Priority markets first · mini-chart = last month · yfinance")
+        ui.section("Global Market Summary",
+                   "Latest vs prior session · mini-chart = last month · yfinance")
         render_summary_strip()
 
         left, right = st.columns([1.5, 1], gap="medium")
         with left:
             ui.section("Breaking News", "Ranked by importance")
-            _news_block(items[1:] if hero_item else items, 5)
+            if items:
+                for item in (items[1:6] if hero_item else items[:5]):
+                    ui.news_card(item, news.fmt_time(item["published"]))
+            else:
+                ui.empty_state("News feeds are currently unreachable.")
         with right:
             ui.section("Market Shock Alerts", "Derived from observed moves")
             alerts = markets.get_shock_alerts()
@@ -67,7 +77,8 @@ def page_executive_summary():
                 for a in alerts[:4]:
                     ui.alert_card(a)
             else:
-                ui.empty_state("No moves beyond alert thresholds in the latest session.")
+                ui.empty_state("No moves beyond alert thresholds in the latest "
+                               "session.")
 
             ui.section("Economic Calendar", "Next 7 days")
             cal = calendar_data.get_calendar()
@@ -82,25 +93,24 @@ def page_executive_summary():
             else:
                 ui.empty_state("Calendar feed unavailable right now.")
 
-        ui.section("Market Movers", "Requested instruments first · toggle for wider context")
+        ui.section("Market Movers", "Requested instruments first")
         extended = st.toggle("Include extended universe (global indices, other FX)",
                              value=False, key="mv_ext")
         gainers, losers = markets.get_movers(universe="extended" if extended else "core")
-        n = len({q.ticker for q in gainers + losers})
         ui.legend(("Core + extended universe" if extended else
-                   "Requested instruments only") + f" · showing top/bottom from "
+                   "Requested instruments only") + f" · top/bottom from "
                   f"{len(markets.CORE_MOVERS) + (len(markets.EXTENDED_MOVERS) if extended else 0)} tracked")
         c1, c2 = st.columns(2, gap="medium")
         with c1:
-            st.markdown('<div class="card"><div class="rt" style="font-size:11px;'
-                        'font-weight:700;text-transform:uppercase;letter-spacing:1px;'
-                        'color:#1E8052;margin-bottom:6px;">Top gainers</div>' +
+            st.markdown('<div class="card"><div style="font-size:11px;font-weight:700;'
+                        'text-transform:uppercase;letter-spacing:1px;color:#1E8052;'
+                        'margin-bottom:6px;">Top gainers</div>' +
                         "".join(ui.mover_row(q) for q in gainers) + "</div>",
                         unsafe_allow_html=True)
         with c2:
-            st.markdown('<div class="card"><div class="rt" style="font-size:11px;'
-                        'font-weight:700;text-transform:uppercase;letter-spacing:1px;'
-                        'color:#B0212C;margin-bottom:6px;">Top decliners</div>' +
+            st.markdown('<div class="card"><div style="font-size:11px;font-weight:700;'
+                        'text-transform:uppercase;letter-spacing:1px;color:#B0212C;'
+                        'margin-bottom:6px;">Top decliners</div>' +
                         "".join(ui.mover_row(q) for q in losers) + "</div>",
                         unsafe_allow_html=True)
 
@@ -117,17 +127,18 @@ def _right_rail(items):
     st.markdown('<div class="rail-card" style="margin-bottom:4px;">'
                 '<div class="rt">Trending Topics</div></div>',
                 unsafe_allow_html=True)
-    if not top:
-        st.markdown('<div class="rail-card"><div class="rail-item">No live tags</div></div>',
-                    unsafe_allow_html=True)
-    for k, v in top:
-        stories = [it for it in items if k in it.get("tags", [])]
-        with st.expander(f"{k.upper()} · {v} {'story' if v == 1 else 'stories'}"):
-            for it in stories:
-                st.markdown(
-                    f'<div class="rail-item"><a href="{ui.esc(it["link"])}" '
-                    f'target="_blank">{ui.esc(it["title"][:90])}</a></div>',
-                    unsafe_allow_html=True)
+    with st.container(key="trend_topics"):
+        if not top:
+            st.markdown('<div class="rail-card"><div class="rail-item">No live '
+                        'tags</div></div>', unsafe_allow_html=True)
+        for k, v in top:
+            stories = [it for it in items if k in it.get("tags", [])]
+            with st.expander(f"{k.upper()}  ·  {v} {'story' if v == 1 else 'stories'}"):
+                for it in stories:
+                    st.markdown(
+                        f'<div class="rail-item"><a href="{ui.esc(it["link"])}" '
+                        f'target="_blank">{ui.esc(it["title"][:90])}</a></div>',
+                        unsafe_allow_html=True)
 
     watch = st.session_state.setdefault("watchlist", ["USD/ZAR", "Brent Crude", "Gold"])
     strip = {q.name: q for q in markets.get_summary_strip() if q.ok}
@@ -143,8 +154,9 @@ def _right_rail(items):
     saved = st.session_state.get("saved_articles", [])
     rows = ("".join(f'<div class="rail-item"><a href="{ui.esc(s["link"])}" target="_blank">'
                     f'{ui.esc(s["title"][:70])}</a></div>' for s in saved[:6])
-            or '<div class="rail-item" style="color:#909288;">Bookmark articles from '
-               'Market News</div>')
+            or '<div class="rail-item" style="color:#909288;">Save stories with the '
+               '🔖 button on the Market News page. Saved items last for your '
+               'browser session.</div>')
     st.markdown(f'<div class="rail-card"><div class="rt">Saved Articles</div>{rows}</div>',
                 unsafe_allow_html=True)
 
@@ -167,6 +179,7 @@ def _right_rail(items):
         st.rerun()
 
 
+# ------------------------------------------------------------ market news
 def page_market_news():
     items = news.get_news()
     f1, f2, f3, f4 = st.columns([1, 1, 1, 1.4])
@@ -186,7 +199,7 @@ def page_market_news():
         ql = q.lower()
         view = [i for i in view if ql in i["title"].lower() or ql in i["summary"].lower()]
 
-    ui.section("Market News", f"{len(view)} stories · public RSS wires")
+    ui.legend(f"{len(view)} stories · ranked by importance · public RSS wires")
     if not view:
         ui.empty_state("No stories match the current filters, or feeds are unreachable.")
         return
@@ -195,16 +208,17 @@ def page_market_news():
         with c1:
             ui.news_card(item, news.fmt_time(item["published"]))
         with c2:
-            if st.button("🔖", key=f"bm_{idx}", help="Save to watch rail"):
+            if st.button("🔖", key=f"bm_{idx}",
+                         help="Save this article — it will appear under Saved "
+                              "Articles on the Executive Summary (this session)"):
                 saved = st.session_state.setdefault("saved_articles", [])
                 if item["title"] not in [s["title"] for s in saved]:
                     saved.insert(0, {"title": item["title"], "link": item["link"]})
-                st.toast("Saved.")
+                st.toast("Saved — see Saved Articles on the Executive Summary.")
 
 
+# ------------------------------------------------------------ shock alerts
 def page_shock_alerts():
-    ui.section("Market Shock Alerts",
-               "Rule-based on observed session moves — display only, no forecasting")
     alerts = markets.get_shock_alerts()
     if not alerts:
         ui.empty_state("No instrument in the tracked universe moved beyond warning or "
@@ -228,9 +242,8 @@ def page_shock_alerts():
                "crypto 5%/10% (warning/critical).")
 
 
+# ------------------------------------------------------------ announcements
 def page_announcements():
-    ui.section("Company Announcements",
-               "Dividends · leadership · earnings · M&A · capital raises · buybacks · guidance")
     ann = news.get_announcements()
     if not ann:
         ui.empty_state("Announcement feeds unreachable. A SENS/Bloomberg corporate "
@@ -240,8 +253,11 @@ def page_announcements():
     pick = st.pills("Category", ["All"] + cats, default="All", key="ann_cat",
                     label_visibility="collapsed") or "All"
     view = ann if pick == "All" else [a for a in ann if a["category"] == pick]
-    view = sorted(view, key=lambda a: a["published"] or
-                  datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+    now = datetime.now(timezone.utc)
+    view = sorted(view, key=lambda a: a["published"] or now - timedelta(days=30),
+                  reverse=True)
+    today = [a for a in view if a["published"] and (now - a["published"]).days < 1]
+    earlier = [a for a in view if a not in today]
 
     def row(a):
         st.markdown(
@@ -252,18 +268,27 @@ def page_announcements():
             {ui.esc(news.fmt_time(a["published"]))}</span></div>''',
             unsafe_allow_html=True)
 
-    for a in view[:10]:
-        row(a)
-    if len(view) > 10:
-        with st.expander(f"Show {len(view) - 10} more"):
-            for a in view[10:40]:
-                row(a)
+    ui.cal_day_header(f"Today · {len(today)}")
+    if today:
+        for a in today[:20]:
+            row(a)
+    else:
+        ui.empty_state("No announcements captured in the last 24 hours for this "
+                       "category.")
+    if earlier:
+        ui.cal_day_header(f"Earlier this week · {len(earlier)}")
+        for a in earlier[:8]:
+            row(a)
+        if len(earlier) > 8:
+            with st.expander(f"Older announcements ({len(earlier) - 8})"):
+                for a in earlier[8:40]:
+                    row(a)
 
 
+# ------------------------------------------------------------ calendar
 def page_calendar():
-    ui.section("Economic Calendar", "Week view · scheduled data releases and events")
-    ui.legend("Orange edge = high impact · Gold = medium · Consensus vs Previous "
-              "shown per event · times in SAST")
+    ui.legend("Orange edge = high impact · Gold = medium · hover an event for "
+              "Consensus vs Previous · times in SAST")
     horizon = st.pills("Horizon", ["Next 7 days", "Next 14 days"],
                        default="Next 7 days", key="cal_h") or "Next 7 days"
     days_ahead = 7 if horizon.startswith("Next 7") else 14
@@ -283,6 +308,10 @@ def page_calendar():
             by_day.setdefault(dt.astimezone(sast).date(), []).append(e)
         except Exception:
             continue
+    rank = {"High": 0, "Medium": 1, "Low": 2}
+    for d in by_day:
+        by_day[d].sort(key=lambda e: (rank.get(e["importance"], 3),
+                                      e.get("time") or ""))
 
     for week_start in range(0, days_ahead, 7):
         days = [today + timedelta(days=week_start + i) for i in range(7)]
@@ -294,22 +323,33 @@ def page_calendar():
             for e in events[:6]:
                 sev = ("ev-high" if e["importance"] == "High"
                        else "ev-medium" if e["importance"] == "Medium" else "")
-                exp = e["expected"]
-                cons = (f' · Cons {ui.esc(exp)}' if exp not in ("—", "", None) else "")
                 chips += (f'<div class="cal-ev {sev}" title="{ui.esc(e["event"])} — '
                           f'Consensus {ui.esc(e["expected"])}, Previous '
                           f'{ui.esc(e["previous"])}">'
                           f'<div class="e-t">{ui.esc((e.get("time") or "")[:5])}</div>'
                           f'<div class="e-n">{ui.esc(e["event"][:44])}</div>'
-                          f'<div class="e-c">{ui.esc(e["country"])}{cons}</div></div>')
+                          f'<div class="e-c">{ui.esc(e["country"])}</div></div>')
             more = (f'<div class="e-c" style="text-align:center;">+{len(events)-6} '
                     f'more</div>' if len(events) > 6 else "")
             col.markdown(
                 f'<div class="cal-col{today_cls}"><div class="cal-col-h">'
                 f'{d.strftime("%a")}<span class="d">{d.day}</span></div>'
-                f'{chips or chr(10)}{more}</div>',
+                f'{chips}{more}</div>',
                 unsafe_allow_html=True)
         st.markdown(" ")
-    st.caption("Consensus = the market\'s forecast before release; Previous = the "
-               "prior period\'s reading; hover an event for both. Importance is the "
-               "provider\'s market-impact rating. No in-app estimation.")
+    ui.legend("Chips show highest-impact events first · select a day below for "
+              "the full list")
+
+    day_opts = {f"{d.strftime('%a %d %b')} ({len(evs)})": d
+                for d, evs in sorted(by_day.items()) if evs}
+    if day_opts:
+        pick = st.pills("Day detail", list(day_opts.keys()), default=None,
+                        key="cal_day_pick")
+        if pick:
+            d = day_opts[pick]
+            ui.cal_day_header(d.strftime("%A %d %B"))
+            for e in by_day[d]:
+                ui.cal_row(e)
+    st.caption("Consensus = the market's forecast before release; Previous = the "
+               "prior period's reading. Importance is the provider's market-impact "
+               "rating. No in-app estimation.")
