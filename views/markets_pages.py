@@ -228,6 +228,8 @@ def page_regional_macro():
     ui.section("Cross-region comparison", "Same indicator, all regions")
     ind_pick = st.pills("Indicator", list(macro.WB_INDICATORS.keys()),
                         default="Inflation, CPI (YoY %)", key="xreg")
+    focus = st.pills("Focus region", list(macro.REGIONS.keys()),
+                     default="South Africa", key="xreg_focus") or "South Africa"
     if ind_pick:
         frames = {}
         for region, iso in macro.REGIONS.items():
@@ -236,7 +238,8 @@ def page_regional_macro():
                 frames[region] = pd.Series({y: v for y, v in s})
         if frames:
             df = pd.DataFrame(frames).sort_index()
-            st.plotly_chart(charts.multi_line(df, ind_pick, y_title="%"),
+            st.plotly_chart(charts.multi_line(df, ind_pick, y_title="%",
+                                              highlight=focus),
                             use_container_width=True, config={"displayModeBar": False})
         else:
             ui.empty_state("No comparison data available.")

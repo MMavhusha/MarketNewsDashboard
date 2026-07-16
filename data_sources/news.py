@@ -36,7 +36,7 @@ _NEG = {"fall", "falls", "drop", "drops", "plunge", "slump", "crash", "fear",
         "lower", "tumble", "miss", "misses", "contraction", "layoffs"}
 
 _REGIONS = {
-    "South Africa": ["south africa", "sarb", "jse", "rand", "zar", "eskom", "stats sa", "pretoria", "johannesburg"],
+    "South Africa": ["south africa", "south african", "sarb", "jse", "rand", "zar", "eskom", "stats sa", "pretoria", "johannesburg", "cape town", "sasol", "naspers", "mtn", "transnet", "load shedding", "ramaphosa", "godongwana"],
     "United States": ["u.s.", "us ", "fed ", "federal reserve", "fomc", "wall street", "s&p", "nasdaq", "treasury", "dollar"],
     "Euro Area": ["euro", "ecb", "eurozone", "germany", "france", "bund"],
     "United Kingdom": ["uk ", "britain", "boe", "bank of england", "ftse", "sterling", "pound"],
@@ -64,13 +64,15 @@ def _clean(text: str) -> str:
     return html.unescape(re.sub(r"\s+", " ", text)).strip()
 
 
-def _classify(title: str, summary: str, default_region: str) -> dict:
+def _classify(title: str, summary: str, default_region: str = "") -> dict:
     t = f"{title} {summary}".lower()
     words = set(re.findall(r"[a-z&']+", t))
     pos, neg = len(words & _POS), len(words & _NEG)
     sentiment = "Positive" if pos > neg else "Negative" if neg > pos else "Neutral"
 
-    region = default_region
+    # Region = keyword match only; an outlet's nationality does not make a
+    # story about that country (a SA site covering a US IPO is Global).
+    region = "Global"
     for reg, keys in _REGIONS.items():
         if any(k in t for k in keys):
             region = reg

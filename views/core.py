@@ -111,8 +111,8 @@ def page_executive_summary():
                     if e.get("day") and e["day"] != day:
                         day = e["day"]
                         ui.cal_day_header(day)
-                    ui.cal_row(e)
-                ui.legend("Consensus = forecast · Previous = prior · SAST")
+                    ui.cal_mini(e)
+                ui.legend("Cons = market forecast · Prev = prior · SAST")
             else:
                 ui.empty_state("Calendar feed unavailable right now.")
 
@@ -381,6 +381,12 @@ def page_calendar():
     if not cal:
         ui.empty_state("No calendar data returned by the provider.")
         return
+    dates = sorted(e["date"][:10] for e in cal if e.get("date"))
+    span = (f"{dates[0][8:]}/{dates[0][5:7]} – {dates[-1][8:]}/{dates[-1][5:7]}"
+            if dates else "")
+    note = (" · the free feed publishes this week and next week only, so late "
+            "in the week the 14-day view adds few days" if days_ahead == 14 else "")
+    ui.legend(f"{len(cal)} events · {span}{note}")
 
     f1, f2 = st.columns([1, 2])
     imp_pick = f1.pills("Impact", ["All", "High", "Medium"], default="All",

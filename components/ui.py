@@ -192,3 +192,20 @@ def tl_row(e: dict):
           Previous <b>{esc(e["previous"])}</b></span>
         </div></div>''',
         unsafe_allow_html=True)
+
+
+def cal_mini(e: dict):
+    """Compact stacked event card for narrow columns (exec summary rail)."""
+    edge = {"High": "#FF671D", "Medium": "#F2C84A"}.get(e["importance"], "#E2E3E0")
+    exp, prev = esc(e["expected"]), esc(e["previous"])
+    st.markdown(
+        f'''<div style="background:#FFFFFF;border:1px solid #E2E3E0;
+        border-left:3px solid {edge};border-radius:8px;padding:8px 10px;
+        margin-bottom:6px;">
+        <div style="font-size:11px;color:#909288;">
+        {esc(e.get("time") or e["date"])} · <b style="color:#212322;">{esc(e["country"])}</b></div>
+        <div style="font-size:12px;font-weight:700;color:#212322;line-height:1.3;
+        margin:2px 0;">{esc(e["event"])}</div>
+        <div style="font-size:11px;color:#6B6D64;" class="num">
+        Cons {exp} · Prev {prev}</div></div>''',
+        unsafe_allow_html=True)
