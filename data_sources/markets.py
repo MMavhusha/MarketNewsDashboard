@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from typing import Optional
 
 import pandas as pd
@@ -168,6 +169,16 @@ def get_history(ticker: str, period: str = "1y") -> pd.Series:
         return pd.Series(dtype=float)
 
 
+SUMMARY_PRIMARY = ["JSE ALSI", "USD/ZAR", "S&P 500", "Gold", "Brent Crude"]
+
+SUMMARY_SUBTITLES = {
+    "S&P 500": "US large cap", "NASDAQ": "US tech", "FTSE 100": "UK large cap",
+    "JSE ALSI": "FTSE/JSE All Share", "USD/ZAR": "Rand per US Dollar",
+    "EUR/USD": "Euro vs Dollar", "Gold": "USD per ounce",
+    "Brent Crude": "USD per barrel", "Bitcoin": "USD",
+}
+
+
 def get_summary_strip() -> list[Quote]:
     return get_quotes(SUMMARY_STRIP)
 
@@ -226,7 +237,7 @@ def get_shock_alerts() -> list[dict]:
 
 
 def last_refresh() -> str:
-    return datetime.now(timezone.utc).strftime("%d %b %Y %H:%M UTC")
+    return datetime.now(ZoneInfo("Africa/Johannesburg")).strftime("%d %b %Y %H:%M SAST")
 
 
 def clear_caches():

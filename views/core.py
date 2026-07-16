@@ -11,14 +11,23 @@ from data_sources import calendar_data, markets, news
 # ------------------------------------------------------------ shared bits
 def render_summary_strip():
     quotes = markets.get_summary_strip()
-    cols = st.columns(len(quotes))
-    for col, q in zip(cols, quotes):
-        with col:
-            st.markdown(ui.market_card_html(q), unsafe_allow_html=True)
-            if q.ok and len(q.spark) > 2:
-                st.plotly_chart(charts.sparkline(q.spark), use_container_width=True,
-                                config={"displayModeBar": False},
-                                key=f"spark_{q.ticker}")
+    primary = [q for q in quotes if q.name in markets.SUMMARY_PRIMARY]
+    rest = [q for q in quotes if q.name not in markets.SUMMARY_PRIMARY]
+    c1, c2 = st.columns(2, gap="medium")
+    halves = [primary[: (len(primary) + 1) // 2], primary[(len(primary) + 1) // 2:]]
+    for col, half in zip((c1, c2), halves):
+        with col, st.container(border=True):
+            for q in half:
+                fig = charts.sparkline(q.spark, height=34) if q.ok and len(q.spark) > 2 else None
+                ui.summary_row(q, fig, key=f"spark_{q.ticker}")
+    with st.expander(f"View all markets ({len(rest)} more)"):
+        cc1, cc2 = st.columns(2, gap="medium")
+        halves = [rest[: (len(rest) + 1) // 2], rest[(len(rest) + 1) // 2:]]
+        for col, half in zip((cc1, cc2), halves):
+            with col:
+                for q in half:
+                    fig = charts.sparkline(q.spark, height=34) if q.ok and len(q.spark) > 2 else None
+                    ui.summary_row(q, fig, key=f"spark2_{q.ticker}")
 
 
 def _news_block(items, limit, key_prefix="n"):
@@ -42,7 +51,7 @@ def page_executive_summary():
         else:
             ui.empty_state("No live news available for the hero story.")
 
-        ui.section("Global Market Summary", "Latest close vs prior session · mini-chart shows the last month · yfinance")
+        ui.section("Global Market Summary", "Priority markets first · mini-chart = last month · yfinance")
         render_summary_strip()
 
         left, right = st.columns([1.5, 1], gap="medium")

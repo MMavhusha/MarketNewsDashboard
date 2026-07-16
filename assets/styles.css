@@ -16,16 +16,15 @@ html, body, [class*="css"], .stApp {
 div[data-testid="stToolbar"], div[data-testid="stDecoration"],
 div[data-testid="stStatusWidget"] { display: none; }
 header[data-testid="stHeader"] { background: transparent; height: 2.2rem; }
-[data-testid="stSidebarCollapsedControl"],
-[data-testid="collapsedControl"],
-[data-testid="stExpandSidebarButton"],
-header [data-testid="stBaseButton-headerNoPadding"] {
-  visibility: visible !important; display: flex !important; opacity: 1 !important;
-  color: #003B71 !important; background: #FFFFFF; border: 1px solid #E2E3E0;
-  border-radius: 8px; z-index: 999;
+/* Persistent navigation: the sidebar cannot be collapsed. */
+[data-testid="stSidebarCollapseButton"] { display: none !important; }
+section[data-testid="stSidebar"] {
+  transform: none !important; visibility: visible !important;
 }
-[data-testid="stSidebarCollapsedControl"] *, [data-testid="stExpandSidebarButton"] * {
-  color: #003B71 !important; visibility: visible !important;
+/* Belt-and-braces: if a stale collapsed state exists, the expand control stays usable */
+[data-testid="stExpandSidebarButton"], [data-testid="stSidebarCollapsedControl"] {
+  visibility: visible !important; display: flex !important; opacity: 1 !important;
+  color: #FF671D !important;
 }
 .block-container { padding-top: 0.6rem; padding-bottom: 2.5rem; max-width: 1500px; }
 
@@ -242,4 +241,16 @@ section[data-testid="stSidebar"] .stButton > button {
 }
 section[data-testid="stSidebar"] .stButton > button:hover {
   border-color: #FF671D; color: #FF671D;
+}
+
+
+/* ---------- Market summary as list rows (widget style) ---------- */
+.sum-nm { font-size: 13px; font-weight: 700; color: #212322; line-height: 1.2; }
+.sum-sub { font-size: 10.5px; color: #909288; }
+.sum-val { font-size: 13.5px; font-weight: 700; color: #212322; text-align: right; }
+.sum-pct { font-size: 12px; font-weight: 700; text-align: right; }
+.row-sep { height: 1px; background: #F2F2F2; margin: 2px 0 8px 0; }
+div[data-testid="stVerticalBlockBorderWrapper"] {
+  border-radius: 10px !important; border-color: #E2E3E0 !important;
+  background: #FFFFFF;
 }

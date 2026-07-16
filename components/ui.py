@@ -137,3 +137,31 @@ def hero(item: dict, time_str: str):
         </div>''',
         unsafe_allow_html=True,
     )
+
+
+def summary_row(q, spark_fig=None, key=""):
+    """Widget-style row: name/sub | sparkline | value/%."""
+    import streamlit as st  # local to avoid circulars at import time
+    c1, c2, c3 = st.columns([2.2, 1.2, 1.2], vertical_alignment="center")
+    from data_sources.markets import SUMMARY_SUBTITLES
+    sub = SUMMARY_SUBTITLES.get(q.name, "")
+    with c1:
+        st.markdown(f'<div class="sum-nm">{esc(q.name)}</div>'
+                    f'<div class="sum-sub">{esc(sub)}</div>',
+                    unsafe_allow_html=True)
+    with c2:
+        if spark_fig is not None:
+            st.plotly_chart(spark_fig, use_container_width=True,
+                            config={"displayModeBar": False}, key=key)
+    with c3:
+        if q.ok:
+            pct = (f'<div class="sum-pct {chg_cls(q.change_pct)}">'
+                   f'{q.change_pct:+.2f}%</div>' if q.change_pct is not None else "")
+            st.markdown(f'{pct}<div class="sum-val num">{q.fmt.format(q.price)}</div>'
+                        f'<div class="sum-sub" style="text-align:right;">{esc(q.asof or "")}</div>',
+                        unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="sum-val" style="color:#909288;">—</div>'
+                        '<div class="sum-sub" style="text-align:right;">retrying</div>',
+                        unsafe_allow_html=True)
+    st.markdown('<div class="row-sep"></div>', unsafe_allow_html=True)
