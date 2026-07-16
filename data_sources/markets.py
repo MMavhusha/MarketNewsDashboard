@@ -11,6 +11,8 @@ from zoneinfo import ZoneInfo
 from typing import Optional
 
 import pandas as pd
+import time
+
 import streamlit as st
 
 try:
@@ -275,29 +277,36 @@ def _intraday_cached(tickers: tuple[str, ...]) -> pd.DataFrame:
 
 
 def get_intraday(items: list[tuple]) -> dict[str, list[float]]:
-    """{ticker: today's session closes} — empty dict/list on failure."""
+    """{ticker: today's session closes}. Retries with backoff because Yahoo
+    briefly throttles the refetch burst after a cache clear; returns {} only
+    after three failed attempts."""
     if yf is None:
         return {}
     tickers = tuple(i[1] for i in items)
-    try:
-        df = _intraday_cached(tickers)
-    except Exception:
-        return {}
-    single = len(tickers) == 1
-    out: dict[str, list[float]] = {}
-    for item in items:
-        t = item[1]
+    for attempt in range(3):
         try:
-            ser = (df["Close"] if single else df[t]["Close"]).dropna()
-            if ser.empty:
-                continue
-            last_day = ser.index[-1].date()
-            today = ser[[ts.date() == last_day for ts in ser.index]]
-            if len(today) >= 3:
-                out[t] = [float(x) for x in today.tolist()]
+            df = _intraday_cached(tickers)
+            single = len(tickers) == 1
+            out: dict[str, list[float]] = {}
+            for item in items:
+                t = item[1]
+                try:
+                    ser = (df["Close"] if single else df[t]["Close"]).dropna()
+                    if ser.empty:
+                        continue
+                    last_day = ser.index[-1].date()
+                    today = ser[[ts.date() == last_day for ts in ser.index]]
+                    if len(today) >= 3:
+                        out[t] = [float(x) for x in today.tolist()]
+                except Exception:
+                    continue
+            if out or attempt == 2:
+                return out
         except Exception:
-            continue
-    return out
+            pass
+        _intraday_cached.clear()
+        time.sleep(1.0 + attempt)
+    return {}
 
 
 def watchable_names() -> list[str]:

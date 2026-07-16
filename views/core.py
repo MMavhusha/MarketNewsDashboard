@@ -25,10 +25,10 @@ def render_summary_strip():
                         default="Priority markets", key="sum_mode",
                         label_visibility="collapsed") or "Priority markets"
     with r2:
-        period = st.pills("Chart period", ["1M", "1D (today)"], default="1M",
+        period = st.pills("Chart period", ["1M", "1D"], default="1M",
                           key="sum_period",
                           label_visibility="collapsed") or "1M"
-    intraday_mode = period.startswith("1D")
+    intraday_mode = period == "1D"
     if mode == "Priority markets":
         show = [q for q in quotes if q.name in markets.SUMMARY_PRIMARY]
         show.sort(key=lambda q: markets.SUMMARY_PRIMARY.index(q.name))
@@ -38,6 +38,7 @@ def render_summary_strip():
         ncols = 3
     intraday = (markets.get_intraday([(q.name, q.ticker) for q in show])
                 if intraday_mode else {})
+    missing: list[str] = []
     per = (len(show) + ncols - 1) // ncols
     cols = st.columns(ncols, gap="medium")
     for i, col in enumerate(cols):
@@ -51,16 +52,22 @@ def render_summary_strip():
                     if today and prev:
                         fig = charts.intraday_spark(today, prev, height=34)
                         tag = "1D"
-                    else:
-                        tag = "no intraday feed"
+                    elif len(q.spark) > 2:  # closed market / brief feed gap
+                        fig = charts.sparkline(q.spark, height=34, fill=False)
+                        tag = "1M"
+                        missing.append(q.name)
                 elif q.ok and len(q.spark) > 2:
                     fig = charts.sparkline(q.spark, height=34, fill=False)
                     tag = "1M"
                 ui.summary_row(q, fig, key=f"spark_{mode[:3]}_{period[:2]}_{q.ticker}",
                                period=tag)
     if intraday_mode:
-        ui.legend("1D: solid line = today's session · dotted = prior close · "
-                  "closed markets show no intraday feed")
+        extra = (f" · no intraday session right now for "
+                 f"{', '.join(missing[:4])}{'…' if len(missing) > 4 else ''} "
+                 "(closed market or feed gap — 1M shown, retries automatically)"
+                 if missing else "")
+        ui.legend("1D: solid line = today's session · dotted = prior close"
+                  + extra)
     ui.legend(f"Auto-refreshes every 2 minutes · updated {markets.last_refresh()} · "
               "source prices may be delayed up to ~15 min by the exchange")
 

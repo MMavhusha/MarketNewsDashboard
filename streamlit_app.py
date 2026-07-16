@@ -92,6 +92,12 @@ def sidebar() -> str:
         )
         if st.button("↻ Refresh data", use_container_width=True):
             markets.clear_caches()
+            with st.spinner("Refreshing market data…"):
+                try:  # pre-warm so the page re-renders with fresh data at once
+                    qs = markets.get_summary_strip()
+                    markets.get_intraday([(q.name, q.ticker) for q in qs])
+                except Exception:
+                    pass
             st.rerun()
     return choice
 
