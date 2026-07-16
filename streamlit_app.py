@@ -42,7 +42,7 @@ PAGES = {
     "Commodities": ("minecart-loaded", markets_pages.page_commodities,
                     "Spec instruments · select one for its full panel · SA BoP impact"),
     "Regional Macro": ("globe2", markets_pages.page_regional_macro,
-                       "SA · US · Euro Area · UK · China · India"),
+                       "SA · US · Euro Area · UK · China · India · Japan"),
     "Weekly Key Events": ("star", reports.page_weekly_key_events,
                           "The week's most important releases and developments"),
     "Reports": ("file-earmark-text", reports.page_reports,

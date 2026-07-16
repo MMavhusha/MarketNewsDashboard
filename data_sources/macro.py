@@ -47,6 +47,7 @@ REGION_FX = {
     "United Kingdom": ("GBP/USD", "GBPUSD=X"),
     "China": ("USD/CNY", "USDCNY=X"),
     "India": ("USD/INR", "USDINR=X"),
+    "Japan": ("USD/JPY", "USDJPY=X"),
 }
 
 
