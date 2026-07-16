@@ -71,8 +71,7 @@ def sidebar() -> str:
         )
         st.markdown(
             f'<div class="sb-sub" style="margin-top:14px;letter-spacing:.4px;">'
-            f'<span class="live-dot"></span>Free-tier live data<br>'
-            f'Refreshed {markets.last_refresh()}</div>',
+            f'<span class="live-dot"></span>Live · refreshed {markets.last_refresh()}</div>',
             unsafe_allow_html=True,
         )
         if st.button("↻ Refresh data", use_container_width=True):

@@ -3,6 +3,8 @@ Company Announcements, Economic Calendar."""
 from __future__ import annotations
 
 import streamlit as st
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from components import charts, ui
 from data_sources import calendar_data, markets, news
@@ -234,39 +236,80 @@ def page_announcements():
         ui.empty_state("Announcement feeds unreachable. A SENS/Bloomberg corporate "
                        "actions wire can replace this source in future.")
         return
-    cats = ["All"] + sorted({a["category"] for a in ann})
-    pick = st.selectbox("Category", cats)
+    cats = sorted({a["category"] for a in ann})
+    pick = st.pills("Category", ["All"] + cats, default="All", key="ann_cat",
+                    label_visibility="collapsed") or "All"
     view = ann if pick == "All" else [a for a in ann if a["category"] == pick]
-    for a in view[:30]:
+    view = sorted(view, key=lambda a: a["published"] or
+                  datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+
+    def row(a):
         st.markdown(
-            f'''<div class="news-card">
-            <div class="hl"><a href="{ui.esc(a["link"])}" target="_blank">{ui.esc(a["title"])}</a></div>
-            <div class="mt">{ui.badge(a["category"], "blue")}
-            <b>{ui.esc(a.get("source") or "Wire")}</b> · {ui.esc(news.fmt_time(a["published"]))}</div>
-            </div>''',
-            unsafe_allow_html=True,
-        )
+            f'''<div class="ann-row">{ui.badge(a["category"], "blue")}
+            <span class="a-t"><a href="{ui.esc(a["link"])}" target="_blank"
+            title="{ui.esc(a["title"])}">{ui.esc(a["title"])}</a></span>
+            <span class="a-m">{ui.esc(a.get("source") or "Wire")} ·
+            {ui.esc(news.fmt_time(a["published"]))}</span></div>''',
+            unsafe_allow_html=True)
+
+    for a in view[:10]:
+        row(a)
+    if len(view) > 10:
+        with st.expander(f"Show {len(view) - 10} more"):
+            for a in view[10:40]:
+                row(a)
 
 
 def page_calendar():
-    ui.section("Economic Calendar", "Central banks · inflation · GDP · employment · PMI · rates")
-    st.caption(f"Provider: {calendar_data.provider_label()}")
-    if not calendar_data.has_full_access():
-        st.info("Free Forex Factory feed covers major currencies only. Add "
-                "TE_API_KEY in Streamlit Secrets to include South Africa and "
-                "India releases.", icon="🔑")
-    days = st.slider("Days ahead", 1, 14, 7)
-    cal = calendar_data.get_calendar(days_ahead=days)
+    ui.section("Economic Calendar", "Week view · scheduled data releases and events")
+    ui.legend("Orange edge = high impact · Gold = medium · Consensus vs Previous "
+              "shown per event · times in SAST")
+    horizon = st.pills("Horizon", ["Next 7 days", "Next 14 days"],
+                       default="Next 7 days", key="cal_h") or "Next 7 days"
+    days_ahead = 7 if horizon.startswith("Next 7") else 14
+    cal = calendar_data.get_calendar(days_ahead=days_ahead)
     if not cal:
         ui.empty_state("No calendar data returned by the provider.")
         return
-    st.caption("How to read this: each row is a scheduled data release or event. "
-               "Consensus = the market's forecast before release; Previous = the "
-               "prior period's reading. Importance is the provider's market-impact "
-               "rating. All times in SAST. No in-app estimation is performed.")
-    day = None
-    for e in cal[:60]:
-        if e.get("day") and e["day"] != day:
-            day = e["day"]
-            ui.cal_day_header(day)
-        ui.cal_row(e)
+
+    sast = ZoneInfo("Africa/Johannesburg")
+    today = datetime.now(sast).date()
+    by_day: dict = {}
+    for e in cal:
+        try:
+            dt = datetime.fromisoformat(e["_dt"].replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            by_day.setdefault(dt.astimezone(sast).date(), []).append(e)
+        except Exception:
+            continue
+
+    for week_start in range(0, days_ahead, 7):
+        days = [today + timedelta(days=week_start + i) for i in range(7)]
+        cols = st.columns(7, gap="small")
+        for col, d in zip(cols, days):
+            events = by_day.get(d, [])
+            today_cls = " cal-col-today" if d == today else ""
+            chips = ""
+            for e in events[:6]:
+                sev = ("ev-high" if e["importance"] == "High"
+                       else "ev-medium" if e["importance"] == "Medium" else "")
+                exp = e["expected"]
+                cons = (f' · Cons {ui.esc(exp)}' if exp not in ("—", "", None) else "")
+                chips += (f'<div class="cal-ev {sev}" title="{ui.esc(e["event"])} — '
+                          f'Consensus {ui.esc(e["expected"])}, Previous '
+                          f'{ui.esc(e["previous"])}">'
+                          f'<div class="e-t">{ui.esc((e.get("time") or "")[:5])}</div>'
+                          f'<div class="e-n">{ui.esc(e["event"][:44])}</div>'
+                          f'<div class="e-c">{ui.esc(e["country"])}{cons}</div></div>')
+            more = (f'<div class="e-c" style="text-align:center;">+{len(events)-6} '
+                    f'more</div>' if len(events) > 6 else "")
+            col.markdown(
+                f'<div class="cal-col{today_cls}"><div class="cal-col-h">'
+                f'{d.strftime("%a")}<span class="d">{d.day}</span></div>'
+                f'{chips or chr(10)}{more}</div>',
+                unsafe_allow_html=True)
+        st.markdown(" ")
+    st.caption("Consensus = the market\'s forecast before release; Previous = the "
+               "prior period\'s reading; hover an event for both. Importance is the "
+               "provider\'s market-impact rating. No in-app estimation.")

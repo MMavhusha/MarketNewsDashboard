@@ -34,8 +34,14 @@ def page_weekly_key_events():
     with c1:
         ui.section("Key macro & market stories", "High importance, past 7 days")
         if weekly:
-            for item in weekly[:8]:
-                ui.news_card(item, news.fmt_time(item["published"]))
+            for item in weekly[:10]:
+                st.markdown(
+                    f'''<div class="ann-row">{ui.sentiment_badge(item["sentiment"])}
+                    <span class="a-t"><a href="{ui.esc(item["link"])}" target="_blank"
+                    title="{ui.esc(item["title"])}">{ui.esc(item["title"])}</a></span>
+                    <span class="a-m">{ui.esc(item["source"])} ·
+                    {ui.esc(news.fmt_time(item["published"]))}</span></div>''',
+                    unsafe_allow_html=True)
         else:
             ui.empty_state("No high-importance stories captured this week (or feeds "
                            "unreachable).")
