@@ -34,13 +34,18 @@ SUMMARY_STRIP = [
 ]
 
 # Spec list only: Brent, Iron ore, Gold, Platinum, Coal, Copper
+# (name, ticker, unit, multiplier). Multiplier is a pure unit conversion —
+# never estimation. Copper: yfinance has no LME feed, so COMEX HG ($/lb) is
+# converted to $/tonne (×2204.62) and labelled as such; LME is the premium
+# target. Gold GC=F is the COMEX front month — the standard spot proxy.
 COMMODITIES = [
-    ("Brent Crude Oil", "BZ=F", "$/bbl"),
-    ("Iron Ore (SGX proxy)", "TIO=F", "$/t"),
-    ("Gold", "GC=F", "$/oz"),
-    ("Platinum", "PL=F", "$/oz"),
-    ("Coal (Newcastle proxy)", "MTF=F", "$/t"),
-    ("Copper", "HG=F", "$/lb"),
+    ("Brent Crude Oil", "BZ=F", "$/bbl", 1.0),
+    ("WTI Crude Oil", "CL=F", "$/bbl", 1.0),
+    ("Copper (COMEX conv., $/t)", "HG=F", "$/tonne", 2204.62),
+    ("Gold Spot (COMEX proxy)", "GC=F", "$/oz", 1.0),
+    ("Iron Ore 62% Fe CFR (SGX proxy)", "TIO=F", "$/tonne", 1.0),
+    ("Platinum", "PL=F", "$/oz", 1.0),
+    ("Coal (Newcastle proxy)", "MTF=F", "$/tonne", 1.0),
 ]
 
 FX_MAJORS = [
@@ -186,7 +191,15 @@ def get_summary_strip() -> list[Quote]:
 
 
 def get_commodities() -> list[Quote]:
-    return get_quotes([(n, t, "c") for n, t, _ in COMMODITIES])
+    qs = get_quotes([(n, t, "c") for n, t, _u, _m in COMMODITIES])
+    mult = {n: m for n, _t, _u, m in COMMODITIES}
+    for q in qs:  # apply unit conversions (price, spark; % change unaffected)
+        m = mult.get(q.name, 1.0)
+        if q.ok and m != 1.0:
+            q.price = q.price * m
+            q.change = (q.change or 0) * m
+            q.spark = [v * m for v in q.spark]
+    return qs
 
 
 def get_fx() -> list[Quote]:
@@ -218,7 +231,7 @@ def _alert_universe() -> tuple[list[tuple], dict]:
     items, kinds, seen = [], {}, set()
     for n, t, k, f in SUMMARY_STRIP:
         items.append((n, t, k, f)); kinds[t] = k; seen.add(t)
-    for n, t, _u in COMMODITIES:
+    for n, t, _u, _m in COMMODITIES:
         if t not in seen:
             items.append((n, t, "commodity", "{:,.2f}")); kinds[t] = "commodity"; seen.add(t)
     for n, t in FX_MAJORS:
@@ -324,7 +337,7 @@ def get_intraday(items: list[tuple]) -> dict[str, list[float]]:
 
 def watchable_names() -> list[str]:
     names = [n for n, *_ in SUMMARY_STRIP]
-    names += [n for n, _t, _u in COMMODITIES if n not in names]
+    names += [n for n, _t, _u, _m in COMMODITIES if n not in names]
     names += [n for n, _t in FX_MAJORS if n not in names]
     return names
 

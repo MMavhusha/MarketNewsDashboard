@@ -233,6 +233,7 @@ def get_news(max_per_feed: int = 12) -> list[dict]:
             for idx, f in fields.items():
                 if idx < len(queue):
                     queue[idx].update(f)
+                    queue[idx]["_ai"] = True  # admin view marks model-touched
             items.sort(key=lambda i: (i["score"], i["published"] or
                                       datetime.min.replace(tzinfo=timezone.utc)),
                        reverse=True)
@@ -336,9 +337,11 @@ def get_feed_status() -> list[dict]:
     return out
 
 
-def fuzzy_match(query: str, text: str, threshold: float = 0.8) -> bool:
-    """Substring OR typo-tolerant word match (difflib, no dependencies).
-    'escom' matches 'Eskom'; 'tarrif' matches 'tariff'."""
+def fuzzy_match(query: str, text: str) -> bool:
+    """Substring, prefix, or typo-tolerant word match (difflib, no deps).
+    'escom'→Eskom, 'tarrif'→tariff, 'oli'→oil, 'infl'→inflation (prefix).
+    Threshold scales with word length: short words need a looser ratio or
+    they can never match with a one-letter typo."""
     from difflib import SequenceMatcher
     q = query.lower().strip()
     t = text.lower()
@@ -348,7 +351,10 @@ def fuzzy_match(query: str, text: str, threshold: float = 0.8) -> bool:
         return True
     words = set(re.findall(r"[a-z0-9']+", t))
     for term in q.split():
-        if not any(SequenceMatcher(None, term, w).ratio() >= threshold
-                   for w in words):
+        thr = 0.66 if len(term) <= 4 else 0.75 if len(term) <= 6 else 0.8
+        ok = any(w.startswith(term) or term.startswith(w[:max(3, len(term))])
+                 or SequenceMatcher(None, term, w).ratio() >= thr
+                 for w in words if abs(len(w) - len(term)) <= 4)
+        if not ok:
             return False
     return True

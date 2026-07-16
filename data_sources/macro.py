@@ -18,6 +18,7 @@ REGIONS = {
     "United Kingdom": "GBR",
     "China": "CHN",
     "India": "IND",
+    "Japan": "JPN",
 }
 
 WB_INDICATORS = {
@@ -91,3 +92,31 @@ SA_BOP_EXPOSURES = [
     ("Copper", "HG=F", "Export", "Smaller direct exposure but a bellwether for the broader resource basket."),
     ("Brent Crude Oil", "BZ=F", "Import", "SA imports nearly all crude; higher Brent widens the import bill and pressures the current account."),
 ]
+
+
+# Signature commodity per region, as paired in the reference macro pack
+# (Japan–Iron Ore, SA–Gold, Eurozone–Brent, US–WTI, China–Copper). UK and
+# India are not paired in the pack: assigned by market convention (UK→Brent
+# North Sea benchmark; India→Gold, largest consumer market).
+REGION_COMMODITY = {
+    "South Africa": ("Gold Spot (COMEX proxy)", "GC=F", "$/oz", 1.0),
+    "United States": ("WTI Crude Oil", "CL=F", "$/bbl", 1.0),
+    "Euro Area": ("Brent Crude Oil", "BZ=F", "$/bbl", 1.0),
+    "United Kingdom": ("Brent Crude Oil", "BZ=F", "$/bbl", 1.0),
+    "China": ("Copper (COMEX conv., $/t)", "HG=F", "$/tonne", 2204.62),
+    "India": ("Gold Spot (COMEX proxy)", "GC=F", "$/oz", 1.0),
+    "Japan": ("Iron Ore 62% Fe CFR (SGX proxy)", "TIO=F", "$/tonne", 1.0),
+}
+
+# 10Y government bond per region, as in the pack's yields tab. Only series
+# with a free reliable source are charted; the rest name their target source.
+REGION_10Y = {
+    "United States": ("US 10Y Treasury", "^TNX", 0.1, "CBOE via yfinance"),
+    "Euro Area": ("Germany 10Y Bund", None, None, "Trading Economics / ECB (key)"),
+    "United Kingdom": ("UK 10Y Gilt", None, None, "Trading Economics / BoE (key)"),
+    "China": ("China 10Y CGB", None, None, "Trading Economics (key)"),
+    "India": ("India 10Y G-Sec", None, None, "Trading Economics (key)"),
+    "Japan": ("Japan 10Y JGB", None, None, "Trading Economics (key)"),
+    "South Africa": ("SA 10Y benchmark", "SARB_LATEST", None,
+                     "SARB latest yield · history needs a key source"),
+}

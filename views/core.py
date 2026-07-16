@@ -81,6 +81,10 @@ def page_executive_summary():
         hero_item = news.pick_hero(items)
         if hero_item:
             ui.hero(hero_item, news.fmt_time(hero_item["published"]))
+            if st.session_state.get("_admin_ok"):
+                ui.legend("Admin · hero rationale: "
+                          + ("model-generated ✦" if hero_item.get("why")
+                             else "rules-derived template"))
         else:
             ui.empty_state("No live news available for the hero story.")
 
@@ -258,7 +262,25 @@ def page_market_news():
     if not view:
         ui.empty_state("No stories match the current filters, or feeds are unreachable.")
         return
+    kw = st.session_state.get("news_watch_keywords", [])
+    admin = st.session_state.get("_admin_ok")
+    if admin:
+        n_ai = sum(1 for it in view if it.get("_ai"))
+        try:
+            from data_sources import ai_enrich
+            prov = ai_enrich.provider_label()
+        except Exception:
+            prov = "off"
+        ui.legend(f"Admin · classification: directional rules engine + AI "
+                  f"triage ({prov}) · {n_ai} of {len(view)} visible stories "
+                  f"are model-classified (marked ✦); the rest carry confident "
+                  f"rule verdicts")
     for idx, item in enumerate(view[:30]):
+        if kw and any(news.fuzzy_match(k, item["title"] + " " + item["summary"])
+                      for k in kw):
+            item = {**item, "title": "⚑ " + item["title"]}
+        if admin and item.get("_ai"):
+            item = {**item, "title": item["title"] + " ✦"}
         c1, c2 = st.columns([12, 1])
         with c1:
             ui.news_card(item, news.fmt_time(item["published"]))

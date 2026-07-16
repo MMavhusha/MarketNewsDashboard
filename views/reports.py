@@ -360,6 +360,49 @@ def page_settings():
                "now — the app degrades to explicit 'unavailable' states, never "
                "substitute data.")
 
+    ui.section("AI audit trail", "Admin only · every actual model invocation")
+    admin_pw = None
+    try:
+        admin_pw = st.secrets.get("ADMIN_PASSWORD")
+    except FileNotFoundError:
+        pass
+    if not admin_pw:
+        st.caption("Not configured — add an ADMIN_PASSWORD secret to enable "
+                   "the admin-gated audit view. Calls are being recorded "
+                   "regardless once an AI provider is active.")
+    elif not st.session_state.get("_admin_ok"):
+        a1, a2, _ = st.columns([1.6, 0.6, 3])
+        attempt = a1.text_input("Admin password", type="password",
+                                key="_admin_try", label_visibility="collapsed",
+                                placeholder="Admin password")
+        if a2.button("Unlock") and attempt == admin_pw:
+            st.session_state["_admin_ok"] = True
+            st.rerun()
+    else:
+        from data_sources import ai_audit
+        entries, durable = ai_audit.load()
+        if not entries:
+            st.caption("No AI calls recorded yet"
+                       + ("." if durable else
+                          " (session-only store — add GITHUB_TOKEN for a "
+                          "durable, git-committed trail)."))
+        else:
+            ui.legend(f"{len(entries)} recorded calls · newest first · "
+                      + ("durable — each entry is a git commit in the repo"
+                         if durable else "session-only until GITHUB_TOKEN is set"))
+            import pandas as _pd
+            df = _pd.DataFrame([{k: v for k, v in e.items() if k != "titles"}
+                                for e in entries[:200]])
+            st.dataframe(df, hide_index=True, use_container_width=True)
+            with st.expander("Headlines sent per call"):
+                for e in entries[:30]:
+                    st.markdown(f'<div class="rail-item"><b>{ui.esc(e["when"])}</b> · '
+                                + ui.esc("; ".join(e.get("titles", [])[:6])) + "</div>",
+                                unsafe_allow_html=True)
+            st.download_button("Download full audit log (JSON)",
+                               __import__("json").dumps(entries, indent=1),
+                               file_name="ai_audit_log.json")
+
     ui.section("Data Sources", "Target premium source → current free stand-in")
     for name, role, standin in NAMED_SOURCES:
         st.markdown(
@@ -371,6 +414,31 @@ def page_settings():
                "predictions anywhere in this application. Each provider lives in "
                "data_sources/ behind a stable interface; swapping one does not touch "
                "the views.")
+
+    ui.section("News keyword watchlist", "PM team · flagged on Market News and "
+               "surfaced under Keyword Alerts on the Executive Summary")
+    from data_sources import app_state as _apps
+    kws = st.session_state.setdefault("news_watch_keywords", [])
+    k1, k2 = st.columns([3, 0.8])
+    new_kw = k1.text_input("Add keyword or phrase", key="kw_new",
+                           placeholder="e.g. Eskom, rate decision, Naspers",
+                           label_visibility="collapsed")
+    if k2.button("Add keyword", disabled=not new_kw.strip()):
+        if new_kw.strip().lower() not in [k.lower() for k in kws]:
+            kws.append(new_kw.strip())
+            _apps.persist("add news keyword")
+        st.session_state.pop("kw_new", None)
+        st.rerun()
+    if kws:
+        pick_rm = st.pills("Remove", [f"✕ {k}" for k in kws], default=None,
+                           key="kw_rm", label_visibility="collapsed")
+        if pick_rm:
+            kws.remove(pick_rm[2:])
+            _apps.persist("remove news keyword")
+            st.rerun()
+        st.caption("Matching uses the same typo-tolerant search as the news "
+                   "filters. Alerts are in-app (flag + rail card); email/Teams "
+                   "push needs SMTP or a webhook — future phase.")
 
     ui.section("Alert thresholds", "Set by the PM team · applied immediately")
     st.caption("A move beyond the warning level raises a Warning alert; beyond "
@@ -402,7 +470,9 @@ def page_settings():
         app_state.persist("reset alert thresholds")
         st.rerun()
 
-    ui.section("Secrets", "Streamlit Cloud → App → Settings → Secrets")
+    if not st.session_state.get("_admin_ok"):
+        return  # secrets documentation is admin-only
+    ui.section("Secrets", "Admin · Streamlit Cloud → App → Settings → Secrets")
     st.markdown(
         '<div class="card">'
         '<code>APP_PASSWORD = "..."</code> — access gate (required in production)<br>'

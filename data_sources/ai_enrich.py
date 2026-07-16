@@ -10,6 +10,7 @@ stand unchanged.
 from __future__ import annotations
 
 import json
+import time as _time
 
 import requests
 import streamlit as st
@@ -73,6 +74,7 @@ def classify_batch(headlines: tuple[tuple[str, str], ...]) -> dict[int, dict]:
     """headlines: ((title, summary), ...) -> {index: fields}. {} on failure."""
     if not enabled() or not headlines:
         return {}
+    _t0 = _time.time()
     lines = "\n".join(f"{i}. {t} — {s[:160]}" for i, (t, s) in enumerate(headlines))
     prompt = (
         "You classify financial news for an institutional dashboard. For each "
@@ -126,6 +128,23 @@ def classify_batch(headlines: tuple[tuple[str, str], ...]) -> dict[int, dict]:
                 fields["why"] = row["why"].strip()[:220]
             if i >= 0 and fields:
                 out[i] = fields
+        _audit(headlines, out, _t0, ok=True)
         return out
-    except Exception:
+    except Exception as e:
+        _audit(headlines, {}, _t0, ok=False, error=str(e)[:120])
         return {}
+
+
+def _audit(headlines, out, t0, ok: bool, error: str = "") -> None:
+    try:
+        from data_sources import ai_audit
+        ai_audit.record({
+            "provider": provider_label(), "ok": ok,
+            "headlines_sent": len(headlines),
+            "classifications_returned": len(out),
+            "latency_ms": int((_time.time() - t0) * 1000),
+            "titles": [t[:80] for t, _ in headlines],
+            **({"error": error} if error else {}),
+        })
+    except Exception:
+        pass

@@ -11,7 +11,8 @@ from data_sources import notes_store
 
 _PATH = "data/app_state.json"
 _DEFAULT = {"watchlist": ["USD/ZAR", "Brent Crude", "Gold"],
-            "alert_thresholds": None, "saved_articles": []}
+            "alert_thresholds": None, "saved_articles": [],
+            "news_watch_keywords": []}
 
 
 def enabled() -> bool:
@@ -31,6 +32,8 @@ def ensure_loaded():
         st.session_state["watchlist"] = obj.get("watchlist",
                                                 _DEFAULT["watchlist"])
         st.session_state["saved_articles"] = obj.get("saved_articles", [])
+        st.session_state["news_watch_keywords"] = obj.get(
+            "news_watch_keywords", [])
         if obj.get("alert_thresholds"):
             st.session_state["alert_thresholds"] = {
                 k: tuple(v) for k, v in obj["alert_thresholds"].items()}
@@ -44,7 +47,9 @@ def persist(action: str):
         return
     obj = {"watchlist": st.session_state.get("watchlist", _DEFAULT["watchlist"]),
            "alert_thresholds": st.session_state.get("alert_thresholds"),
-           "saved_articles": st.session_state.get("saved_articles", [])[:40]}
+           "saved_articles": st.session_state.get("saved_articles", [])[:40],
+           "news_watch_keywords": st.session_state.get(
+               "news_watch_keywords", [])[:20]}
     try:
         st.session_state["_state_sha"] = notes_store.save_json(
             _PATH, obj, st.session_state.get("_state_sha"),

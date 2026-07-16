@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[0].parent))
 
-from data_sources.news import _classify, _clean
+from data_sources.news import _classify, _clean, fuzzy_match
 from data_sources.calendar_data import _nice
 from views.reports import _word_diff
 
@@ -43,6 +43,14 @@ def test_clean_strips_html():
 def test_calendar_nice_sast():
     day, tm = _nice("2026-07-16T06:00:00Z")   # 06:00 UTC = 08:00 SAST
     assert day.endswith("16 Jul") and tm == "08:00 SAST"
+
+
+def test_fuzzy_typos():
+    assert fuzzy_match("escom", "Eskom load shedding")
+    assert fuzzy_match("tarrif", "US tariff decision")
+    assert fuzzy_match("oli", "oil prices climb")
+    assert fuzzy_match("invlation", "Inflation surges")
+    assert not fuzzy_match("bitcoin", "SARB holds repo rate")
 
 
 def test_word_diff_marks_changes():

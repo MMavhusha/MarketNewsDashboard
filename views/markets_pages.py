@@ -62,7 +62,7 @@ def _detail_panel(q, unit: str, key: str, note: str = ""):
 # ---------------------------------------------------------------- pages
 def page_commodities():
     quotes = markets.get_commodities()
-    units = {n: u for n, _, u in markets.COMMODITIES}
+    units = {n: u for n, _t, u, _m in markets.COMMODITIES}
     names = [q.name for q in quotes]
 
     pick = st.pills("Instrument", names, default=names[0], key="cmd_pick",
@@ -112,9 +112,19 @@ def page_currencies():
     ui.section("All pairs at a glance", "Sortable — click a column header · open any pair via the pills above")
     ok_q = [x for x in quotes if x.ok]
     asof = next((x.asof for x in ok_q if x.asof), "latest close")
+    win = st.pills("Trend window", ["1M", "6M", "1Y"], default="1M",
+                   key="fx_grid_win", label_visibility="collapsed") or "1M"
+    if win == "1M":
+        trends = {x.name: (x.spark if len(x.spark) > 2 else None) for x in ok_q}
+    else:
+        per = {"6M": "6mo", "1Y": "1y"}[win]
+        trends = {}
+        for x in ok_q:
+            h = markets.get_history(x.ticker, per)
+            trends[x.name] = [float(v) for v in h.tolist()][-60:] if len(h) > 2 else None
     df = pd.DataFrame({
         "Pair": [x.name for x in ok_q],
-        "1M trend": [x.spark if len(x.spark) > 2 else None for x in ok_q],
+        f"{win} trend": [trends.get(x.name) for x in ok_q],
         "Last": [round(float(x.price), 4) for x in ok_q],
         "1D %": [round(float(x.change_pct), 2)
                  if x.change_pct is not None else None for x in ok_q],
@@ -125,17 +135,26 @@ def page_currencies():
             return "color: #909288"
         return "color: #1E8052" if v >= 0 else "color: #B0212C"
 
-    st.dataframe(
+    event = st.dataframe(
         df.style.map(_pcol, subset=["1D %"]),
-        hide_index=True, use_container_width=True, row_height=42,
-        height=int(42 * (len(ok_q) + 1)) + 6,
+        hide_index=True, use_container_width=True, row_height=48,
+        height=int(48 * (len(ok_q) + 1)) + 6,
         column_config={
             "Pair": st.column_config.TextColumn(width="small"),
-            "1M trend": st.column_config.LineChartColumn(width="medium"),
+            f"{win} trend": st.column_config.LineChartColumn(width="medium"),
             "Last": st.column_config.NumberColumn(format="%.4f", width="small"),
             "1D %": st.column_config.NumberColumn(format="%+.2f%%", width="small"),
         },
-        key="fx_grid")
+        on_select="rerun", selection_mode="single-row", key="fx_grid")
+    try:
+        rows_sel = event.selection.rows
+        if rows_sel:
+            chosen = df.iloc[rows_sel[0]]["Pair"]
+            if chosen != pick:
+                st.session_state["fx_pick"] = chosen
+                st.rerun()
+    except Exception:
+        pass
     ui.legend(f"As at {asof} · 1D % vs prior close · sparklines show the shape "
               "of one month of daily closes, each on its own scale")
 
@@ -214,11 +233,11 @@ def page_regional_macro():
             else:
                 cells.append(("Policy Rate (%)", None, _PENDING["Policy Rate (%)"]))
             if region == "South Africa":
-                r209 = _sarb_find("r209", "2036")
+                r209 = _sarb_find("r2035", "r209", "2036")
                 if r209:
                     promoted.add(r209["name"])
                     cells.append(("10Y Benchmark Yield (%)", ui.esc(r209["value"]),
-                                  f'R209 (6.25% 2036) · {r209["date"]} · SARB'))
+                                  f'{r209["name"]} · {r209["date"]} · SARB'))
                 else:
                     cells.append(("10Y Government Yield (%)", None,
                                   _PENDING["10Y Government Yield (%)"]))
@@ -253,6 +272,59 @@ def page_regional_macro():
                             f'<div class="metric-pending">Source: {ui.esc(sub)}</div></div>',
                             unsafe_allow_html=True)
                     st.markdown(" ")
+            ui.section("3-year historical charts",
+                       "Region's signature commodity · 10Y government bond")
+            h1, h2 = st.columns(2, gap="large")
+            cname, ctk, cunit, cmult = macro.REGION_COMMODITY[region]
+            with h1:
+                hist = markets.get_history(ctk, "3y")
+                if len(hist) > 2:
+                    series = hist * cmult if cmult != 1.0 else hist
+                    st.plotly_chart(
+                        charts.line_chart(series, f"{region} — {cname}",
+                                          y_title=cunit, height=300),
+                        use_container_width=True,
+                        config={"displayModeBar": False},
+                        key=f"rc_{region}")
+                else:
+                    ui.empty_state(f"{cname}: history unavailable from the "
+                                   "free proxy right now.")
+            bname, btk, bscale, bsrc = macro.REGION_10Y[region]
+            with h2:
+                if btk == "^TNX":
+                    hist = markets.get_history(btk, "3y")
+                    if len(hist) > 2:
+                        st.plotly_chart(
+                            charts.line_chart(hist * bscale,
+                                              f"{region} — {bname}",
+                                              y_title="%", height=300),
+                            use_container_width=True,
+                            config={"displayModeBar": False},
+                            key=f"rb_{region}")
+                    else:
+                        ui.empty_state(f"{bname}: yfinance unreachable.")
+                elif btk == "SARB_LATEST":
+                    r = _sarb_find("r2035", "r209", "2036")
+                    if r:
+                        st.markdown(
+                            f'<div class="kpi"><div class="k-label">{ui.esc(bname)}'
+                            f' — latest</div><div class="k-val num">{ui.esc(r["value"])}'
+                            f'<span style="font-size:11px;font-weight:400;'
+                            f'color:#909288;"> %</span></div>'
+                            f'<div class="k-sub">{ui.esc(r["name"])} · '
+                            f'{ui.esc(r["date"])} · SARB · a 3Y yield history '
+                            f'needs a keyed source</div></div>',
+                            unsafe_allow_html=True)
+                    else:
+                        ui.empty_state("SA benchmark yield not published under "
+                                       "a recognised series name.")
+                else:
+                    st.markdown(
+                        f'<div class="metric-block"><div class="metric-label">'
+                        f'{ui.esc(bname)}</div><div class="metric-pending">'
+                        f'Source: {ui.esc(bsrc)}</div></div>',
+                        unsafe_allow_html=True)
+
             fx_name, fx_tk = macro.REGION_FX[region]
             q = markets.get_quotes([(fx_name, fx_tk)])[0]
             with cols[2]:
