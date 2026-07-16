@@ -197,6 +197,16 @@ def _right_rail(items):
     st.markdown(f'<div class="rail-card"><div class="rt">Saved Articles'
                 f'{" (team)" if app_state.enabled() else ""}</div>{rows}</div>',
                 unsafe_allow_html=True)
+    if saved:
+        with st.popover("Manage saved", use_container_width=True):
+            for si, art in enumerate(list(saved[:12])):
+                r1, r2 = st.columns([8, 1])
+                r1.markdown(f'<div class="rail-item">{ui.esc(art["title"][:80])}</div>',
+                            unsafe_allow_html=True)
+                if r2.button("✕", key=f"rmsv_{si}", help="Remove"):
+                    saved[:] = [x for x in saved if x["title"] != art["title"]]
+                    app_state.persist("remove saved article")
+                    st.rerun()
 
     alerts = markets.get_shock_alerts()
     rows = ""
@@ -246,14 +256,19 @@ def page_market_news():
         with c1:
             ui.news_card(item, news.fmt_time(item["published"]))
         with c2:
-            if st.button("🔖", key=f"bm_{idx}",
-                         help="Save this article — it will appear under Saved "
-                              "Articles on the Executive Summary (this session)"):
-                saved = st.session_state.setdefault("saved_articles", [])
-                if item["title"] not in [s["title"] for s in saved]:
+            saved = st.session_state.setdefault("saved_articles", [])
+            is_saved = item["title"] in [x["title"] for x in saved]
+            if st.button("✓" if is_saved else "🔖", key=f"bm_{idx}",
+                         help=("Remove from Saved Articles" if is_saved else
+                               "Save — appears under Saved Articles on the "
+                               "Executive Summary")):
+                if is_saved:
+                    saved[:] = [x for x in saved if x["title"] != item["title"]]
+                    app_state.persist("unsave article")
+                else:
                     saved.insert(0, {"title": item["title"], "link": item["link"]})
                     app_state.persist("save article")
-                st.toast("Saved — see Saved Articles on the Executive Summary.")
+                st.rerun()
 
 
 # ------------------------------------------------------------ shock alerts

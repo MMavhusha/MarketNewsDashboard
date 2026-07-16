@@ -37,8 +37,9 @@ def page_weekly_key_events():
     def stories(block):
         for item in block:
             st.markdown(
-                f'''<div class="ann-row">{ui.importance_badge(item["importance"])}
-                {ui.sentiment_badge(item["sentiment"])}
+                f'''<div class="ann-row">
+                <span class="b-col">{ui.importance_badge(item["importance"])}</span>
+                <span class="b-col">{ui.sentiment_badge(item["sentiment"])}</span>
                 <span class="a-t"><a href="{ui.esc(item["link"])}" target="_blank"
                 title="{ui.esc(item["title"])}">{ui.esc(item["title"])}</a></span>
                 <span class="a-m">{ui.esc(item["source"])} ·
@@ -106,9 +107,12 @@ def page_weekly_key_events():
         except Exception as e:
             st.error(f"Could not save to the repo: {e}")
             return False
+    editing_now = st.session_state.get("note_editing")
     # -- identity: asked once, then a quiet "Posting as" line --
     author = st.session_state.get("note_author", "").strip()
-    if not author or st.session_state.get("_edit_identity"):
+    if editing_now is not None:
+        ui.legend("Editing a note below — Save or Cancel to add new notes.")
+    if editing_now is None and (not author or st.session_state.get("_edit_identity")):
         c1, c2, _ = st.columns([1.4, 0.6, 3])
         name_in = c1.text_input("Your name", value=author,
                                 placeholder="e.g. Antonie")
@@ -117,7 +121,7 @@ def page_weekly_key_events():
             st.session_state.pop("_edit_identity", None)
             st.rerun()
         author = ""
-    else:
+    elif editing_now is None:
         i1, i2, _ = st.columns([2.4, 0.6, 4])
         i1.markdown(
             f'<div style="font-size:12px;color:#909288;padding-top:6px;">'
@@ -128,13 +132,17 @@ def page_weekly_key_events():
             st.session_state["_edit_identity"] = True
             st.rerun()
 
-    # -- compact compose bar --
-    cc1, cc2 = st.columns([6, 0.9], vertical_alignment="bottom")
-    note = cc1.text_area("Note", height=68, key="note_draft",
-                         label_visibility="collapsed",
-                         placeholder="Add a note for the week…")
-    if cc2.button("Add", type="primary", use_container_width=True,
-                  disabled=not (author and note.strip())):
+    # -- compact compose bar (hidden while a note is being edited) --
+    if editing_now is None:
+        cc1, cc2 = st.columns([6, 0.9], vertical_alignment="bottom")
+        note = cc1.text_area("Note", height=68, key="note_draft",
+                             label_visibility="collapsed",
+                             placeholder="Add a note for the week…")
+        add_clicked = cc2.button("Add", type="primary", use_container_width=True,
+                                 disabled=not (author and note.strip()))
+    else:
+        note, add_clicked = "", False
+    if add_clicked:
         stamp = datetime.now(ZoneInfo("Africa/Johannesburg")).strftime(
             "%d %b %Y %H:%M SAST")
         log.insert(0, {"author": author, "when": stamp,
@@ -203,24 +211,36 @@ def page_weekly_key_events():
             <div class="mt">{ui.badge((n["author"] or "?")[:1].upper(), "blue")}
             <b>{ui.esc(n["author"])}</b> · {ui.esc(n["when"])}{edited}</div></div>''',
             unsafe_allow_html=True)
+        if editing_now is not None:
+            continue  # keep focus on the note being edited
         b1, b2, b3, _ = st.columns([0.7, 0.9, 1.6, 7])
         if b1.button("Edit", key=f"ne_{i}", disabled=not author.strip(),
                      help="Enter your name above to edit"):
             st.session_state["note_editing"] = i
             st.rerun()
-        if b2.button("Delete", key=f"nd_{i}", disabled=not author.strip(),
-                     help="Enter your name above to delete"):
+        if b2.button("Delete note", key=f"nd_{i}", disabled=not author.strip(),
+                     help="Removes the note and its in-app history"):
             log.pop(i)
             _persist("delete note")
             st.rerun()
         if n["history"]:
             with b3.popover(f"History ({len(n['history'])})"):
-                for h in n["history"]:
-                    st.markdown(
+                for j, h in enumerate(list(n["history"])):
+                    h1, h2 = st.columns([8, 1])
+                    h1.markdown(
                         f'''<div class="rail-item">{h["diff"]}<br>
                         <span style="color:#909288;font-size:10.5px;">edited by
                         <b>{ui.esc(h["editor"])}</b> · {ui.esc(h["when"])}</span></div>''',
                         unsafe_allow_html=True)
+                    if h2.button("✕", key=f"hd_{i}_{j}",
+                                 disabled=not author.strip(),
+                                 help="Remove this recorded change"):
+                        n["history"].pop(j)
+                        _persist("remove revision record")
+                        st.rerun()
+                st.caption("Removing a record here tidies the in-app history; "
+                           "when the repo store is on, the underlying git "
+                           "commits remain the immutable audit trail.")
     if shared:
         st.caption("Notes are shared with the whole team and every save is a "
                    "git commit in the repo (immutable audit trail). Names are "

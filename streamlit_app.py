@@ -35,7 +35,7 @@ PAGES = {
                           "Scheduled releases and events · week view"),
     "Market News": ("newspaper", core.page_market_news,
                     "Filterable wire coverage with sentiment and importance"),
-    "Company Announcements": ("megaphone", core.page_announcements,
+    "Announcements": ("megaphone", core.page_announcements,
                               "Dividends · leadership · earnings · M&A · capital actions"),
     "Currencies": ("currency-exchange", markets_pages.page_currencies,
                    "Majors vs USD · select a pair for its full panel"),
@@ -54,12 +54,18 @@ PAGES = {
 
 def sidebar() -> str:
     with st.sidebar:
-        st.markdown(
-            '<div class="sb-brand"><span class="wordmark">RISCURA</span>'
-            '<span class="obar"></span></div>'
-            '<div class="sb-sub">MARKET NEWS</div>',
-            unsafe_allow_html=True,
-        )
+        logo = Path(__file__).parent / "assets" / "riscura_logo.svg"
+        if logo.exists():  # brand rule: always the official vector wordmark
+            st.image(str(logo), width=132)
+            st.markdown('<div class="sb-sub">MARKET NEWS</div>',
+                        unsafe_allow_html=True)
+        else:  # fallback until the official asset is committed to assets/
+            st.markdown(
+                '<div class="sb-brand"><span class="wordmark">RISCURA</span>'
+                '<span class="obar"></span></div>'
+                '<div class="sb-sub">MARKET NEWS</div>',
+                unsafe_allow_html=True,
+            )
         keys = list(PAGES.keys())
         pending = st.session_state.pop("nav_to", None)
         choice = option_menu(
@@ -90,8 +96,12 @@ def sidebar() -> str:
     return choice
 
 
+PAGE_TITLES = {"Announcements": "Company Announcements"}
+
+
 def topbar(page: str):
     subtitle = PAGES[page][2]
+    page = PAGE_TITLES.get(page, page)
     st.markdown(
         f'''<div class="pagehead">
         <div><span class="ph-accent"></span>

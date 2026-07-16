@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Merriweather:wght@700&display=swap');
+
 /* ---------- RisCura brand (spec v1.4 web palette) ----------
    Orange #FF671D · Anthracite #003B71 · Charcoal #212322
    Stone #909288 · Ice #B7DCE1 · Paper #F2F2F2
@@ -44,7 +46,9 @@ section[data-testid="stSidebar"] * { color: #212322; }
   font-size: 20px; font-weight: 400; color: #909288;
   letter-spacing: 4px; line-height: 1;
 }
-.sb-brand .obar { width: 5px; background: #FF671D; border-radius: 1px; }
+.sb-brand { align-items: center; }
+.sb-brand .obar { width: 3px; height: 18px; background: #FF671D;
+  border-radius: 1px; }
 .sb-sub { padding: 2px 14px 12px 14px; font-size: 10px; color: #909288; letter-spacing: 1.6px; }
 
 .live-dot {
@@ -341,6 +345,10 @@ div[data-testid="stExpander"] summary {
 .ann-row .a-cat {
   font-size: 11px; font-weight: 700; width: 92px; flex-shrink: 0;
 }
+/* fixed badge columns: titles share one left edge regardless of badge text */
+.ann-row .b-col { width: 76px; flex-shrink: 0; }
+.ann-row .b-col .bdg { display: inline-block; width: 100%; text-align: center;
+  margin-right: 0; box-sizing: border-box; }
 
 /* Note editor: the container is styled as the note card itself, and every
    layer of the inner textarea chrome is stripped, so editing reads as the
