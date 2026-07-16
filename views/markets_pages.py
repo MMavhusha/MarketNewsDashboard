@@ -127,8 +127,8 @@ def page_currencies():
 
     event = st.dataframe(
         df.style.map(_pcol, subset=["1D %"]),
-        hide_index=True, use_container_width=True,
-        height=int(38 * (len(ok_q) + 1)) + 4,
+        hide_index=True, use_container_width=True, row_height=42,
+        height=int(42 * (len(ok_q) + 1)) + 6,
         column_config={
             "Pair": st.column_config.TextColumn(width="small"),
             "1M trend": st.column_config.LineChartColumn(width="medium"),

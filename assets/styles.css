@@ -285,7 +285,8 @@ div[data-testid="stExpander"] summary {
   border-bottom: 1px solid #E2E3E0;
 }
 .pagehead .ph-title {
-  font-size: 22px; font-weight: 900; color: #212322; letter-spacing: -0.3px;
+  /* Brand web spec H1: Lato Light, Anthracite */
+  font-size: 26px; font-weight: 300; color: #003B71; letter-spacing: 0;
   line-height: 1.15;
 }
 .pagehead .ph-accent {

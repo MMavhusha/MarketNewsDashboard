@@ -230,3 +230,21 @@ def get_feed_status() -> list[dict]:
         except Exception as e:
             out.append({"name": source, "ok": False, "detail": str(e)[:60]})
     return out
+
+
+def fuzzy_match(query: str, text: str, threshold: float = 0.8) -> bool:
+    """Substring OR typo-tolerant word match (difflib, no dependencies).
+    'escom' matches 'Eskom'; 'tarrif' matches 'tariff'."""
+    from difflib import SequenceMatcher
+    q = query.lower().strip()
+    t = text.lower()
+    if not q:
+        return True
+    if q in t:
+        return True
+    words = set(re.findall(r"[a-z0-9']+", t))
+    for term in q.split():
+        if not any(SequenceMatcher(None, term, w).ratio() >= threshold
+                   for w in words):
+            return False
+    return True

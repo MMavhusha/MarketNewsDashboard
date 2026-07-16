@@ -341,9 +341,9 @@ def page_announcements():
                              label_visibility="collapsed")
     view = ann if pick == "All" else [a for a in ann if a["category"] == pick]
     if company:
-        cl = company.lower()
-        view = [a for a in view if cl in a["title"].lower()
-                or cl in (a.get("source") or "").lower()]
+        view = [a for a in view
+                if news.fuzzy_match(company,
+                                    a["title"] + " " + (a.get("source") or ""))]
     now = datetime.now(timezone.utc)
     view = sorted(view, key=lambda a: a["published"] or now - timedelta(days=30),
                   reverse=True)
