@@ -57,7 +57,7 @@ section[data-testid="stSidebar"] * { color: #212322; }
 }
 
 /* ---------- Section headers ---------- */
-.sec-h { display: flex; align-items: center; justify-content: space-between; margin: 30px 0 12px 0; }
+.sec-h { display: flex; align-items: center; justify-content: space-between; margin: 34px 0 14px 0; }
 .sec-h .t { font-size: 13px; font-weight: 700; color: #212322; text-transform: uppercase; letter-spacing: 1.1px; border-left: 3px solid #FF671D; padding-left: 9px; }
 .sec-h .s { font-size: 11px; color: #909288; }
 .sec-rule { flex: 1; height: 1px; background: linear-gradient(90deg, #FFD3BC, #E2E3E0 40%); margin: 0 14px; }

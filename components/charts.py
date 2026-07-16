@@ -105,7 +105,7 @@ def line_chart(series: pd.Series, title: str = "", height: int = 300,
         height=height, margin=dict(l=10, r=10, t=36 if title else 10, b=10),
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font=dict(family="Lato", size=11, color=TEXT),
-        xaxis=dict(gridcolor=GRID, zeroline=False, title=dict(text="Date", font=dict(size=11))),
+        xaxis=dict(gridcolor=GRID, zeroline=False),
         yaxis=dict(gridcolor=GRID, zeroline=False, title=dict(text=y_title, font=dict(size=11))),
         showlegend=False,
     )

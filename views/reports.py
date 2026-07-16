@@ -22,8 +22,7 @@ NAMED_SOURCES = [
 
 def page_weekly_key_events():
     st.caption("Auto-compiled from live sources: the week's most important stories, "
-               "upcoming releases and largest observed moves. Replaces the former "
-               "Key Inflection section.")
+               "upcoming releases and largest observed moves.")
 
     all_items = news.get_news()
     week_ago = datetime.now(timezone.utc) - timedelta(days=7)

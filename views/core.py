@@ -61,15 +61,17 @@ def render_summary_strip():
                     tag = "1M"
                 ui.summary_row(q, fig, key=f"spark_{mode[:3]}_{period[:2]}_{q.ticker}",
                                period=tag)
+    tail = (f"Auto-refreshes every 2 minutes · updated {markets.last_refresh()} · "
+            "source prices may be delayed up to ~15 min by the exchange")
     if intraday_mode:
         extra = (f" · no intraday session right now for "
                  f"{', '.join(missing[:4])}{'…' if len(missing) > 4 else ''} "
                  "(closed market or feed gap — 1M shown, retries automatically)"
                  if missing else "")
         ui.legend("1D: solid line = today's session · dotted = prior close"
-                  + extra)
-    ui.legend(f"Auto-refreshes every 2 minutes · updated {markets.last_refresh()} · "
-              "source prices may be delayed up to ~15 min by the exchange")
+                  + extra + " · " + tail)
+    else:
+        ui.legend(tail)
 
 
 # ------------------------------------------------------------ exec summary
@@ -96,7 +98,8 @@ def page_executive_summary():
         with left:
             ui.section("Breaking News", "Ranked by importance")
             if items:
-                for item in (items[1:6] if hero_item else items[:5]):
+                pool = [i for i in items if i is not hero_item]
+                for item in pool[:5]:
                     ui.news_card(item, news.fmt_time(item["published"]))
             else:
                 ui.empty_state("News feeds are currently unreachable.")
@@ -106,6 +109,10 @@ def page_executive_summary():
             if alerts:
                 for a in alerts[:4]:
                     ui.alert_card(a)
+                if st.button("View alert details →", key="qi_goto_alerts",
+                             use_container_width=True):
+                    st.session_state["nav_to"] = "Market Shock Alerts"
+                    st.rerun()
             else:
                 ui.empty_state("No moves beyond alert thresholds in the latest "
                                "session.")
@@ -127,9 +134,8 @@ def page_executive_summary():
         extended = st.toggle("Include extended universe (global indices, other FX)",
                              value=False, key="mv_ext")
         gainers, losers = markets.get_movers(universe="extended" if extended else "core")
-        ui.legend(("Core + extended universe" if extended else
-                   "Requested instruments only") + f" · top/bottom from "
-                  f"{len(markets.CORE_MOVERS) + (len(markets.EXTENDED_MOVERS) if extended else 0)} tracked")
+        ui.legend(f"Top/bottom of "
+                  f"{len(markets.CORE_MOVERS) + (len(markets.EXTENDED_MOVERS) if extended else 0)} tracked instruments")
         c1, c2 = st.columns(2, gap="medium")
         with c1:
             st.markdown('<div class="card"><div style="font-size:11px;font-weight:700;'
@@ -219,23 +225,7 @@ def _right_rail(items):
                     app_state.persist("remove saved article")
                     st.rerun()
 
-    alerts = markets.get_shock_alerts()
-    rows = ""
-    if alerts:
-        for a in alerts[:3]:
-            kind = {"Critical": "red", "Warning": "amber"}.get(a["severity"], "blue")
-            rows += (f'<div class="rail-item">{ui.badge(a["severity"], kind)} '
-                     f'{ui.esc(a["title"])}</div>')
-    else:
-        rows = '<div class="rail-item">No threshold breaches this session.</div>'
-    rows += (f'<div class="rail-item" style="color:#909288;">{len(items)} stories '
-             f'ingested this cycle.</div>')
-    st.markdown(f'<div class="rail-card"><div class="rt">Quick Insights</div>{rows}</div>',
-                unsafe_allow_html=True)
-    if alerts and st.button("View alert details →", key="qi_goto_alerts",
-                            use_container_width=True):
-        st.session_state["nav_to"] = "Market Shock Alerts"
-        st.rerun()
+    ui.legend(f"{len(items)} stories ingested this cycle")
 
 
 # ------------------------------------------------------------ market news
@@ -327,6 +317,7 @@ def page_shock_alerts():
                        "critical thresholds in the latest session.")
     dismissed = st.session_state.setdefault("dismissed_alerts", set())
     shown = 0
+    senti_shown: set[str] = set()  # one sentiment line per asset class
     for i, a in enumerate(alerts):
         if a["title"] in dismissed:
             continue
@@ -335,9 +326,12 @@ def page_shock_alerts():
             ui.alert_card(a)
             kind = next((k for n, tk, k, _ in markets.SUMMARY_STRIP
                          if n == a["assets"]), "index")
-            senti = _wire_sentiment(_ALERT_ASSET.get(kind, "Equities"))
-            if senti:
-                ui.legend(senti)
+            cls = _ALERT_ASSET.get(kind, "Equities")
+            if cls not in senti_shown:
+                senti = _wire_sentiment(cls)
+                if senti:
+                    ui.legend(senti)
+                    senti_shown.add(cls)
         with c2:
             if st.button("✕", key=f"dis_{i}", help="Dismiss"):
                 dismissed.add(a["title"])
@@ -376,9 +370,6 @@ def page_announcements():
     now = datetime.now(timezone.utc)
     view = sorted(view, key=lambda a: a["published"] or now - timedelta(days=30),
                   reverse=True)
-    is_today = lambda a: bool(a["published"]) and (now - a["published"]).days < 1
-    today = [a for a in view if is_today(a)]
-    earlier = [a for a in view if not is_today(a)]
 
     def row(a):
         st.markdown(
@@ -436,7 +427,7 @@ def page_calendar():
             if dates else "")
     note = (" · the free feed publishes this week and next week only, so late "
             "in the week the 14-day view adds few days" if days_ahead == 14 else "")
-    ui.legend(f"{len(cal)} events · {span}{note}")
+    ui.legend(f"Window {span}{note}")
 
     f1, f2 = st.columns([1, 2])
     imp_pick = f1.pills("Impact", ["All", "High", "Medium"], default="All",

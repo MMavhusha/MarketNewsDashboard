@@ -48,9 +48,9 @@ def _detail_panel(q, unit: str, key: str, note: str = ""):
     for col, (label, val, cls) in zip((k1, k2, k3, k4), kpis):
         with col:
             st.markdown(f'<div class="kpi"><div class="k-label">{label}</div>'
-                        f'<div class="k-val num {cls}">{val}</div>'
-                        f'<div class="k-sub">observed · yfinance</div></div>',
+                        f'<div class="k-val num {cls}">{val}</div></div>',
                         unsafe_allow_html=True)
+    ui.legend("Range-aware KPIs · observed closes · yfinance")
     if len(hist):
         st.plotly_chart(charts.line_chart(hist, "", y_title=unit, height=320),
                         use_container_width=True, config={"displayModeBar": False},
@@ -331,6 +331,7 @@ def page_regional_macro():
                 st.markdown(ui.market_card_html(q), unsafe_allow_html=True)
 
             h3, h4 = st.columns(2, gap="large")
+            pending: list[str] = []
             for hcol, registry, kind in ((h3, macro.REGION_POLICY_HIST, "pol"),
                                          (h4, macro.REGION_CPI_HIST, "cpi")):
                 label, fkey, yoy, src = registry[region]
@@ -345,20 +346,17 @@ def page_regional_macro():
                             config={"displayModeBar": False},
                             key=f"r{kind}_{region}")
                         st.caption(src)
-                    elif fkey:  # free source mapped but unreachable/keyless
-                        st.markdown(
-                            f'<div class="metric-block"><div class="metric-label">'
-                            f'{ui.esc(label)} — 3Y history</div>'
-                            f'<div class="metric-pending">Unavailable right now '
-                            f'· Source: {ui.esc(src)}</div></div>',
-                            unsafe_allow_html=True)
                     else:
-                        st.markdown(
-                            f'<div class="metric-block"><div class="metric-label">'
-                            f'{ui.esc(label)} — 3Y history</div>'
-                            f'<div class="metric-pending">Source: {ui.esc(src)}'
-                            f'</div></div>',
-                            unsafe_allow_html=True)
+                        pending.append(
+                            f"<b>{ui.esc(label)}</b>: {ui.esc(src)}"
+                            + (" — unreachable right now" if fkey else ""))
+            if pending:
+                st.markdown(
+                    '<div class="metric-block"><div class="metric-label">'
+                    '3Y monthly histories — source pending</div>'
+                    '<div class="metric-pending">' + " · ".join(pending)
+                    + "</div></div>",
+                    unsafe_allow_html=True)
 
             if region == "South Africa":
                 groups = sarb.get_sa_indicators()

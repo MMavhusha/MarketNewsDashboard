@@ -115,7 +115,7 @@ def topbar(page: str):
         <div class="ph-sub">{subtitle}</div></div>
         <div class="ph-meta"><span class="live-dot"></span>Last refresh
         <b>{markets.last_refresh()}</b><br>
-        yfinance · public RSS wires · World Bank · SARB · Forex Factory</div>
+        yfinance · public RSS wires · World Bank · SARB · FRED · Forex Factory</div>
         </div>''',
         unsafe_allow_html=True,
     )
