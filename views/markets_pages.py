@@ -141,12 +141,13 @@ def page_currencies():
 
 
 def _sarb_repo():
-    """SARB names the policy rate the 'Repurchase rate' — match both forms."""
+    """The live API labels this series 'SARB policy rate' (confirmed from the
+    deployed tiles); older docs use 'Repurchase rate'/'repo' — match all."""
     groups = sarb.get_sa_indicators()
     for rows in groups.values():
         for r in rows:
             n = r["name"].lower()
-            if "repurchase" in n or "repo" in n:
+            if "policy rate" in n or "repurchase" in n or "repo" in n:
                 return r
     return {"_reachable": bool(groups)} if groups else None
 
