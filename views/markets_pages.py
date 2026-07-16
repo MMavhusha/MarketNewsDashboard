@@ -140,6 +140,16 @@ def page_currencies():
               "of one month of daily closes, each on its own scale")
 
 
+def _sarb_find(*keywords):
+    """First SARB series whose name contains any keyword (case-insensitive)."""
+    for rows in sarb.get_sa_indicators().values():
+        for r in rows:
+            n = r["name"].lower()
+            if any(k in n for k in keywords):
+                return r
+    return None
+
+
 def _sarb_repo():
     """The live API labels this series 'SARB policy rate' (confirmed from the
     deployed tiles); older docs use 'Repurchase rate'/'repo' — match all."""
@@ -168,9 +178,17 @@ def page_regional_macro():
     tabs = st.tabs(list(macro.REGIONS.keys()))
     for tab, (region, iso) in zip(tabs, macro.REGIONS.items()):
         with tab:
+            promoted: set = set()  # SARB series shown in the headline grid
             cells = []
             for ind in ["GDP Growth (YoY %)", "Inflation, CPI (YoY %)",
                         "Unemployment Rate (%)"]:
+                if region == "South Africa" and ind.startswith("Inflation"):
+                    cpi = _sarb_find("cpi")
+                    if cpi:
+                        promoted.add(cpi["name"])
+                        cells.append((ind, ui.esc(cpi["value"]),
+                                      f'{cpi["date"]} · SARB (monthly)'))
+                        continue
                 cell = matrix.get(ind, {}).get(region)
                 cells.append((ind, f"{cell[1]:,.2f}" if cell else None,
                               f"{cell[0]} · World Bank" if cell else "World Bank unreachable"))
@@ -178,12 +196,23 @@ def page_regional_macro():
                 repo = _sarb_repo()
                 if repo is not None and "_reachable" in repo:
                     repo = None  # API fine; series name not matched
+                if repo:
+                    promoted.add(repo["name"])
                 cells.append(("Policy Rate (%)", ui.esc(repo["value"]) if repo else None,
                               f'{repo["date"]} · SARB Web API' if repo
                               else "not published under a recognised series name — see the SARB tiles below"))
             else:
                 cells.append(("Policy Rate (%)", None, _PENDING["Policy Rate (%)"]))
-            if region == "United States":
+            if region == "South Africa":
+                r209 = _sarb_find("r209", "2036")
+                if r209:
+                    promoted.add(r209["name"])
+                    cells.append(("10Y Benchmark Yield (%)", ui.esc(r209["value"]),
+                                  f'R209 (6.25% 2036) · {r209["date"]} · SARB'))
+                else:
+                    cells.append(("10Y Government Yield (%)", None,
+                                  _PENDING["10Y Government Yield (%)"]))
+            elif region == "United States":
                 q10 = markets.get_quotes([("US 10Y", "^TNX")])[0]
                 cells.append(("10Y Government Yield (%)",
                               f"{q10.price/10:,.2f}" if q10.ok else None,
@@ -219,7 +248,14 @@ def page_regional_macro():
                 if groups:
                     ui.section("Live SARB releases", "SARB public Web API · no key")
                     key_rows = groups.get("Key rates & prices") or next(iter(groups.values()))
-                    tiles = key_rows[:8]
+                    pool = [r for rows in groups.values() for r in rows]
+                    fresh = [r for r in key_rows if r["name"] not in promoted]
+                    for r in pool:  # backfill slots freed by promoted series
+                        if len(fresh) >= 8:
+                            break
+                        if r["name"] not in promoted and r not in fresh:
+                            fresh.append(r)
+                    tiles = fresh[:8]
                     tcols = st.columns(4)
                     for i, r in enumerate(tiles):
                         with tcols[i % 4]:
@@ -230,13 +266,15 @@ def page_regional_macro():
                                 f'<span style="font-size:11px;font-weight:400;color:#909288;"> {ui.esc(r["unit"])}</span></div>'
                                 f'<div class="k-sub">{ui.esc(r["agency"])} · {ui.esc(r["date"])}</div></div>',
                                 unsafe_allow_html=True)
-                    other = {g: rows for g, rows in groups.items() if rows is not key_rows}
-                    n_other = sum(len(v) for v in other.values()) + max(0, len(key_rows) - 8)
+                    shown = {r["name"] for r in tiles} | promoted
+                    n_other = sum(1 for rows in groups.values() for r in rows
+                                  if r["name"] not in shown)
                     if n_other:
                         with st.expander(f"All published series ({n_other})"):
                             for glabel, rows in groups.items():
-                                start = 8 if rows is key_rows else 0
-                                for r in rows[start:]:
+                                for r in rows:
+                                    if r["name"] in shown:
+                                        continue
                                     st.markdown(
                                         f'<div class="cal-row"><span class="cty" style="width:340px;">{ui.esc(r["name"])}</span>'
                                         f'<span class="ev">{ui.esc(glabel)} · {ui.esc(r["agency"])} · {ui.esc(r["date"])}</span>'
