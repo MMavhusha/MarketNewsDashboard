@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from components import charts, ui
-from data_sources import macro, markets, sarb
+from data_sources import fred, macro, markets, sarb
 
 
 # ---------------------------------------------------------------- helpers
@@ -201,6 +201,16 @@ def page_regional_macro():
                 cells.append(("Policy Rate (%)", ui.esc(repo["value"]) if repo else None,
                               f'{repo["date"]} · SARB Web API' if repo
                               else "not published under a recognised series name — see the SARB tiles below"))
+            elif region == "United States" and fred.enabled():
+                f = fred.latest("us_policy")
+                cells.append(("Policy Rate (%)", f["value"] if f else None,
+                              f'{f["date"]} · {f["label"]}' if f
+                              else _PENDING["Policy Rate (%)"]))
+            elif region == "Euro Area" and fred.enabled():
+                f = fred.latest("ea_policy")
+                cells.append(("Policy Rate (%)", f["value"] if f else None,
+                              f'{f["date"]} · {f["label"]}' if f
+                              else _PENDING["Policy Rate (%)"]))
             else:
                 cells.append(("Policy Rate (%)", None, _PENDING["Policy Rate (%)"]))
             if region == "South Africa":
@@ -213,11 +223,16 @@ def page_regional_macro():
                     cells.append(("10Y Government Yield (%)", None,
                                   _PENDING["10Y Government Yield (%)"]))
             elif region == "United States":
-                q10 = markets.get_quotes([("US 10Y", "^TNX")])[0]
-                cells.append(("10Y Government Yield (%)",
-                              f"{q10.price/10:,.2f}" if q10.ok else None,
-                              f"{q10.asof} · CBOE via yfinance" if q10.ok
-                              else "yfinance unreachable"))
+                f10 = fred.latest("us_10y") if fred.enabled() else None
+                if f10:
+                    cells.append(("10Y Government Yield (%)", f10["value"],
+                                  f'{f10["date"]} · {f10["label"]}'))
+                else:
+                    q10 = markets.get_quotes([("US 10Y", "^TNX")])[0]
+                    cells.append(("10Y Government Yield (%)",
+                                  f"{q10.price/10:,.2f}" if q10.ok else None,
+                                  f"{q10.asof} · CBOE via yfinance" if q10.ok
+                                  else "yfinance unreachable"))
             else:
                 cells.append(("10Y Government Yield (%)", None,
                               _PENDING["10Y Government Yield (%)"]))

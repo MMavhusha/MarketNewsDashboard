@@ -263,7 +263,20 @@ def last_refresh() -> str:
 
 
 def clear_caches():
-    st.cache_data.clear()
+    """Refresh = latest prices and headlines. Slow-moving sources (SARB,
+    World Bank, FRED, calendar) keep their own TTLs — clearing them would
+    waste public-API quota for data that doesn't change intraday."""
+    for fn in (_download_cached, _history_cached, _intraday_cached):
+        try:
+            fn.clear()
+        except Exception:
+            pass
+    try:
+        from data_sources import news as _news
+        _news.get_news.clear()
+        _news.get_announcements.clear()
+    except Exception:
+        pass
 
 
 @st.cache_data(ttl=120, show_spinner=False)

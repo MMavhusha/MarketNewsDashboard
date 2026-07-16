@@ -334,6 +334,8 @@ def page_settings():
     rows += _news.get_feed_status()
     rows.append(_cal.feed_status())
     rows.append(_sarb.feed_status())
+    from data_sources import fred as _fred
+    rows.append(_fred.feed_status())
     try:
         from data_sources import ai_enrich
         rows.append({"name": "AI classification (Claude)",
@@ -403,6 +405,7 @@ def page_settings():
         '<code>APP_PASSWORD = "..."</code> — access gate (required in production)<br>'
         '<code>TE_API_KEY = "user:key"</code> — optional; upgrades calendar to full '
         'country coverage incl. SA/India<br>'
+        '<code>FRED_API_KEY = "..."</code> — optional, free (fred.stlouisfed.org); fills US/Euro-Area policy rates and the US 10Y from Fed/ECB series (120 req/min limit, used a handful of times per day)<br>'
         '<code>ANTHROPIC_API_KEY = "sk-ant-..."</code> — optional; upgrades news '
         'sentiment/importance/region tagging and the hero rationale from keyword '
         'rules to model classification (no forecasting)</div>',
