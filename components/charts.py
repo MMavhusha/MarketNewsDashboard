@@ -58,6 +58,41 @@ def intraday_spark(values: list[float], prev_close: float,
     return fig
 
 
+def pack_history(series: pd.Series, title: str = "", height: int = 300,
+                 y_title: str = "%") -> go.Figure:
+    """Reference-pack style: navy marker line over a light fill, highest point
+    green, lowest orange, latest burgundy with its value labelled. Observation
+    only — the line ends at the last published value, nothing extrapolated."""
+    fig = go.Figure(go.Scatter(
+        x=series.index, y=series.values, mode="lines+markers",
+        line=dict(width=2, color=NAVY), marker=dict(size=4, color=NAVY),
+        fill="tozeroy", fillcolor="rgba(0,59,113,.05)",
+        hovertemplate="%{x|%b %Y}<br>%{y:,.2f}<extra></extra>",
+    ))
+    fig.add_scatter(
+        x=[series.idxmax(), series.idxmin()],
+        y=[float(series.max()), float(series.min())],
+        mode="markers", marker=dict(size=7, color=[GREEN, "#FF671D"]),
+        hoverinfo="skip")
+    lx, ly = series.index[-1], float(series.values[-1])
+    fig.add_scatter(x=[lx], y=[ly], mode="markers",
+                    marker=dict(size=8, color=RED), hoverinfo="skip")
+    fig.add_annotation(x=lx, y=ly, text=f"<b>{ly:,.2f}</b>", xanchor="left",
+                       xshift=8, showarrow=False,
+                       font=dict(size=12, color=RED, family="Lato"))
+    fig.update_layout(
+        title=dict(text=title, font=dict(size=13, color=TEXT, family="Lato")),
+        height=height, margin=dict(l=10, r=52, t=36 if title else 10, b=10),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="Lato", size=11, color=TEXT),
+        xaxis=dict(gridcolor=GRID, zeroline=False),
+        yaxis=dict(gridcolor=GRID, zeroline=False,
+                   title=dict(text=y_title, font=dict(size=11))),
+        showlegend=False,
+    )
+    return fig
+
+
 def line_chart(series: pd.Series, title: str = "", height: int = 300,
                color: str = NAVY, y_title: str = "") -> go.Figure:
     fig = go.Figure(go.Scatter(

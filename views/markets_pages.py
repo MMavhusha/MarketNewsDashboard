@@ -273,7 +273,7 @@ def page_regional_macro():
                             unsafe_allow_html=True)
                     st.markdown(" ")
             ui.section("3-year historical charts",
-                       "Region's signature commodity · 10Y government bond")
+                       "Signature commodity · 10Y bond · policy rate · CPI YoY")
             h1, h2 = st.columns(2, gap="large")
             cname, ctk, cunit, cmult = macro.REGION_COMMODITY[region]
             with h1:
@@ -329,6 +329,36 @@ def page_regional_macro():
             q = markets.get_quotes([(fx_name, fx_tk)])[0]
             with cols[2]:
                 st.markdown(ui.market_card_html(q), unsafe_allow_html=True)
+
+            h3, h4 = st.columns(2, gap="large")
+            for hcol, registry, kind in ((h3, macro.REGION_POLICY_HIST, "pol"),
+                                         (h4, macro.REGION_CPI_HIST, "cpi")):
+                label, fkey, yoy, src = registry[region]
+                with hcol:
+                    s = (fred.history(fkey, 3, yoy=yoy)
+                         if fkey and fred.enabled() else None)
+                    if s is not None:
+                        st.plotly_chart(
+                            charts.pack_history(s, f"{region} — {label}",
+                                                height=300),
+                            use_container_width=True,
+                            config={"displayModeBar": False},
+                            key=f"r{kind}_{region}")
+                        st.caption(src)
+                    elif fkey:  # free source mapped but unreachable/keyless
+                        st.markdown(
+                            f'<div class="metric-block"><div class="metric-label">'
+                            f'{ui.esc(label)} — 3Y history</div>'
+                            f'<div class="metric-pending">Unavailable right now '
+                            f'· Source: {ui.esc(src)}</div></div>',
+                            unsafe_allow_html=True)
+                    else:
+                        st.markdown(
+                            f'<div class="metric-block"><div class="metric-label">'
+                            f'{ui.esc(label)} — 3Y history</div>'
+                            f'<div class="metric-pending">Source: {ui.esc(src)}'
+                            f'</div></div>',
+                            unsafe_allow_html=True)
 
             if region == "South Africa":
                 groups = sarb.get_sa_indicators()

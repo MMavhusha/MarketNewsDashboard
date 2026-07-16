@@ -121,3 +121,40 @@ REGION_10Y = {
     "South Africa": ("SA 10Y benchmark", "SARB_LATEST", None,
                      "SARB latest yield · history needs a key source"),
 }
+
+# Policy rate & CPI YoY 3-year monthly histories, charted per region in the
+# reference pack. Only series with a free reliable source are charted (FRED,
+# key present); the rest name their target source — no estimation, ever.
+# Entry: (chart label, fred history key or None, yoy transform?, source note)
+REGION_POLICY_HIST = {
+    "United States": ("Central Bank Policy Rate (%)", "us_policy", False,
+                      "Fed funds effective, monthly · FRED"),
+    "Euro Area": ("Central Bank Policy Rate (%)", "ea_policy", False,
+                  "ECB deposit facility, monthly · FRED"),
+    "South Africa": ("Central Bank Policy Rate (%)", None, False,
+                     "latest live above (SARB) · history: Trading Economics (key)"),
+    "United Kingdom": ("Central Bank Policy Rate (%)", None, False,
+                       "BoE Bank Rate · Trading Economics (key)"),
+    "China": ("Central Bank Policy Rate (%)", None, False,
+              "PBoC LPR · Trading Economics (key)"),
+    "India": ("Central Bank Policy Rate (%)", None, False,
+              "RBI repo · Trading Economics (key)"),
+    "Japan": ("Central Bank Policy Rate (%)", None, False,
+              "BoJ policy rate · Trading Economics (key)"),
+}
+REGION_CPI_HIST = {
+    "United States": ("Annual Inflation Rate — CPI YoY (%)", "us_cpi_index", True,
+                      "YoY computed from published BLS CPI-U index · FRED"),
+    "Euro Area": ("Annual Inflation Rate — HICP YoY (%)", "ea_hicp_index", True,
+                  "YoY computed from published Eurostat HICP index · FRED"),
+    "South Africa": ("Annual Inflation Rate — CPI YoY (%)", None, True,
+                     "latest monthly above (SARB) · history: Stats SA / Trading Economics (key)"),
+    "United Kingdom": ("Annual Inflation Rate — CPI YoY (%)", None, True,
+                       "ONS · Trading Economics (key)"),
+    "China": ("Annual Inflation Rate — CPI YoY (%)", None, True,
+              "NBS · Trading Economics (key)"),
+    "India": ("Annual Inflation Rate — CPI YoY (%)", None, True,
+              "MOSPI · Trading Economics (key)"),
+    "Japan": ("Annual Inflation Rate — CPI YoY (%)", None, True,
+              "Statistics Bureau of Japan · Trading Economics (key)"),
+}

@@ -20,6 +20,8 @@ SERIES = {
     "us_policy": ("DFF", "Fed funds (effective) · FRED"),
     "us_10y": ("DGS10", "US 10Y constant maturity · FRED"),
     "ea_policy": ("ECBDFR", "ECB deposit facility rate · FRED"),
+    "us_cpi_index": ("CPIAUCSL", "US CPI-U index · BLS via FRED"),
+    "ea_hicp_index": ("CP0000EZ19M086NEST", "EA HICP index · Eurostat via FRED"),
 }
 
 
@@ -57,6 +59,43 @@ def latest(series_key: str) -> dict | None:
     except Exception:
         return None
     return None
+
+
+@st.cache_data(ttl=6 * 3600, show_spinner=False)
+def history(series_key: str, years: int = 3, yoy: bool = False):
+    """Monthly pd.Series over `years`, or None on failure/no key.
+
+    yoy=True converts a *published* index into YoY % change — pure arithmetic
+    on official observations (labelled at the call site), never estimation.
+    """
+    if not enabled() or series_key not in SERIES:
+        return None
+    import datetime as dt
+
+    import pandas as pd
+    sid, _ = SERIES[series_key]
+    lookback = int((years + (1 if yoy else 0)) * 365.25) + 45
+    start = dt.date.today() - dt.timedelta(days=lookback)
+    try:
+        r = requests.get(
+            "https://api.stlouisfed.org/fred/series/observations",
+            params={"series_id": sid, "api_key": _key(), "file_type": "json",
+                    "observation_start": start.isoformat()},
+            timeout=20)
+        r.raise_for_status()
+        obs = {pd.Timestamp(o["date"]): float(o["value"])
+               for o in r.json().get("observations", [])
+               if o.get("value") not in (".", "", None)}
+        if not obs:
+            return None
+        s = pd.Series(obs).sort_index()
+        s = s.resample("MS").last().dropna()  # monthly cadence, as in the pack
+        if yoy:
+            s = (s.pct_change(12, fill_method=None) * 100).dropna()
+        s = s[s.index >= pd.Timestamp.today() - pd.DateOffset(years=years)]
+        return s if len(s) > 2 else None
+    except Exception:
+        return None
 
 
 def feed_status() -> dict:

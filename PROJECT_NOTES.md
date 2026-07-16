@@ -43,7 +43,13 @@ Events → Reports → Settings.
   (SA=SARB; US/EA=FRED when keyed), 10Y (US=live; SA=SARB latest, matcher
   prefers **R2035** then R209 — pack uses R2035), 3-year charts per the
   reference pack: SA–Gold, US–WTI, EZ–Brent, China–Copper, Japan–Iron Ore
-  (UK→Brent, India→Gold assigned by convention, unconfirmed vs pack). SARB
+  (UK→Brent, India→Gold assigned by convention, unconfirmed vs pack), PLUS
+  per-region policy-rate & CPI-YoY 3Y monthly histories in pack style
+  (marker line; max=green, min=orange, latest=burgundy with value label):
+  US & EA charted live from FRED (DFF, ECBDFR, CPIAUCSL→YoY, EA HICP
+  CP0000EZ19M086NEST→YoY — YoY is labelled arithmetic on the published
+  index, never estimation); SA/UK/CN/IN/JP show named pending source (TE
+  key). SARB
   releases grid dedupes anything promoted to headline tiles.
 - **Weekly Key Events**: auto-compiled stories (fixed-width badge columns) +
   shared editorial notes: identity-once ("Posting as X"), compact compose,
@@ -71,7 +77,9 @@ Events → Reports → Settings.
   live tile label.
 - **World Bank**: annual only (known gap vs pack's monthly cadence).
 - **FRED**: key present (FRED_API_KEY). Fills US policy (DFF), US 10Y
-  (DGS10), EA policy (ECBDFR). Deliberately NOT used for UK/EA/JP/CN/IN
+  (DGS10), EA policy (ECBDFR), plus 3Y monthly histories for US/EA policy
+  and US CPI-U / EA HICP indices (fred.history, 6h cache, ~4 extra calls
+  per 6h). Deliberately NOT used for UK/EA/JP/CN/IN
   yields (OECD series discontinued 2024). 120 req/min; app uses a handful/day.
 - **Forex Factory calendar**: free JSON (this+next week, majors only).
 - **News**: 5 RSS wires fetched in parallel; Google News queries for
@@ -79,8 +87,9 @@ Events → Reports → Settings.
   feed status; swap if dead). Region = keyword-or-Global, never outlet
   nationality.
 - **Remaining premium ask (precise)**: TE key covers China/India policy
-  rates & yields, four international 10Y histories, and all Manufacturing
-  PMIs. Nothing else needs money.
+  rates & yields, four international 10Y histories, all Manufacturing
+  PMIs, and the SA/UK/CN/IN/JP policy-rate & CPI-YoY 3Y histories. Nothing
+  else needs money.
 
 ## Classification stack (news)
 1. **Directional rules engine** (`data_sources/news.py`): decisive phrases →
