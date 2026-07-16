@@ -82,7 +82,7 @@ class Quote:
 
 
 # ---------------------------------------------------------------- fetch
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=120, show_spinner=False)
 def _download_cached(tickers: tuple[str, ...], period: str = "1mo") -> pd.DataFrame:
     """Batch OHLC download. Raises on total failure so empty results are
     NOT cached — the next run retries instead of pinning a dead cache."""
@@ -148,7 +148,7 @@ def get_quotes(items: list[tuple], period: str = "1mo") -> list[Quote]:
     return out
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=120, show_spinner=False)
 def _history_cached(ticker: str, period: str) -> pd.Series:
     df = yf.download(ticker, period=period, interval="1d",
                      auto_adjust=True, progress=False)
@@ -249,7 +249,7 @@ def clear_caches():
     st.cache_data.clear()
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=120, show_spinner=False)
 def _intraday_cached(tickers: tuple[str, ...]) -> pd.DataFrame:
     df = yf.download(list(tickers), period="2d", interval="15m",
                      group_by="ticker", auto_adjust=True, progress=False,

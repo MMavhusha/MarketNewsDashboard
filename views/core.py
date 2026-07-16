@@ -12,7 +12,12 @@ from data_sources import calendar_data, markets, news
 
 
 # ------------------------------------------------------------ shared bits
+@st.fragment(run_every="2m")
 def render_summary_strip():
+    """Auto-refreshes itself every 2 minutes (fragment rerun): the shared
+    server-side cache (TTL 120s) means all users together cost roughly one
+    Yahoo batch request per cycle — safe for an unofficial rate-limited
+    source."""
     quotes = markets.get_summary_strip()
     r1, r2 = st.columns([2, 1])
     with r1:
@@ -56,6 +61,8 @@ def render_summary_strip():
     if intraday_mode:
         ui.legend("1D: solid line = today's session · dotted = prior close · "
                   "closed markets show no intraday feed")
+    ui.legend(f"Auto-refreshes every 2 minutes · updated {markets.last_refresh()} · "
+              "source prices may be delayed up to ~15 min by the exchange")
 
 
 def _story_row(item, show_importance=False):
