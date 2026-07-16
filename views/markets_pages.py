@@ -109,16 +109,44 @@ def page_currencies():
                 f"For narrative context, see stories tagged FX under Market News.")
     _detail_panel(q, "Rate", key="fx_chart", note=note)
 
-    ui.section("All pairs at a glance", "Latest vs prior session · 1M mini-chart")
-    with st.container(border=True):
-        c1, c2 = st.columns(2, gap="large")
-        half = (len(quotes) + 1) // 2
-        for col, chunk in zip((c1, c2), (quotes[:half], quotes[half:])):
-            with col:
-                for x in chunk:
-                    fig = (charts.sparkline(x.spark, height=32, fill=False)
-                           if x.ok and len(x.spark) > 2 else None)
-                    ui.summary_row(x, fig, key=f"fxrow_{x.ticker}", period="1M")
+    ui.section("All pairs at a glance", "Sortable · click a row to open it above")
+    ok_q = [x for x in quotes if x.ok]
+    asof = next((x.asof for x in ok_q if x.asof), "latest close")
+    df = pd.DataFrame({
+        "Pair": [x.name for x in ok_q],
+        "1M trend": [x.spark if len(x.spark) > 2 else None for x in ok_q],
+        "Last": [round(float(x.price), 4) for x in ok_q],
+        "1D %": [round(float(x.change_pct), 2)
+                 if x.change_pct is not None else None for x in ok_q],
+    })
+
+    def _pcol(v):
+        if v is None:
+            return "color: #909288"
+        return "color: #1E8052" if v >= 0 else "color: #B0212C"
+
+    event = st.dataframe(
+        df.style.map(_pcol, subset=["1D %"]),
+        hide_index=True, use_container_width=True,
+        height=int(38 * (len(ok_q) + 1)) + 4,
+        column_config={
+            "Pair": st.column_config.TextColumn(width="small"),
+            "1M trend": st.column_config.LineChartColumn(width="medium"),
+            "Last": st.column_config.NumberColumn(format="%.4f", width="small"),
+            "1D %": st.column_config.NumberColumn(format="%+.2f%%", width="small"),
+        },
+        on_select="rerun", selection_mode="single-row", key="fx_grid")
+    try:
+        rows = event.selection.rows
+        if rows:
+            chosen = df.iloc[rows[0]]["Pair"]
+            if chosen != pick:
+                st.session_state["fx_pick"] = chosen
+                st.rerun()
+    except Exception:
+        pass
+    ui.legend(f"As at {asof} · 1D % vs prior close · sparkline shows one month "
+              "of daily closes · sort any column by clicking its header")
 
 
 def _sarb_repo():
