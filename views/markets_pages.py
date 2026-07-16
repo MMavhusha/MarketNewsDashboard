@@ -109,11 +109,15 @@ def page_currencies():
                 f"For narrative context, see stories tagged FX under Market News.")
     _detail_panel(q, "Rate", key="fx_chart", note=note)
 
-    ui.section("All pairs at a glance", "Sortable — click a column header · open any pair via the pills above")
+    ui.section("All pairs at a glance",
+               "Neutral mini-trends · open any pair via the pills above")
     ok_q = [x for x in quotes if x.ok]
     asof = next((x.asof for x in ok_q if x.asof), "latest close")
-    win = st.pills("Trend window", ["1M", "6M", "1Y"], default="1M",
+    p1, p2 = st.columns([1, 1.4])
+    win = p1.pills("Trend window", ["1M", "6M", "1Y"], default="1M",
                    key="fx_grid_win", label_visibility="collapsed") or "1M"
+    order = p2.pills("Sort", ["Pair", f"{win} %", "1D %"], default="Pair",
+                     key="fx_grid_sort", label_visibility="collapsed") or "Pair"
     if win == "1M":
         trends = {x.name: (x.spark if len(x.spark) > 2 else None) for x in ok_q}
     else:
@@ -121,42 +125,45 @@ def page_currencies():
         trends = {}
         for x in ok_q:
             h = markets.get_history(x.ticker, per)
-            trends[x.name] = [float(v) for v in h.tolist()][-60:] if len(h) > 2 else None
-    df = pd.DataFrame({
-        "Pair": [x.name for x in ok_q],
-        f"{win} trend": [trends.get(x.name) for x in ok_q],
-        "Last": [round(float(x.price), 4) for x in ok_q],
-        "1D %": [round(float(x.change_pct), 2)
-                 if x.change_pct is not None else None for x in ok_q],
-    })
+            trends[x.name] = [float(v) for v in h.tolist()] if len(h) > 2 else None
 
-    def _pcol(v):
+    rows = []
+    for x in ok_q:
+        t = trends.get(x.name)
+        wchg = _pct(t[-1], t[0]) if t else None
+        rows.append((x, t, wchg))
+    if order == "Pair":
+        rows.sort(key=lambda r: r[0].name)
+    elif order == "1D %":
+        rows.sort(key=lambda r: (r[0].change_pct is None,
+                                 -(r[0].change_pct or 0)))
+    else:
+        rows.sort(key=lambda r: (r[2] is None, -(r[2] or 0)))
+
+    def _num(v, cls=True):
         if v is None:
-            return "color: #909288"
-        return "color: #1E8052" if v >= 0 else "color: #B0212C"
+            return '<span style="color:#909288;">n/a</span>'
+        c = f' {ui.chg_cls(v)}' if cls else ""
+        return f'<span class="num{c}">{v:+.2f}%</span>'
 
-    event = st.dataframe(
-        df.style.map(_pcol, subset=["1D %"]),
-        hide_index=True, use_container_width=True, row_height=48,
-        height=int(48 * (len(ok_q) + 1)) + 6,
-        column_config={
-            "Pair": st.column_config.TextColumn(width="small"),
-            f"{win} trend": st.column_config.LineChartColumn(width="medium"),
-            "Last": st.column_config.NumberColumn(format="%.4f", width="small"),
-            "1D %": st.column_config.NumberColumn(format="%+.2f%%", width="small"),
-        },
-        on_select="rerun", selection_mode="single-row", key="fx_grid")
-    try:
-        rows_sel = event.selection.rows
-        if rows_sel:
-            chosen = df.iloc[rows_sel[0]]["Pair"]
-            if chosen != pick:
-                st.session_state["fx_pick"] = chosen
-                st.rerun()
-    except Exception:
-        pass
-    ui.legend(f"As at {asof} · 1D % vs prior close · sparklines show the shape "
-              "of one month of daily closes, each on its own scale")
+    body = "".join(
+        f'<div class="fx-row"><span class="fx-pair">{ui.esc(x.name)}</span>'
+        f'<span class="fx-spark">'
+        + (ui.spark_svg(t, dot=("#1E8052" if (wchg or 0) >= 0 else "#B0212C"))
+           if t else '<span style="color:#C9CBC4;font-size:11px;">no history</span>')
+        + f'</span><span class="fx-num num">{x.fmt.format(x.price)}</span>'
+        f'<span class="fx-num">{_num(wchg)}</span>'
+        f'<span class="fx-num">{_num(x.change_pct)}</span></div>'
+        for x, t, wchg in rows)
+    st.markdown(
+        f'<div class="fx-table"><div class="fx-hd"><span>Pair</span>'
+        f'<span>{win} trend</span><span class="fx-num">Last</span>'
+        f'<span class="fx-num">{win} %</span><span class="fx-num">1D %</span>'
+        f'</div>{body}</div>',
+        unsafe_allow_html=True)
+    ui.legend(f"As at {asof} · {win} % = change over the trend window · "
+              "1D % vs prior close · sparklines each on their own scale, "
+              "endpoint dot = window direction")
 
 
 def _sarb_find(*keywords):

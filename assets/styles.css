@@ -377,3 +377,21 @@ div[class*="st-key-note_editor_"] .stCheckbox { margin-top: 4px; }
 div[class*="st-key-note_editor_"] .stCheckbox label p { font-size: 11px !important; }
 div[class*="st-key-note_editor_"] .stRadio label p { font-size: 11px !important; }
 div[class*="st-key-note_editor_"] .stRadio { margin: 0; }
+
+/* ---------- FX all-pairs board (custom, replaces native grid) ---------- */
+.fx-table { background: #FFFFFF; border: 1px solid #E2E3E0; border-radius: 10px;
+  overflow: hidden; box-shadow: 0 1px 2px rgba(0,59,113,.03); }
+.fx-hd, .fx-row { display: grid;
+  grid-template-columns: 110px 1fr 120px 90px 90px;
+  align-items: center; gap: 16px; padding: 0 18px; }
+.fx-hd { height: 34px; font-size: 10.5px; font-weight: 700; letter-spacing: 1px;
+  text-transform: uppercase; color: #909288; background: #FAFAF9;
+  border-bottom: 1px solid #E2E3E0; }
+.fx-row { height: 46px; border-bottom: 1px solid #F0F0EE; font-size: 12.5px;
+  transition: background .12s ease; }
+.fx-row:last-child { border-bottom: none; }
+.fx-row:hover { background: #FFF8F4; }
+.fx-pair { font-weight: 700; color: #212322; letter-spacing: .2px; }
+.fx-spark { display: flex; align-items: center; }
+.fx-spark svg { display: block; }
+.fx-num { text-align: right; }

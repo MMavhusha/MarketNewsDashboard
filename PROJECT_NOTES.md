@@ -35,9 +35,12 @@ Events → Reports → Settings.
   events merge from `data/za_calendar.json` (ships EMPTY — team adds SARB
   MPC / Stats SA dates via git; app never invents dates).
 - **Currencies/Commodities**: master-detail with 1M/6M/1Y/5Y range pills and
-  range-aware KPIs; FX "all pairs" is a sortable native grid (neutral
-  sparklines, trend-window pills, row-click opens the pair; selection column
-  is the accepted cost of row-click).
+  range-aware KPIs; FX "all pairs" is a CUSTOM HTML board (native
+  LineChartColumn abandoned — it forces thick orange theme sparklines,
+  unstylable): thin graphite SVG sparklines (own scale, endpoint dot =
+  window direction), window-% column, sort pills (Pair / win % / 1D %),
+  hover rows; row-click + selection column removed — pairs open via the
+  pills above.
 - **Regional Macro**: regions SA, US, Euro Area, UK, China, India, **Japan**.
   Per-region: WB tiles (SA CPI upgraded to SARB monthly), policy rate
   (SA=SARB; US/EA=FRED when keyed), 10Y (US=live; SA=SARB latest, matcher

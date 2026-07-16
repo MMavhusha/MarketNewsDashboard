@@ -114,6 +114,30 @@ def legend(text: str):
     st.markdown(f'<div class="legend">{esc(text)}</div>', unsafe_allow_html=True)
 
 
+def spark_svg(vals, w: int = 150, h: int = 30, dot: str = "") -> str:
+    """Thin neutral inline-SVG sparkline (brand rule: orange is emphasis only,
+    so trend lines stay graphite). Optional endpoint dot colour carries the
+    window's direction. Each line is normalised to its own range."""
+    vals = [float(v) for v in vals]
+    if len(vals) > 40:  # downsample for smoothness and payload size
+        step = len(vals) / 40.0
+        vals = [vals[int(i * step)] for i in range(40)] + [vals[-1]]
+    lo, hi = min(vals), max(vals)
+    rng = (hi - lo) or 1.0
+    n = len(vals) - 1
+    pts = " ".join(f"{i * (w - 8) / n + 4:.1f},"
+                   f"{h - 4 - (v - lo) / rng * (h - 8):.1f}"
+                   for i, v in enumerate(vals))
+    lx = (w - 8) + 4
+    ly = h - 4 - (vals[-1] - lo) / rng * (h - 8)
+    dot_svg = (f'<circle cx="{lx:.1f}" cy="{ly:.1f}" r="2.6" fill="{dot}"/>'
+               if dot else "")
+    return (f'<svg width="{w}" height="{h}" viewBox="0 0 {w} {h}" '
+            f'xmlns="http://www.w3.org/2000/svg"><polyline points="{pts}" '
+            f'fill="none" stroke="#6B6D64" stroke-width="1.5" '
+            f'stroke-linejoin="round" stroke-linecap="round"/>{dot_svg}</svg>')
+
+
 def mover_row(q) -> str:
     return (f'<div class="mv-row"><span class="mv-nm">{esc(q.name)}</span>'
             f'<span class="mv-val num">{q.fmt.format(q.price)}</span>'
