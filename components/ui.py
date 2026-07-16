@@ -87,12 +87,6 @@ def alert_card(a: dict):
     )
 
 
-CAT_COLORS = {"Dividends": "#2A8B7C", "Leadership": "#7E6CA5",
-              "Earnings": "#1B7B9C", "M&A": "#B0212C",
-              "Capital raises": "#F2C84A", "Buybacks": "#1E8052",
-              "Guidance": "#A0683C"}
-
-
 def cal_row(e: dict):
     imp = importance_badge(e["importance"])
     when = esc(e.get("time") or e["date"])

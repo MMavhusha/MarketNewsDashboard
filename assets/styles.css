@@ -49,17 +49,6 @@ section[data-testid="stSidebar"] * { color: #212322; }
 .sb-brand .obar { width: 5px; background: #FF671D; border-radius: 1px; }
 .sb-sub { padding: 2px 14px 12px 14px; font-size: 10px; color: #909288; letter-spacing: 1.6px; }
 
-/* ---------- Top bar ---------- */
-.topbar {
-  background: #FFFFFF; border: 1px solid #E2E3E0; border-radius: 10px;
-  border-top: 3px solid #FF671D;
-  padding: 10px 18px; margin-bottom: 14px;
-  display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  box-shadow: 0 1px 2px rgba(0,59,113,.06);
-}
-.topbar .tb-title { font-size: 16px; font-weight: 700; color: #212322; }
-.topbar .tb-meta { font-size: 11.5px; color: #6B6D64; text-align: right; }
-.topbar .tb-meta b { color: #003B71; }
 .live-dot {
   display: inline-block; width: 7px; height: 7px; border-radius: 50%;
   background: #1E8052; margin-right: 5px; box-shadow: 0 0 0 3px rgba(30,128,82,.15);
@@ -161,13 +150,15 @@ section[data-testid="stSidebar"] * { color: #212322; }
 
 /* ---------- Movers ---------- */
 .mv-row {
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: center; gap: 8px;
   padding: 7px 4px; border-bottom: 1px solid #F2F2F2; font-size: 12.5px;
 }
 .mv-row:last-child { border-bottom: none; }
-.mv-nm { color: #212322; font-weight: 700; }
-.mv-val { color: #212322; font-weight: 700; }
-.mv-chg { font-weight: 700; }
+.mv-nm { color: #212322; font-weight: 700; flex: 1; overflow: hidden;
+  white-space: nowrap; text-overflow: ellipsis; }
+.mv-val { color: #212322; font-weight: 700; width: 110px; text-align: right;
+  flex-shrink: 0; }
+.mv-chg { font-weight: 700; width: 72px; text-align: right; flex-shrink: 0; }
 
 /* ---------- Right rail ---------- */
 .rail-card {
@@ -288,24 +279,6 @@ button[data-testid="stBaseButton-pills"]:hover {
 .detail-head .dh-price { font-size: 21px; font-weight: 900; color: #212322; }
 .detail-head .dh-chg { font-size: 14px; font-weight: 700; }
 .detail-head .dh-meta { font-size: 11px; color: #909288; }
-
-/* ---------- Week-grid calendar (Teams style) ---------- */
-.cal-col { background: #FFFFFF; border: 1px solid #E2E3E0; border-radius: 10px;
-  padding: 8px; min-height: 210px; }
-.cal-col-h { font-size: 11px; font-weight: 700; color: #212322; text-align: center;
-  text-transform: uppercase; letter-spacing: .8px; padding: 5px 0 7px 0;
-  border-bottom: 2px solid #F2F2F2; margin-bottom: 7px; }
-.cal-col-h .d { display: block; font-size: 16px; font-weight: 900; color: #212322; }
-.cal-col-today { border-color: #FF671D; }
-.cal-col-today .cal-col-h { border-bottom-color: #FF671D; }
-.cal-col-today .cal-col-h .d { color: #FF671D; }
-.cal-ev { background: #FAFAF8; border: 1px solid #EFEFEC; border-left: 3px solid #C9CBC4;
-  border-radius: 6px; padding: 5px 7px; margin-bottom: 6px; }
-.cal-ev .e-t { font-size: 9.5px; font-weight: 700; color: #909288; }
-.cal-ev .e-n { font-size: 10.5px; font-weight: 700; color: #212322; line-height: 1.25; }
-.cal-ev .e-c { font-size: 9.5px; color: #909288; }
-.ev-high { border-left-color: #FF671D; background: #FFF6F0; }
-.ev-medium { border-left-color: #F2C84A; }
 
 /* ---------- Compact announcement / story rows ---------- */
 .ann-row { display: flex; align-items: center; gap: 10px; background: #FFFFFF;

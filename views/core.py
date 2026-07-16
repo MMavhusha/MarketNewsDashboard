@@ -12,7 +12,7 @@ from data_sources import calendar_data, markets, news
 
 
 # ------------------------------------------------------------ shared bits
-@st.fragment(run_every="2m")
+@st.fragment(run_every=120)
 def render_summary_strip():
     """Auto-refreshes itself every 2 minutes (fragment rerun): the shared
     server-side cache (TTL 120s) means all users together cost roughly one
@@ -63,17 +63,6 @@ def render_summary_strip():
                   "closed markets show no intraday feed")
     ui.legend(f"Auto-refreshes every 2 minutes · updated {markets.last_refresh()} · "
               "source prices may be delayed up to ~15 min by the exchange")
-
-
-def _story_row(item, show_importance=False):
-    imp = ui.importance_badge(item["importance"]) if show_importance else ""
-    st.markdown(
-        f'''<div class="ann-row">{ui.sentiment_badge(item["sentiment"])}{imp}
-        <span class="a-t"><a href="{ui.esc(item["link"])}" target="_blank"
-        title="{ui.esc(item["title"])}">{ui.esc(item["title"])}</a></span>
-        <span class="a-m">{ui.esc(item["source"])} ·
-        {ui.esc(news.fmt_time(item["published"]))}</span></div>''',
-        unsafe_allow_html=True)
 
 
 # ------------------------------------------------------------ exec summary
@@ -306,11 +295,6 @@ def page_shock_alerts():
 
 # ------------------------------------------------------------ announcements
 
-_CAT_COLORS = {"Dividends": "#2A8B7C", "Leadership": "#7E6CA5",
-               "Earnings": "#1F3864", "M&A": "#FF671D",
-               "Capital raises": "#1B7B9C", "Buybacks": "#1E8052",
-               "Guidance": "#B0212C"}
-
 def page_announcements():
     ann = news.get_announcements()
     if not ann:
@@ -333,13 +317,13 @@ def page_announcements():
     now = datetime.now(timezone.utc)
     view = sorted(view, key=lambda a: a["published"] or now - timedelta(days=30),
                   reverse=True)
-    today = [a for a in view if a["published"] and (now - a["published"]).days < 1]
-    earlier = [a for a in view if a not in today]
+    is_today = lambda a: bool(a["published"]) and (now - a["published"]).days < 1
+    today = [a for a in view if is_today(a)]
+    earlier = [a for a in view if not is_today(a)]
 
     def row(a):
-        rail = _CAT_COLORS.get(a["category"], "#C9CBC4")
         st.markdown(
-            f'''<div class="ann-row" style="border-left:4px solid {rail};">{ui.badge(a["category"], "blue")}
+            f'''<div class="ann-row">{ui.badge(a["category"], "blue")}
             <span class="a-t"><a href="{ui.esc(a["link"])}" target="_blank"
             title="{ui.esc(a["title"])}">{ui.esc(a["title"])}</a></span>
             <span class="a-m">{ui.esc(a.get("source") or "Wire")} ·

@@ -13,7 +13,7 @@ TEXT = "#4C4D52"
 
 
 def sparkline(values: list[float], height: int = 42,
-              label: str = "", fill: bool = True) -> go.Figure:
+              fill: bool = True) -> go.Figure:
     color = GREEN if values and values[-1] >= values[0] else RED
     fig = go.Figure(go.Scatter(
         y=values, mode="lines", line=dict(width=1.6, color=color),
