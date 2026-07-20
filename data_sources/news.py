@@ -328,6 +328,36 @@ def _classify(title: str, summary: str, default_region: str = "") -> dict:
             "importance": importance, "score": score, "tags": tags}
 
 
+_THEME_LEXICON = {
+    "US–Iran / Hormuz tensions": ["iran", "hormuz", "tehran", "strait"],
+    "Middle East conflict": ["israel", "gaza", "middle east", "ceasefire",
+                             "strikes", "military"],
+    "oil & energy supply": ["oil", "opec", "crude", "brent", "energy",
+                            "supply crunch"],
+    "Fed / US rates": ["fed", "fomc", "powell", "rate cut", "rate hike"],
+    "US tariffs / trade": ["tariff", "trade war", "trump", "trade deal"],
+    "SARB / SA macro": ["sarb", "rand", "south africa", "repo rate"],
+    "China growth": ["china", "pboc", "beijing", "yuan"],
+    "Big Tech earnings": ["earnings", "big tech", "nvidia", "results"],
+    "inflation": ["inflation", "cpi", "price"],
+}
+
+
+def _derive_themes(items: list[dict], top_n: int = 20) -> str:
+    """A descriptive one-line digest of themes recurring across the batch's
+    highest-signal titles. Counts word-boundary hits; names only themes that
+    actually appear (>=2 stories). No inference, no forecast — pure summary
+    of what is in the feed, regenerated every cycle so it never goes stale."""
+    corpus = [_norm(i["title"]) for i in items[:top_n]]
+    hits = []
+    for theme, keys in _THEME_LEXICON.items():
+        n = sum(1 for t in corpus if any(_kw(k).search(t) for k in keys))
+        if n >= 2:
+            hits.append((n, theme))
+    hits.sort(reverse=True)
+    return ", ".join(theme for _, theme in hits[:5])
+
+
 @st.cache_data(ttl=900, show_spinner=False)
 def get_news(max_per_feed: int = 12) -> list[dict]:
     if feedparser is None:
@@ -371,12 +401,13 @@ def get_news(max_per_feed: int = 12) -> list[dict]:
         # model also judges relevance; stories it rejects are dropped.
         from data_sources import ai_enrich
         if ai_enrich.enabled() and items:
+            themes = _derive_themes(items)
             queue = items[:50]
             for start in range(0, len(queue), 25):
                 chunk = queue[start:start + 25]
                 fields = ai_enrich.classify_batch(
                     tuple((i["title"], i["summary"]) for i in chunk),
-                    hero=(start == 0))
+                    hero=(start == 0), themes=themes)
                 for idx, f in fields.items():
                     if idx < len(chunk):
                         chunk[idx].update(f)

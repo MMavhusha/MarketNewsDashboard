@@ -76,41 +76,50 @@ def provider_label() -> str:
     return " → ".join(chain + ["rules"]) if chain else "off (rules only)"
 
 
-def _prompt(headlines, hero: bool) -> str:
+def _prompt(headlines, hero: bool, themes: str = "") -> str:
     lines = "\n".join(f"{i}. {t} — {s[:240]}"
                       for i, (t, s) in enumerate(headlines))
     hero_line = ("For story 0 only, add why: ONE factual sentence on why it "
                  "matters to investors, no predictions. " if hero else "")
+    # Auto-derived, descriptive-only context: recurring themes already
+    # present in THIS batch. Anchors every story to the same backdrop, is
+    # regenerated each cycle (never stale, no human upkeep), and states what
+    # is in the news rather than any forecast.
+    ctx = (f"Recurring market themes in today's stories: {themes}. Read the "
+           f"stories below as a SET — classify related stories consistently "
+           f"(items about the same conflict, policy decision or company must "
+           f"not swing between Positive and Negative unless they describe "
+           f"genuinely opposite developments) and use these themes as "
+           f"background (e.g. a 'ceasefire proposal' is an event WITHIN an "
+           f"ongoing conflict). Never let this context add anything not in a "
+           f"story's own text.\n\n" if themes else "")
     return (
         "You classify financial news for an institutional portfolio-"
-        "management dashboard. Weigh the summary's facts equally with the "
-        "title — headlines often understate. For each numbered story return: "
-        "sentiment (Positive/Negative/Neutral — the market RISK TONE of what "
-        "is described, not a forecast; active military conflict, attacks, "
-        "escalation or sanctions are Negative unless the story is clearly "
-        "about de-escalation succeeding), importance (High = central bank "
-        "decisions or surprises, major macro data for large economies, armed "
-        "conflict or sanctions affecting energy or supply chains, systemic "
-        "credit events, corporate events of $10bn+ or mega-cap earnings; "
-        "Medium = notable single-company or single-country developments with "
-        "market impact; Low = minor items, opinion pieces, advice content), "
-        "region (South Africa/United States/Euro Area/United Kingdom/China/"
-        "India/Japan/Global), asset (Equities/Rates & Bonds/FX/Commodities/"
-        "Crypto/Macro), instruments (a list, possibly empty, of the tracked "
-        "instruments this story is MATERIALLY about — judge from context, "
-        "not word presence; a story can be about several. Choose only "
-        "from: Oil, Gold, Copper, Platinum, Iron Ore, Coal, USD/ZAR, "
-        "EUR/USD, USD/JPY, Bitcoin, S&P 500, NASDAQ, FTSE 100, JSE ALSI) "
-        "and relevant (true/false: is this market, economy or "
-        "corporate news useful to institutional portfolio managers? Consumer "
-        "personal-finance advice, lifestyle, sport, entertainment and "
-        "local/agri-trade content are false) and instrument (the single most-"
-        "affected traded instrument if clearly identifiable, exactly one of: "
-        "Oil, Gold, Copper, Platinum, Iron Ore, Coal, USD/ZAR, EUR/USD, "
-        "USD/JPY, Bitcoin, S&P 500, NASDAQ, FTSE 100, JSE ALSI; else null). "
+        "management dashboard. " + ctx + "Weigh the summary's facts equally "
+        "with the title — headlines often understate. For each numbered "
+        "story return: sentiment (Positive/Negative/Neutral — the market "
+        "RISK TONE of what is described, not a forecast; active military "
+        "conflict, attacks, escalation or sanctions are Negative unless the "
+        "story is clearly about de-escalation succeeding), importance "
+        "(High = central bank decisions or surprises, major macro data for "
+        "large economies, armed conflict or sanctions affecting energy or "
+        "supply chains, systemic credit events, corporate events of $10bn+ "
+        "or mega-cap earnings; Medium = notable single-company or single-"
+        "country developments with market impact; Low = minor items, "
+        "opinion pieces, advice content), region (South Africa/United "
+        "States/Euro Area/United Kingdom/China/India/Japan/Global), asset "
+        "(Equities/Rates & Bonds/FX/Commodities/Crypto/Macro), instruments "
+        "(a list, possibly empty, of the tracked instruments this story is "
+        "MATERIALLY about — judge from context, not word presence; a story "
+        "can be about several. Choose only from: Oil, Gold, Copper, "
+        "Platinum, Iron Ore, Coal, USD/ZAR, EUR/USD, USD/JPY, Bitcoin, "
+        "S&P 500, NASDAQ, FTSE 100, JSE ALSI) and relevant (true/false: is "
+        "this market, economy or corporate news useful to institutional "
+        "portfolio managers? Consumer personal-finance advice, lifestyle, "
+        "sport, entertainment and local/agri-trade content are false). "
         + hero_line +
         "Respond with ONLY a JSON array of objects with keys i, sentiment, "
-        "importance, region, asset, relevant, instrument" +
+        "importance, region, asset, instruments, relevant" +
         (", and why (story 0 only)" if hero else "") + ".\n\n" + lines)
 
 
@@ -151,8 +160,6 @@ def _parse(text: str, hero: bool) -> dict[int, dict]:
             fields["region"] = row["region"]
         if row.get("asset") in _AST:
             fields["asset"] = row["asset"]
-        if row.get("instrument") in _INSTR:
-            fields["instrument"] = row["instrument"]
         if isinstance(row.get("instruments"), list):
             fields["instruments"] = [x for x in row["instruments"]
                                      if x in _INSTR][:3]
@@ -167,12 +174,12 @@ def _parse(text: str, hero: bool) -> dict[int, dict]:
 
 @st.cache_data(ttl=900, show_spinner=False)
 def classify_batch(headlines: tuple[tuple[str, str], ...],
-                   hero: bool = True) -> dict[int, dict]:
+                   hero: bool = True, themes: str = "") -> dict[int, dict]:
     """((title, summary), ...) -> {index: fields}. Walks the provider chain
     in order; {} only when every tier fails (rules then stand)."""
     if not headlines:
         return {}
-    prompt = _prompt(headlines, hero)
+    prompt = _prompt(headlines, hero, themes)
     for p in providers():
         _t0 = _time.time()
         try:
