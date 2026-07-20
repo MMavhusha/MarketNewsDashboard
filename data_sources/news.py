@@ -132,19 +132,6 @@ _OPINION_MARKERS = ["opinion", "analysis |", "macroscope", "commentary",
                     "column:", "editorial", "explainer", "newsletter",
                     "podcast", "mises institute", "project syndicate"]
 
-# Instrument chips: deterministic word-boundary matches on the TITLE.
-# Scoped to instruments the dashboard actually tracks — no noisy terms.
-_INSTRUMENTS = {
-    "oil": ["oil", "brent", "crude", "wti", "opec"],
-    "gold": ["gold"],
-    "copper": ["copper"],
-    "platinum": ["platinum"],
-    "iron ore": ["iron ore"],
-    "coal": ["coal"],
-    "zar": ["rand", "usd/zar", "usdzar"],
-    "bitcoin": ["bitcoin", "btc"],
-}
-
 # Score-only keywords: they raise importance but make meaningless chips.
 _TAG_EXCLUDE = {"billion", "trillion"}
 
@@ -320,13 +307,11 @@ def _classify(title: str, summary: str, default_region: str = "") -> dict:
     importance = "High" if score >= 4 else "Medium" if score >= 2 else "Low"
 
     # Visible tags from the TITLE only — digest-style summaries describe
-    # other stories. Order: opinion flag, instruments, importance keywords;
-    # score-only terms (billion/trillion) never surface as chips.
-    instruments = [name for name, keys in _INSTRUMENTS.items()
-                   if _matches(tt, keys)]
+    # other stories. The affected instrument renders via its own dedicated
+    # chip (item["instrument"]), so it never duplicates into tags; score-
+    # only terms (billion/trillion) never surface as chips either.
     kw_tags = [k for k in title_hits if k not in _TAG_EXCLUDE]
-    tags = (["opinion"] if opinion else []) + instruments + kw_tags
-    tags = list(dict.fromkeys(tags))[:3]
+    tags = ((["opinion"] if opinion else []) + kw_tags)[:3]
     return {"sentiment": sentiment, "region": region, "asset": asset,
             "confident": abs(_sc) >= 2, "instrument": instrument,
             "importance": importance, "score": score, "tags": tags}
