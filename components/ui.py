@@ -304,9 +304,21 @@ def news_teaser(item: dict, time_str: str):
 
 
 def cal_mini(e: dict):
-    """Compact stacked event card for narrow columns (exec summary rail)."""
+    """Compact stacked event card for narrow columns (exec summary rail).
+    Watched-keyword events are flagged ⚑ so calendar alerts stay visible here."""
     edge = {"High": "#FF671D", "Medium": "#F2C84A"}.get(e["importance"], "#E2E3E0")
     exp, prev = esc(e["expected"]), esc(e["previous"])
+    flag = ""
+    if e.get("_watched"):
+        flag = "\u2691 "
+    else:
+        try:
+            from data_sources import watchlist as _wl
+            _kw = [k["term"] for k in _wl.get() if k["scope"] in ("both", "calendar")]
+            if _kw and any(_wl.matches_event(e, k) for k in _kw):
+                flag = "\u2691 "
+        except Exception:
+            pass
     st.markdown(
         f'''<div style="background:#FFFFFF;border:1px solid #E2E3E0;
         border-left:3px solid {edge};border-radius:8px;padding:8px 10px;
@@ -314,7 +326,7 @@ def cal_mini(e: dict):
         <div style="font-size:11px;color:#909288;">
         {esc(e.get("time") or e["date"])} · <b style="color:#212322;">{esc(e["country"])}</b></div>
         <div style="font-size:12px;font-weight:700;color:#212322;line-height:1.3;
-        margin:2px 0;">{esc(e["event"])}</div>
+        margin:2px 0;">{flag}{esc(e["event"])}</div>
         <div style="font-size:11px;color:#6B6D64;" class="num">
         Cons {exp} · Prev {prev}</div></div>''',
         unsafe_allow_html=True)

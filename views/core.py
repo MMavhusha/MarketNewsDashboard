@@ -98,10 +98,22 @@ def page_executive_summary():
         # split: two independent columns can't equalise height, so any change
         # to tile counts (news items, alerts, calendar rows) reopens dead
         # space. A single flow reorders naturally and never leaves a gap.
-        ui.section("Breaking news", "Top stories · full coverage on Market News")
+        from data_sources import watchlist as _wl
+        _news_kw = [k["term"] for k in _wl.get() if k["scope"] in ("both", "news")]
+
+        ui.section("Breaking news", "Top stories · watched topics first · "
+                   "full coverage on Market News")
         if items:
             pool = [i for i in items if i is not hero_item]
-            for item in pool[:4]:
+            # Float watched-keyword stories to the top so an alert is visible
+            # in-context (and flagged ⚑ by news_teaser), not in a separate box.
+            def _watched(i):
+                return bool(_news_kw) and any(_wl.matches_news(i, k)
+                                              for k in _news_kw)
+            watched = [i for i in pool if _watched(i)]
+            rest = [i for i in pool if not _watched(i)]
+            ordered = watched + rest
+            for item in ordered[:5 if watched else 4]:
                 ui.news_teaser(item, news.fmt_time(item["published"]))
             if st.button("All market news →", key="es_goto_news"):
                 st.session_state["nav_to"] = "Market News"
@@ -111,48 +123,37 @@ def page_executive_summary():
 
         a_col, c_col = st.columns(2, gap="medium")
         with a_col:
-            ui.section("Alerts", "Watchlist keywords & threshold breaches")
-            # Keyword watchlist alerts (compact) — surface here so the morning
-            # briefing shows what the team is tracking, not only shock moves.
-            from data_sources import watchlist as _wl
-            kw = _wl.get()
-            kw_hits = []
-            if kw:
-                _allnews = news.get_news()
-                _allcal = calendar_data.get_calendar(days_ahead=14)
-                for k in kw:
-                    nn = len(_wl.news_matches(k["term"], _allnews)) if k["scope"] in ("both", "news") else 0
-                    nc = len(_wl.calendar_matches(k["term"], _allcal)) if k["scope"] in ("both", "calendar") else 0
-                    if nn or nc:
-                        bits = []
-                        if nn:
-                            bits.append(f"{nn} news")
-                        if nc:
-                            bits.append(f"{nc} calendar")
-                        kw_hits.append((k["term"], " · ".join(bits)))
-            if kw_hits:
-                for term, meta in kw_hits[:4]:
-                    st.markdown(
-                        f'<div class="es-kw"><span class="es-kw-t">\u2691 {ui.esc(term)}</span>'
-                        f'<span class="es-kw-m">{ui.esc(meta)}</span></div>',
-                        unsafe_allow_html=True)
-
+            ui.section("Market shock alerts", "Observed threshold breaches")
             alerts = markets.get_shock_alerts()
             if alerts:
                 for a in alerts[:4]:
                     ui.alert_card(a)
-            elif not kw_hits:
-                ui.empty_state("No moves beyond alert thresholds this session.")
-            if alerts or kw_hits:
-                if st.button("View all alerts →", key="qi_goto_alerts"):
+                if st.button("View alert details →", key="qi_goto_alerts"):
                     st.session_state["nav_to"] = "Alerts"
                     st.rerun()
+            else:
+                ui.empty_state("No moves beyond alert thresholds this session.")
         with c_col:
             ui.section("Economic calendar", "Next 7 days")
             cal = calendar_data.get_calendar()
             if cal:
+                _cal_kw = [k["term"] for k in _wl.get()
+                           if k["scope"] in ("both", "calendar")]
+
+                def _cal_watched(e):
+                    return bool(_cal_kw) and any(_wl.matches_event(e, k)
+                                                 for k in _cal_kw)
+                # Ensure a watched event is visible even if it's not in the
+                # chronologically-next few: mark watched, then show watched
+                # first, followed by the soonest others.
+                for e in cal:
+                    e["_watched"] = _cal_watched(e)
+                watched_ev = [e for e in cal if e["_watched"]]
+                soon = [e for e in cal if not e["_watched"]]
+                preview = (watched_ev + soon)[:4]
+                # keep chronological grouping headers within the preview
                 day = None
-                for e in cal[:4]:
+                for e in preview:
                     if e.get("day") and e["day"] != day:
                         day = e["day"]
                         ui.cal_day_header(day)
