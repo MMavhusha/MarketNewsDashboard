@@ -1,7 +1,0 @@
-streamlit>=1.40
-pandas
-plotly
-yfinance>=0.2.50
-feedparser
-requests
-streamlit-option-menu
