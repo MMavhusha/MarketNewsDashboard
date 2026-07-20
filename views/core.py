@@ -111,7 +111,7 @@ def page_executive_summary():
                     ui.alert_card(a)
                 if st.button("View alert details →", key="qi_goto_alerts",
                              use_container_width=True):
-                    st.session_state["nav_to"] = "Market Shock Alerts"
+                    st.session_state["nav_to"] = "Calendar & Alerts"
                     st.rerun()
             else:
                 ui.empty_state("No moves beyond alert thresholds in the latest "
@@ -229,7 +229,18 @@ def _right_rail(items):
 
 
 # ------------------------------------------------------------ market news
+def _weekly_view():
+    from views import reports
+    reports.render_weekly_view()
+
+
 def page_market_news():
+    mode = st.pills("View", ["All news", "This week"], default="All news",
+                    key="news_mode") or "All news"
+    if mode == "This week":
+        _weekly_view()
+        return
+
     items = news.get_news()
     f1, f2, f3, f4 = st.columns([1, 1, 1, 1.4])
     region = f1.selectbox("Region", ["All"] + sorted({i["region"] for i in items}) if items else ["All"])
@@ -261,10 +272,9 @@ def page_market_news():
             prov = ai_enrich.provider_label()
         except Exception:
             prov = "off"
-        ui.legend(f"Admin · classification: directional rules engine + AI "
-                  f"triage ({prov}) · {n_ai} of {len(view)} visible stories "
-                  f"are model-classified (marked ✦); the rest carry confident "
-                  f"rule verdicts")
+        ui.legend(f"Admin · model-primary classification via {prov} · "
+                  f"{n_ai} of {len(view)} visible stories were model-"
+                  f"classified (marked ✦); the rest fell back to rules")
     for idx, item in enumerate(view[:30]):
         if kw and any(news.fuzzy_match(k, item["title"] + " " + item["summary"])
                       for k in kw):
@@ -306,44 +316,6 @@ def _wire_sentiment(asset_class: str) -> str:
     return (f'Wire sentiment for {asset_class} stories: '
             f'{counts["Negative"]} negative · {counts["Positive"]} positive · '
             f'{counts["Neutral"]} neutral (observed coverage, not a forecast)')
-
-
-def page_shock_alerts():
-    t = markets.get_thresholds()
-    kinds = {tk: k for _, tk, k, _ in markets.SUMMARY_STRIP}
-    alerts = markets.get_shock_alerts()
-    if not alerts:
-        ui.empty_state("No instrument in the tracked universe moved beyond warning or "
-                       "critical thresholds in the latest session.")
-    dismissed = st.session_state.setdefault("dismissed_alerts", set())
-    shown = 0
-    senti_shown: set[str] = set()  # one sentiment line per asset class
-    for i, a in enumerate(alerts):
-        if a["title"] in dismissed:
-            continue
-        c1, c2 = st.columns([12, 1])
-        with c1:
-            ui.alert_card(a)
-            kind = next((k for n, tk, k, _ in markets.SUMMARY_STRIP
-                         if n == a["assets"]), "index")
-            cls = _ALERT_ASSET.get(kind, "Equities")
-            if cls not in senti_shown:
-                senti = _wire_sentiment(cls)
-                if senti:
-                    ui.legend(senti)
-                    senti_shown.add(cls)
-        with c2:
-            if st.button("✕", key=f"dis_{i}", help="Dismiss"):
-                dismissed.add(a["title"])
-                st.rerun()
-        shown += 1
-    if alerts and shown == 0:
-        ui.empty_state("All active alerts dismissed for this session.")
-    st.caption(f"Active thresholds (warning/critical) — indices "
-               f"{t['index'][0]}%/{t['index'][1]}% · FX {t['fx'][0]}%/{t['fx'][1]}% · "
-               f"commodities {t['commodity'][0]}%/{t['commodity'][1]}% · "
-               f"crypto {t['crypto'][0]}%/{t['crypto'][1]}%. "
-               "Your team can adjust these under Settings → Alert thresholds.")
 
 
 # ------------------------------------------------------------ announcements
@@ -412,9 +384,48 @@ def page_announcements():
 
 # ------------------------------------------------------------ calendar
 def page_calendar():
-    """Agenda view — the standard pattern across ForexFactory, Investing.com
-    and Bloomberg WECO: chronological rows grouped by day, filterable by
-    impact and country."""
+    """Calendar & Alerts — one 'what needs my attention' surface: reactive
+    threshold breaches first (observed moves), then the scheduled agenda.
+    Merges the former standalone Shock Alerts page."""
+    alerts = markets.get_shock_alerts()
+    t = markets.get_thresholds()
+    ui.section("Market shock alerts", "Threshold breaches on observed session moves")
+    if not alerts:
+        ui.empty_state("No instrument in the tracked universe moved beyond "
+                       "warning or critical thresholds in the latest session.")
+    else:
+        dismissed = st.session_state.setdefault("dismissed_alerts", set())
+        shown = 0
+        senti_shown: set[str] = set()
+        for i, a in enumerate(alerts):
+            if a["title"] in dismissed:
+                continue
+            c1, c2 = st.columns([12, 1])
+            with c1:
+                ui.alert_card(a)
+                kind = next((k for n, tk, k, _ in markets.SUMMARY_STRIP
+                             if n == a["assets"]), "index")
+                cls = _ALERT_ASSET.get(kind, "Equities")
+                if cls not in senti_shown:
+                    senti = _wire_sentiment(cls)
+                    if senti:
+                        ui.legend(senti)
+                        senti_shown.add(cls)
+            with c2:
+                if st.button("✕", key=f"dis_{i}", help="Dismiss"):
+                    dismissed.add(a["title"])
+                    st.rerun()
+            shown += 1
+        if shown == 0:
+            ui.empty_state("All active alerts dismissed for this session.")
+    st.caption(f"Active thresholds (warning/critical) — indices "
+               f"{t['index'][0]}%/{t['index'][1]}% · FX {t['fx'][0]}%/{t['fx'][1]}% · "
+               f"commodities {t['commodity'][0]}%/{t['commodity'][1]}% · "
+               f"crypto {t['crypto'][0]}%/{t['crypto'][1]}%. Adjust under "
+               "Settings → Alert thresholds.")
+
+    ui.section("Economic calendar",
+               "Scheduled releases and events · agenda view")
     horizon = st.pills("Horizon", ["Next 7 days", "Next 14 days"],
                        default="Next 7 days", key="cal_h") or "Next 7 days"
     days_ahead = 7 if horizon.startswith("Next 7") else 14
@@ -429,19 +440,33 @@ def page_calendar():
             "in the week the 14-day view adds few days" if days_ahead == 14 else "")
     ui.legend(f"Window {span}{note}")
 
-    f1, f2 = st.columns([1, 2])
+    regions_present = sorted({e["country"] for e in cal})
+    f1, f2, f3 = st.columns([1, 1.1, 1.5])
     imp_pick = f1.pills("Impact", ["All", "High", "Medium"], default="All",
                         key="cal_imp") or "All"
-    countries = sorted({e["country"] for e in cal})
-    ctry_pick = f2.multiselect("Countries", countries, default=[],
-                               placeholder="All countries")
+    region_pick = f2.selectbox("Region", ["All regions"] + regions_present,
+                               key="cal_region")
+    q = f3.text_input("Search events",
+                      placeholder='e.g. "rate", "CPI", "bank holiday"',
+                      key="cal_q")
+    highlight_only = st.toggle(
+        "Show only market-moving items (High impact + closures)",
+        key="cal_hi_only")
+
     view = cal
     if imp_pick == "High":
         view = [e for e in view if e["importance"] == "High"]
     elif imp_pick == "Medium":
         view = [e for e in view if e["importance"] in ("High", "Medium")]
-    if ctry_pick:
-        view = [e for e in view if e["country"] in ctry_pick]
+    if region_pick != "All regions":  # compress to a single region
+        view = [e for e in view if e["country"] == region_pick]
+    if highlight_only:
+        view = [e for e in view
+                if e["importance"] == "High" or e.get("is_holiday")]
+    if q:
+        ql = q.lower()
+        view = [e for e in view
+                if ql in e["event"].lower() or ql in e["country"].lower()]
     ui.legend(f"{len(view)} events · rows ordered by time within each day · "
               "times in SAST · Consensus = market forecast before release, "
               "Previous = prior reading")

@@ -20,7 +20,10 @@ NAMED_SOURCES = [
 ]
 
 
-def page_weekly_key_events():
+def render_weekly_view():
+    """The 'This week' view, embedded in Market News: curated 7-day stories,
+    weekly movers, upcoming releases, and the shared editorial-notes system
+    (this page's unique asset). Was the standalone Weekly Key Events page."""
     st.caption("Auto-compiled from live sources: the week's most important stories, "
                "upcoming releases and largest observed moves.")
 

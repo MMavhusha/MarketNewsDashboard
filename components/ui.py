@@ -206,17 +206,32 @@ def summary_row(q, spark_fig=None, key="", period=""):
 
 
 def tl_row(e: dict):
-    """Timeline row for the economic calendar: time gutter, impact dot, card."""
+    """Timeline row for the economic calendar: time gutter, impact dot, card.
+    Market-holiday rows render distinctly (no consensus/previous fields)."""
     import streamlit as st
+    if e.get("is_holiday"):
+        st.markdown(
+            f'''<div class="tl-row tl-holiday">
+            <div class="tl-gutter num">—</div>
+            <div class="tl-line"><span class="tl-dot"></span></div>
+            <div class="tl-card">
+              <span class="t-cty">{esc(e["country"])}</span>
+              <span class="t-ev">{esc(e["event"])}</span>
+              <span class="t-hol">MARKET CLOSED</span>
+            </div></div>''',
+            unsafe_allow_html=True)
+        return
     sev = ("tl-high" if e["importance"] == "High"
            else "tl-medium" if e["importance"] == "Medium" else "")
+    mover = e["importance"] == "High"  # market-moving flag on the card
+    flag = '<span class="t-mover">MARKET-MOVING</span>' if mover else ""
     st.markdown(
-        f'''<div class="tl-row {sev}">
+        f'''<div class="tl-row {sev}{' tl-mover' if mover else ''}">
         <div class="tl-gutter num">{esc((e.get("time") or "")[:5])}</div>
         <div class="tl-line"><span class="tl-dot"></span></div>
         <div class="tl-card">
           <span class="t-cty">{esc(e["country"])}</span>
-          <span class="t-ev">{esc(e["event"])}</span>
+          <span class="t-ev">{esc(e["event"])}{flag}</span>
           <span class="t-vals num">Consensus <b>{esc(e["expected"])}</b><br>
           Previous <b>{esc(e["previous"])}</b></span>
         </div></div>''',

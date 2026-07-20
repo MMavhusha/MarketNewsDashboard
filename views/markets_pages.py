@@ -241,15 +241,36 @@ def _period_month(s):
     return s.index[-1].strftime("%b %Y") if s is not None and len(s) else "—"
 
 
+def _fmt_date(v):
+    """Normalise any source date to a single 'DD Mon YYYY' form; '—' if none
+    or if the value is a descriptive period rather than a real date."""
+    if not v or v == "—":
+        return "—"
+    for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%d %b %Y", "%b %Y", "%Y-%m"):
+        try:
+            dt = pd.to_datetime(str(v), format=fmt, errors="raise")
+            return dt.strftime("%d %b %Y") if fmt in ("%Y-%m-%d", "%Y/%m/%d",
+                                                      "%d %b %Y") else dt.strftime("%b %Y")
+        except (ValueError, TypeError):
+            continue
+    try:
+        return pd.to_datetime(str(v)).strftime("%d %b %Y")
+    except (ValueError, TypeError):
+        return str(v)
+
+
 def _region_rows(region, matrix):
     """Reference-pack rows for one region: dicts with ind/source/latest/fmt/
     period/hist. Returns (rows, promoted_sarb_names)."""
     promoted: set = set()
     rows = []
 
-    def add(ind, latest, fmt, source, period, hist=None):
+    def add(ind, latest, fmt, source, period, hist=None, release="—"):
+        # release = actual publication date when the source gives one (SARB,
+        # FRED monthly obs); '—' when only a measured period is published
+        # (World Bank annual). period = the measured period label.
         rows.append({"ind": ind, "latest": latest, "fmt": fmt, "source": source,
-                     "period": period, "hist": hist})
+                     "period": period, "hist": hist, "release": release})
 
     # GDP (World Bank annual — pack cadence is quarterly; deltas need history)
     cell = matrix.get("GDP Growth (YoY %)", {}).get(region)
@@ -263,7 +284,7 @@ def _region_rows(region, matrix):
         if cpi:
             promoted.add(cpi["name"])
             add("Inflation, CPI (YoY %)", ui.num_or_none(cpi["value"]), "{:,.2f}",
-                "SARB (monthly)", cpi["date"])
+                "SARB (monthly)", cpi["date"], release=cpi["date"])
         else:
             cell = matrix.get("Inflation, CPI (YoY %)", {}).get(region)
             add("Inflation, CPI (YoY %)", cell[1] if cell else None, "{:,.2f}",
@@ -278,7 +299,8 @@ def _region_rows(region, matrix):
         add("Inflation, CPI (YoY %)",
             float(s.iloc[-1]) if s is not None else None, "{:,.2f}",
             lbl if s is not None else "FRED unreachable",
-            _period_month(s), s)
+            _period_month(s), s,
+            release=s.index[-1].strftime("%b %Y") if s is not None else "—")
     else:
         cell = matrix.get("Inflation, CPI (YoY %)", {}).get(region)
         add("Inflation, CPI (YoY %)", cell[1] if cell else None, "{:,.2f}",
@@ -294,14 +316,16 @@ def _region_rows(region, matrix):
             promoted.add(repo["name"])
         add("Policy Rate (%)", ui.num_or_none(repo["value"]) if repo else None,
             "{:,.2f}", "SARB Web API" if repo else _PENDING["Policy Rate (%)"],
-            repo["date"] if repo else "—")
+            repo["date"] if repo else "—",
+            release=repo["date"] if repo else "—")
     elif region in ("United States", "Euro Area") and fred.enabled():
         key = "us_policy" if region == "United States" else "ea_policy"
         s = fred.history(key, 3)
         add("Policy Rate (%)", float(s.iloc[-1]) if s is not None else None,
             "{:,.2f}",
             fred.SERIES[key][1] if s is not None else "FRED unreachable",
-            _period_month(s), s)
+            _period_month(s), s,
+            release=s.index[-1].strftime("%b %Y") if s is not None else "—")
     else:
         add("Policy Rate (%)", None, "{:,.2f}", _PENDING["Policy Rate (%)"], "—")
 
@@ -311,7 +335,8 @@ def _region_rows(region, matrix):
         add("Unemployment Rate (%)",
             float(s.iloc[-1]) if s is not None else None, "{:,.2f}",
             fred.SERIES["us_unemp"][1] if s is not None else "FRED unreachable",
-            _period_month(s), s)
+            _period_month(s), s,
+            release=s.index[-1].strftime("%b %Y") if s is not None else "—")
     else:
         cell = matrix.get("Unemployment Rate (%)", {}).get(region)
         add("Unemployment Rate (%)", cell[1] if cell else None, "{:,.2f}",
@@ -324,7 +349,8 @@ def _region_rows(region, matrix):
         if r209:
             promoted.add(r209["name"])
             add("10Y Government Yield (%)", ui.num_or_none(r209["value"]),
-                "{:,.2f}", f'{r209["name"]} · SARB', r209["date"])
+                "{:,.2f}", f'{r209["name"]} · SARB', r209["date"],
+                release=r209["date"])
         else:
             add("10Y Government Yield (%)", None, "{:,.2f}",
                 _PENDING["10Y Government Yield (%)"], "—")
@@ -333,7 +359,8 @@ def _region_rows(region, matrix):
         add("10Y Government Yield (%)",
             float(s.iloc[-1]) if s is not None else None, "{:,.2f}",
             fred.SERIES["us_10y"][1] if s is not None else "FRED unreachable",
-            _period_month(s), s)
+            _period_month(s), s,
+            release=s.index[-1].strftime("%b %Y") if s is not None else "—")
     else:
         add("10Y Government Yield (%)", None, "{:,.2f}",
             _PENDING["10Y Government Yield (%)"], "—")
@@ -342,11 +369,21 @@ def _region_rows(region, matrix):
     fx_name, fx_tk = macro.REGION_FX[region]
     s = _fx_series(fx_tk)
     q = markets.get_quotes([(fx_name, fx_tk)])[0]
+    fx_rel = (s.index[-1].strftime("%d %b %Y") if s is not None
+              else (q.asof or "—"))
     add(f"FX — {fx_name}", float(s.iloc[-1]) if s is not None
         else (float(q.price) if q.ok else None),
-        "{:,.4f}", "yfinance (daily close)",
-        s.index[-1].strftime("%d %b %Y") if s is not None
-        else (q.asof or "—"), s)
+        "{:,.4f}", "yfinance (daily close)", fx_rel, s, release=fx_rel)
+
+    # Signature commodity (3Y history, free proxy) — chart lives in the panel
+    cname, ctk, cunit, cmult = macro.REGION_COMMODITY[region]
+    ch = markets.get_history(ctk, "3y")
+    cs = (ch * cmult if cmult != 1.0 else ch) if len(ch) > 2 else None
+    add(f"Commodity — {cname}",
+        float(cs.iloc[-1]) if cs is not None else None,
+        "{:,.2f}", f"yfinance · {cunit}",
+        cs.index[-1].strftime("%d %b %Y") if cs is not None else "—", cs,
+        release=cs.index[-1].strftime("%d %b %Y") if cs is not None else "—")
 
     # PMI (no free source — proprietary press releases)
     add("Manufacturing PMI", None, "{:,.1f}", _PENDING["Manufacturing PMI"], "—")
@@ -356,177 +393,112 @@ def _region_rows(region, matrix):
 def _fmt_delta(v, fmt):
     if v is None:
         return '<span class="rg-na">n/a*</span>'
-    return f'<span class="num">{"+" if v >= 0 else "−"}{fmt.format(abs(v))}</span>'
+    return f'<span class="num">{"+" if v >= 0 else "\u2212"}{fmt.format(abs(v))}</span>'
 
 
-def _pack_grid(rows, key_prefix=""):
-    body = ""
-    for r in rows:
-        d1, d3, d12 = _hist_deltas(r["hist"])
-        latest = (f'<span class="num">{r["fmt"].format(r["latest"])}</span>'
-                  if r["latest"] is not None else '<span class="rg-na">n/a</span>')
-        body += (
-            f'<div class="rg-row"><span><span class="rg-ind">{ui.esc(r["ind"])}'
-            f'</span><span class="rg-src">{ui.esc(r["source"])}</span></span>'
-            f'<span class="rg-num">{latest}</span>'
-            f'<span class="rg-num rg-mut">—</span>'
-            f'<span class="rg-num rg-mut">{ui.esc(r["period"])}</span>'
-            f'<span class="rg-num">{_fmt_delta(d1, r["fmt"])}</span>'
-            f'<span class="rg-num">{_fmt_delta(d3, r["fmt"])}</span>'
-            f'<span class="rg-num">{_fmt_delta(d12, r["fmt"])}</span></div>')
+def _grid_row_html(r, rid, selected):
+    d1, d3, d12 = _hist_deltas(r["hist"])
+    latest = (f'<span class="num">{r["fmt"].format(r["latest"])}</span>'
+              if r["latest"] is not None else '<span class="rg-na">n/a</span>')
+    rel = _fmt_date(r.get("release", "—"))
+    sel = " rg-row-sel" if selected else ""
+    return (
+        f'<div class="rg-row{sel}"><span><span class="rg-ind">{ui.esc(r["ind"])}'
+        f'</span><span class="rg-src">{ui.esc(r["source"])}</span></span>'
+        f'<span class="rg-num">{latest}</span>'
+        f'<span class="rg-num rg-mut">{ui.esc(rel)}</span>'
+        f'<span class="rg-num rg-mut">{ui.esc(r["period"])}</span>'
+        f'<span class="rg-num">{_fmt_delta(d1, r["fmt"])}</span>'
+        f'<span class="rg-num">{_fmt_delta(d3, r["fmt"])}</span>'
+        f'<span class="rg-num">{_fmt_delta(d12, r["fmt"])}</span></div>')
+
+
+def _pack_grid(rows, region):
+    """Single interactive grid. A row-select control drives ONE shared detail
+    panel below (chart + cross-region compare) — no separate charts section,
+    no comparison popover; those were three views of the same series."""
     st.markdown(
         '<div class="fx-table"><div class="rg-hd"><span>Indicator</span>'
         '<span class="rg-num">Latest</span><span class="rg-num">Release</span>'
-        '<span class="rg-num">Period</span><span class="rg-num">1M Δ</span>'
-        '<span class="rg-num">3M Δ</span><span class="rg-num">12M Δ</span>'
-        f'</div>{body}</div>', unsafe_allow_html=True)
+        '<span class="rg-num">Period</span><span class="rg-num">1M \u0394</span>'
+        '<span class="rg-num">3M \u0394</span><span class="rg-num">12M \u0394</span>'
+        '</div>' +
+        "".join(_grid_row_html(r, i, False) for i, r in enumerate(rows)) +
+        '</div>', unsafe_allow_html=True)
 
 
-def _comparison_table(ind, matrix):
-    """Opt-in cross-region view: ONE indicator across all regions."""
-    body = ""
+def _detail_panel(rows, region, matrix):
+    """Shared panel: pick an indicator, see its 3Y chart AND the same
+    indicator across all regions — the consolidation of the old separate
+    charts section and comparison popover into one place."""
+    labels = [r["ind"] for r in rows]
+    pick = st.selectbox("Detail & cross-region compare", labels,
+                        key=f"rm_detail_{region}", label_visibility="collapsed")
+    row = next((r for r in rows if r["ind"] == pick), None)
+    if row is None:
+        return
+    c_chart, c_cmp = st.columns([3, 2], gap="large")
+    with c_chart:
+        if row["hist"] is not None and len(row["hist"]) > 2:
+            unit = "%" if "%" in row["ind"] else ""
+            st.plotly_chart(
+                charts.pack_history(row["hist"], f"{region} — {row['ind']}",
+                                    height=280, y_title=unit),
+                use_container_width=True, config={"displayModeBar": False},
+                key=f"rm_chart_{region}")
+        else:
+            ui.empty_state(f"{row['ind']}: 3-year history source pending "
+                           "(BIS / Eurostat / Bundesbank queued).")
+    with c_cmp:
+        _compare_block(pick, matrix)
+
+
+def _compare_block(ind, matrix):
+    """One indicator across all regions — compact bars, latest value each."""
+    vals = []
     for region in macro.REGIONS:
         rows, _ = _region_rows(region, matrix)
-        row = next((r for r in rows if r["ind"] == ind
-                    or (ind == "FX vs USD" and r["ind"].startswith("FX"))), None)
-        if row is None:
-            continue
-        d1, d3, d12 = _hist_deltas(row["hist"])
-        latest = (f'<span class="num">{row["fmt"].format(row["latest"])}</span>'
-                  if row["latest"] is not None
-                  else '<span class="rg-na">n/a</span>')
+        r = next((x for x in rows if x["ind"] == ind), None)
+        if r and r["latest"] is not None:
+            vals.append((region, float(r["latest"]), r["fmt"]))
+    if not vals:
+        ui.empty_state("No comparable values across regions yet.")
+        return
+    st.markdown('<div class="rg-cmp-h">Across regions · latest</div>',
+                unsafe_allow_html=True)
+    hi = max(abs(v) for _, v, _ in vals) or 1.0
+    body = ""
+    for region, v, fmt in sorted(vals, key=lambda x: x[1], reverse=True):
+        w = min(abs(v) / hi, 1.0) * 100
+        col = "#1E8052" if v >= 0 else "#B0212C"
         body += (
-            f'<div class="rg-row"><span><span class="rg-ind">{ui.esc(region)}'
-            f'</span><span class="rg-src">{ui.esc(row["source"])}</span></span>'
-            f'<span class="rg-num">{latest}</span>'
-            f'<span class="rg-num rg-mut">—</span>'
-            f'<span class="rg-num rg-mut">{ui.esc(row["period"])}</span>'
-            f'<span class="rg-num">{_fmt_delta(d1, row["fmt"])}</span>'
-            f'<span class="rg-num">{_fmt_delta(d3, row["fmt"])}</span>'
-            f'<span class="rg-num">{_fmt_delta(d12, row["fmt"])}</span></div>')
-    st.markdown(
-        '<div class="fx-table"><div class="rg-hd"><span>Region</span>'
-        '<span class="rg-num">Latest</span><span class="rg-num">Release</span>'
-        '<span class="rg-num">Period</span><span class="rg-num">1M Δ</span>'
-        '<span class="rg-num">3M Δ</span><span class="rg-num">12M Δ</span>'
-        f'</div>{body}</div>', unsafe_allow_html=True)
-
-
-_CMP_INDICATORS = ["GDP Growth (YoY %)", "Inflation, CPI (YoY %)",
-                   "Policy Rate (%)", "Unemployment Rate (%)",
-                   "10Y Government Yield (%)", "FX vs USD",
-                   "Manufacturing PMI"]
+            f'<div class="rg-cmp-row"><span class="rg-cmp-nm">{ui.esc(region)}</span>'
+            f'<span class="rg-cmp-bar"><span style="width:{w:.0f}%;'
+            f'background:{col};"></span></span>'
+            f'<span class="rg-cmp-v num">{fmt.format(v)}</span></div>')
+    st.markdown(f'<div class="rg-cmp">{body}</div>', unsafe_allow_html=True)
 
 
 def page_regional_macro():
-    st.caption("Indicator set mirrors the macro pack. Live free sources fill what "
-               "they can (World Bank, SARB, yfinance); the rest shows its named "
-               "target source. No estimation is performed.")
+    st.caption("Indicator set mirrors the macro pack. Live free sources fill "
+               "what they can (World Bank, SARB, FRED, yfinance); the rest "
+               "shows its named target source. No estimation is performed.")
 
     matrix = macro.wb_latest_matrix()
     tabs = st.tabs(list(macro.REGIONS.keys()))
     for tab, (region, iso) in zip(tabs, macro.REGIONS.items()):
         with tab:
             rows, promoted = _region_rows(region, matrix)
-            gh1, gh2 = st.columns([5, 1.3])
-            with gh1:
-                ui.section("At a glance",
-                           "Reference-pack format · this region only")
-            with gh2:
-                with st.popover("Compare regions", use_container_width=True):
-                    ind = st.selectbox("Indicator", _CMP_INDICATORS,
-                                       key=f"cmp_ind_{region}")
-                    if st.toggle("Load comparison", key=f"cmp_on_{region}"):
-                        _comparison_table(ind, matrix)
-                    else:
-                        st.caption("Opt-in: toggles a cross-region view of "
-                                   "one indicator at a time.")
-            _pack_grid(rows)
-            ui.legend("Period = the measured period · Release dates aren't "
-                      "published by the current free APIs (shown — until a "
-                      "richer source lands) · Δ in the indicator's own units, "
-                      "arithmetic on published observations · n/a* = history "
-                      "source pending (BIS / Eurostat / Bundesbank queued)")
-            ui.section("3-year historical charts",
-                       "Signature commodity · 10Y bond · policy rate · CPI YoY")
-            h1, h2 = st.columns(2, gap="large")
-            cname, ctk, cunit, cmult = macro.REGION_COMMODITY[region]
-            with h1:
-                hist = markets.get_history(ctk, "3y")
-                if len(hist) > 2:
-                    series = hist * cmult if cmult != 1.0 else hist
-                    st.plotly_chart(
-                        charts.line_chart(series, f"{region} — {cname}",
-                                          y_title=cunit, height=300),
-                        use_container_width=True,
-                        config={"displayModeBar": False},
-                        key=f"rc_{region}")
-                else:
-                    ui.empty_state(f"{cname}: history unavailable from the "
-                                   "free proxy right now.")
-            bname, btk, bscale, bsrc = macro.REGION_10Y[region]
-            with h2:
-                if btk == "^TNX":
-                    hist = markets.get_history(btk, "3y")
-                    if len(hist) > 2:
-                        st.plotly_chart(
-                            charts.line_chart(hist * bscale,
-                                              f"{region} — {bname}",
-                                              y_title="%", height=300),
-                            use_container_width=True,
-                            config={"displayModeBar": False},
-                            key=f"rb_{region}")
-                    else:
-                        ui.empty_state(f"{bname}: yfinance unreachable.")
-                elif btk == "SARB_LATEST":
-                    r = _sarb_find("r2035", "r209", "2036")
-                    if r:
-                        st.markdown(
-                            f'<div class="kpi"><div class="k-label">{ui.esc(bname)}'
-                            f' — latest</div><div class="k-val num">{ui.esc(r["value"])}'
-                            f'<span style="font-size:11px;font-weight:400;'
-                            f'color:#909288;"> %</span></div>'
-                            f'<div class="k-sub">{ui.esc(r["name"])} · '
-                            f'{ui.esc(r["date"])} · SARB · a 3Y yield history '
-                            f'needs a keyed source</div></div>',
-                            unsafe_allow_html=True)
-                    else:
-                        ui.empty_state("SA benchmark yield not published under "
-                                       "a recognised series name.")
-                else:
-                    st.markdown(
-                        f'<div class="metric-block"><div class="metric-label">'
-                        f'{ui.esc(bname)}</div><div class="metric-pending">'
-                        f'Source: {ui.esc(bsrc)}</div></div>',
-                        unsafe_allow_html=True)
-
-            h3, h4 = st.columns(2, gap="large")
-            pending: list[str] = []
-            for hcol, registry, kind in ((h3, macro.REGION_POLICY_HIST, "pol"),
-                                         (h4, macro.REGION_CPI_HIST, "cpi")):
-                label, fkey, yoy, src = registry[region]
-                with hcol:
-                    s = (fred.history(fkey, 3, yoy=yoy)
-                         if fkey and fred.enabled() else None)
-                    if s is not None:
-                        st.plotly_chart(
-                            charts.pack_history(s, f"{region} — {label}",
-                                                height=300),
-                            use_container_width=True,
-                            config={"displayModeBar": False},
-                            key=f"r{kind}_{region}")
-                        st.caption(src)
-                    else:
-                        pending.append(
-                            f"<b>{ui.esc(label)}</b>: {ui.esc(src)}"
-                            + (" — unreachable right now" if fkey else ""))
-            if pending:
-                st.markdown(
-                    '<div class="metric-block"><div class="metric-label">'
-                    '3Y monthly histories — source pending</div>'
-                    '<div class="metric-pending">' + " · ".join(pending)
-                    + "</div></div>",
-                    unsafe_allow_html=True)
+            ui.section("At a glance",
+                       "This region \u00b7 pick a row below for its 3-year "
+                       "chart and cross-region comparison")
+            _pack_grid(rows, region)
+            ui.legend("Release = publication date where the source provides "
+                      "one, else \u2014 \u00b7 Period = the measured period "
+                      "\u00b7 \u0394 in the indicator's own units, arithmetic "
+                      "on published observations \u00b7 n/a* = history source "
+                      "pending (BIS / Eurostat / Bundesbank queued)")
+            _detail_panel(rows, region, matrix)
 
             if region == "South Africa":
                 groups = sarb.get_sa_indicators()
@@ -576,22 +548,3 @@ def page_regional_macro():
                         use_container_width=True, config={"displayModeBar": False})
                 else:
                     ui.empty_state("World Bank API unreachable for this series.")
-
-    ui.section("Cross-region comparison", "Same indicator, all regions")
-    ind_pick = st.pills("Indicator", list(macro.WB_INDICATORS.keys()),
-                        default="Inflation, CPI (YoY %)", key="xreg")
-    focus = st.pills("Focus region", list(macro.REGIONS.keys()),
-                     default="South Africa", key="xreg_focus") or "South Africa"
-    if ind_pick:
-        frames = {}
-        for region, iso in macro.REGIONS.items():
-            s = macro.wb_series(iso, macro.WB_INDICATORS[ind_pick])
-            if s:
-                frames[region] = pd.Series({y: v for y, v in s})
-        if frames:
-            df = pd.DataFrame(frames).sort_index()
-            st.plotly_chart(charts.multi_line(df, ind_pick, y_title="%",
-                                              highlight=focus),
-                            use_container_width=True, config={"displayModeBar": False})
-        else:
-            ui.empty_state("No comparison data available.")

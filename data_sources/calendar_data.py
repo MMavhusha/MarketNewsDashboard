@@ -34,6 +34,20 @@ _CCY_LABEL = {
     "CHF": "Switzerland", "NZD": "New Zealand",
 }
 
+# The regions this dashboard covers. Events outside these are never shipped
+# to the calendar — a SA PM does not need Australian or Swiss data prints.
+OUR_REGIONS = {"South Africa", "United States", "Euro Area",
+               "United Kingdom", "China", "India", "Japan"}
+
+# Exchange calendars (pandas-market-calendars) per region — fully automatic,
+# no manual upkeep. XJSE = Johannesburg; covers all SA public holidays.
+_EXCHANGE_CAL = {
+    "South Africa": ("XJSE", "JSE"), "United States": ("NYSE", "NYSE"),
+    "Euro Area": ("XETR", "Xetra"), "United Kingdom": ("LSE", "LSE"),
+    "China": ("XSHG", "Shanghai SE"), "India": ("NSE", "NSE"),
+    "Japan": ("XTKS", "Tokyo SE"),
+}
+
 
 
 def _nice(dt_iso: str) -> tuple[str, str]:
@@ -125,11 +139,56 @@ def _fetch_trading_economics(key: str, days_ahead: int) -> list[dict]:
         return []
 
 
+@st.cache_data(ttl=6 * 3600, show_spinner=False)
+def _market_holidays(days_ahead: int) -> list[dict]:
+    """Market closures across all covered regions, as calendar rows. Fully
+    automatic via pandas-market-calendars — no keys, no manual dates. A
+    closure is a weekday in range with no trading session on that exchange."""
+    try:
+        import pandas as pd
+        import pandas_market_calendars as mcal
+    except Exception:
+        return []
+    start = datetime.now(SAST).date()
+    end = start + timedelta(days=days_ahead)
+    out = []
+    for region, (code, venue) in _EXCHANGE_CAL.items():
+        try:
+            cal = mcal.get_calendar(code)
+            sched = cal.schedule(start_date=start.isoformat(),
+                                 end_date=end.isoformat())
+            trading = set(sched.index.date)
+            for d in pd.bdate_range(start, end):
+                if d.date() not in trading:
+                    name = ""
+                    try:  # label the holiday where the calendar names it
+                        h = cal.holidays().holidays
+                        name = str(h.get(pd.Timestamp(d.date()), "") or "")
+                    except Exception:
+                        pass
+                    iso = f"{d.date().isoformat()}T00:00:00+02:00"
+                    out.append({
+                        "country": region,
+                        "event": f"{venue} closed" + (f" — {name}" if name else ""),
+                        "date": d.date().isoformat() + " 00:00",
+                        "day": d.strftime("%a %d %b"), "time": "—",
+                        "_dt": iso, "expected": "—", "previous": "—",
+                        "importance": "High",  # a closed market halts execution
+                        "is_holiday": True,
+                        "source": "pandas-market-calendars",
+                    })
+        except Exception:
+            continue
+    return out
+
+
 def get_calendar(days_ahead: int = 7) -> list[dict]:
     key = _te_key()
     rows = (_fetch_trading_economics(key, days_ahead) if key
             else _fetch_forexfactory())
-    rows = rows + _curated_za()
+    rows = rows + _curated_za() + _market_holidays(days_ahead)
+    # Ship ONLY our covered regions — no Australian/Canadian/Swiss/NZ prints.
+    rows = [e for e in rows if e.get("country") in OUR_REGIONS]
     now = datetime.now(timezone.utc)
     horizon = now + timedelta(days=days_ahead)
 
@@ -138,6 +197,8 @@ def get_calendar(days_ahead: int = 7) -> list[dict]:
             dt = datetime.fromisoformat(e["_dt"].replace("Z", "+00:00"))
             if dt.tzinfo is None:
                 dt = dt.replace(tzinfo=timezone.utc)
+            if e.get("is_holiday"):  # all-day fact: keep today-or-future
+                return now.date() <= dt.date() <= horizon.date()
             return now - timedelta(hours=12) <= dt <= horizon
         except Exception:
             return True
@@ -148,9 +209,11 @@ def get_calendar(days_ahead: int = 7) -> list[dict]:
 
 
 def provider_label() -> str:
-    return ("Trading Economics (full coverage)" if _te_key()
-            else "Forex Factory public feed — majors only (USD, EUR, GBP, JPY, "
-                 "CNY, AUD, CAD, CHF, NZD); SA/India events need a TE key")
+    base = ("Trading Economics (full coverage)" if _te_key()
+            else "Forex Factory public feed — major-currency data releases")
+    return (base + " · market holidays for all covered regions via "
+            "pandas-market-calendars · filtered to SA, US, Euro Area, UK, "
+            "China, India, Japan")
 
 
 def has_full_access() -> bool:

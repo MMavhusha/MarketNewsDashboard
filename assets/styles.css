@@ -427,3 +427,31 @@ div[class*="st-key-note_editor_"] .stRadio { margin: 0; }
 .fh-row:hover .fx-pair { color: #FF671D; }
 .fh-cell { display: block; text-align: right; padding: 6px 10px;
   border-radius: 6px; color: #212322; }
+
+/* ---------- Regional Macro: shared detail panel compare bars ---------- */
+.rg-row-sel { background: #FFF1E9 !important; }
+.rg-cmp-h { font-size: 10.5px; font-weight: 700; letter-spacing: 1px;
+  text-transform: uppercase; color: #909288; margin: 4px 0 8px; }
+.rg-cmp { display: flex; flex-direction: column; gap: 7px; }
+.rg-cmp-row { display: grid; grid-template-columns: 92px 1fr 68px;
+  align-items: center; gap: 10px; font-size: 12px; }
+.rg-cmp-nm { color: #212322; font-weight: 600; }
+.rg-cmp-bar { background: #F0F0EE; border-radius: 3px; height: 9px;
+  overflow: hidden; }
+.rg-cmp-bar span { display: block; height: 100%; border-radius: 3px; }
+.rg-cmp-v { text-align: right; color: #4C4D52; }
+
+/* ---------- Calendar: market-holiday rows ---------- */
+.tl-row.tl-holiday .tl-dot { background: #B0212C; }
+.tl-row.tl-holiday .tl-card { background: #FBF3F3; border-color: #EBC8CC; }
+.t-hol { display: inline-block; font-size: 10px; font-weight: 700;
+  letter-spacing: 1px; color: #B0212C; background: #F8ECED;
+  border: 1px solid #EBC8CC; border-radius: 4px; padding: 2px 8px;
+  align-self: center; }
+
+/* ---------- Calendar: market-moving emphasis ---------- */
+.tl-row.tl-mover .tl-card { border-left: 3px solid #FF671D; }
+.t-mover { display: inline-block; font-size: 9px; font-weight: 700;
+  letter-spacing: 1px; color: #C24E11; background: #FFF1E9;
+  border: 1px solid #FFCDB0; border-radius: 4px; padding: 1px 6px;
+  margin-left: 8px; vertical-align: 1px; }
