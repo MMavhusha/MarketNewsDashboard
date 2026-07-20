@@ -94,65 +94,66 @@ def page_executive_summary():
                    "Latest vs prior session · mini-chart = last month · yfinance")
         render_summary_strip()
 
-        left, right = st.columns([1.5, 1], gap="medium")
-        with left:
-            ui.section("Breaking news", "Top stories · full coverage on Market News")
-            if items:
-                pool = [i for i in items if i is not hero_item]
-                for item in pool[:3]:
-                    ui.news_teaser(item, news.fmt_time(item["published"]))
-                if st.button("All market news →", key="es_goto_news",
-                             use_container_width=True):
-                    st.session_state["nav_to"] = "Market News"
-                    st.rerun()
-            else:
-                ui.empty_state("News feeds are currently unreachable.")
+        # Stacked full-width sections. Deliberately NOT an inner two-column
+        # split: two independent columns can't equalise height, so any change
+        # to tile counts (news items, alerts, calendar rows) reopens dead
+        # space. A single flow reorders naturally and never leaves a gap.
+        ui.section("Breaking news", "Top stories · full coverage on Market News")
+        if items:
+            pool = [i for i in items if i is not hero_item]
+            for item in pool[:4]:
+                ui.news_teaser(item, news.fmt_time(item["published"]))
+            if st.button("All market news →", key="es_goto_news"):
+                st.session_state["nav_to"] = "Market News"
+                st.rerun()
+        else:
+            ui.empty_state("News feeds are currently unreachable.")
 
-            # Movers sit under the teasers so the left column's height tracks
-            # the right (alerts + calendar) — no dead space beneath either.
-            ui.section("Market movers", "Today's largest moves · core universe")
-            gainers, losers = markets.get_movers(universe="core")
-            g1, g2 = st.columns(2, gap="small")
-            with g1:
-                st.markdown('<div class="card"><div style="font-size:11px;font-weight:700;'
-                            'text-transform:uppercase;letter-spacing:1px;color:#1E8052;'
-                            'margin-bottom:6px;">Top gainers</div>' +
-                            "".join(ui.mover_row(q) for q in gainers[:4]) + "</div>",
-                            unsafe_allow_html=True)
-            with g2:
-                st.markdown('<div class="card"><div style="font-size:11px;font-weight:700;'
-                            'text-transform:uppercase;letter-spacing:1px;color:#B0212C;'
-                            'margin-bottom:6px;">Top decliners</div>' +
-                            "".join(ui.mover_row(q) for q in losers[:4]) + "</div>",
-                            unsafe_allow_html=True)
-            ui.legend("1-day moves · full FX ladder on Currencies · weekly "
-                      "movers under Market News → This week")
-        with right:
-            ui.section("Market shock alerts", "Derived from observed moves")
+        a_col, c_col = st.columns(2, gap="medium")
+        with a_col:
+            ui.section("Market shock alerts", "Observed threshold breaches")
             alerts = markets.get_shock_alerts()
             if alerts:
                 for a in alerts[:4]:
                     ui.alert_card(a)
-                if st.button("View alert details →", key="qi_goto_alerts",
-                             use_container_width=True):
+                if st.button("View alert details →", key="qi_goto_alerts"):
                     st.session_state["nav_to"] = "Calendar & Alerts"
                     st.rerun()
             else:
-                ui.empty_state("No moves beyond alert thresholds in the latest "
-                               "session.")
-
+                ui.empty_state("No moves beyond alert thresholds this session.")
+        with c_col:
             ui.section("Economic calendar", "Next 7 days")
             cal = calendar_data.get_calendar()
             if cal:
                 day = None
-                for e in cal[:5]:
+                for e in cal[:4]:
                     if e.get("day") and e["day"] != day:
                         day = e["day"]
                         ui.cal_day_header(day)
                     ui.cal_mini(e)
-                ui.legend("Cons = market forecast · Prev = prior · SAST")
+                if st.button("Full calendar →", key="es_goto_cal"):
+                    st.session_state["nav_to"] = "Calendar & Alerts"
+                    st.rerun()
             else:
                 ui.empty_state("Calendar feed unavailable right now.")
+
+        ui.section("Market movers", "Today's largest moves · core universe")
+        gainers, losers = markets.get_movers(universe="core")
+        g1, g2 = st.columns(2, gap="medium")
+        with g1:
+            st.markdown('<div class="card"><div style="font-size:11px;font-weight:700;'
+                        'text-transform:uppercase;letter-spacing:1px;color:#1E8052;'
+                        'margin-bottom:6px;">Top gainers</div>' +
+                        "".join(ui.mover_row(q) for q in gainers[:4]) + "</div>",
+                        unsafe_allow_html=True)
+        with g2:
+            st.markdown('<div class="card"><div style="font-size:11px;font-weight:700;'
+                        'text-transform:uppercase;letter-spacing:1px;color:#B0212C;'
+                        'margin-bottom:6px;">Top decliners</div>' +
+                        "".join(ui.mover_row(q) for q in losers[:4]) + "</div>",
+                        unsafe_allow_html=True)
+        ui.legend("1-day moves · full FX ladder on Currencies · weekly movers "
+                  "under Market News → This week")
 
     with rail:
         _right_rail(items)

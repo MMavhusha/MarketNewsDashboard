@@ -77,16 +77,19 @@ def _te_key() -> str | None:
 @st.cache_data(ttl=3600, show_spinner=False)
 def _fetch_forexfactory() -> list[dict]:
     out, seen = [], set()
+    from data_sources import obs
     for url in FF_FEEDS:
         name = url.rsplit("/", 1)[-1]
         if name in seen:
             continue
         try:
-            r = requests.get(url, timeout=12,
-                             headers={"User-Agent": "Mozilla/5.0"})
-            r.raise_for_status()
+            with obs.track(f"Forex Factory · {name}"):
+                r = requests.get(url, timeout=12,
+                                 headers={"User-Agent": "Mozilla/5.0"})
+                r.raise_for_status()
+                payload = r.json()
             seen.add(name)
-            for x in r.json():
+            for x in payload:
                 when = x.get("date") or ""
                 day, tm = _nice(when)
                 out.append({

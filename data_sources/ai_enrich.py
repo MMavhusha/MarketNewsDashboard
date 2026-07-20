@@ -96,11 +96,19 @@ def _prompt(headlines, hero: bool, themes: str = "") -> str:
     return (
         "You classify financial news for an institutional portfolio-"
         "management dashboard. " + ctx + "Weigh the summary's facts equally "
-        "with the title — headlines often understate. For each numbered "
-        "story return: sentiment (Positive/Negative/Neutral — the market "
-        "RISK TONE of what is described, not a forecast; active military "
-        "conflict, attacks, escalation or sanctions are Negative unless the "
-        "story is clearly about de-escalation succeeding), importance "
+        "with the title — headlines often understate. Read headlines the way "
+        "an experienced editor would: financial journalists use metaphor, "
+        "sarcasm, irony and wordplay. Judge every field by the story's ACTUAL "
+        "meaning, not surface keywords — e.g. 'Trump's War on the Future' is "
+        "commentary about policy, NOT a military conflict; 'Tech stocks get "
+        "crushed' is a price move, not violence; a punning headline about "
+        "'brewing trouble' for a coffee company is about that company. Do not "
+        "let a dramatic or figurative word drive the sentiment or tags. "
+        "For each numbered story return: sentiment (Positive/Negative/Neutral "
+        "— the market RISK TONE of what is described, not a forecast; ACTUAL "
+        "military conflict, attacks, escalation or sanctions are Negative "
+        "unless the story is clearly about de-escalation succeeding — but a "
+        "metaphorical 'war'/'battle'/'attack' is not conflict), importance "
         "(High = central bank decisions or surprises, major macro data for "
         "large economies, armed conflict or sanctions affecting energy or "
         "supply chains, systemic credit events, corporate events of $10bn+ "
@@ -113,13 +121,17 @@ def _prompt(headlines, hero: bool, themes: str = "") -> str:
         "MATERIALLY about — judge from context, not word presence; a story "
         "can be about several. Choose only from: Oil, Gold, Copper, "
         "Platinum, Iron Ore, Coal, USD/ZAR, EUR/USD, USD/JPY, Bitcoin, "
-        "S&P 500, NASDAQ, FTSE 100, JSE ALSI) and relevant (true/false: is "
+        "S&P 500, NASDAQ, FTSE 100, JSE ALSI), tags (0-2 SHORT lowercase "
+        "topic labels capturing what the story is really about for a PM — "
+        "e.g. 'rate decision', 'earnings', 'sanctions', 'election', "
+        "'m&a', 'opinion'; omit if nothing material, and NEVER tag a "
+        "figurative word literally) and relevant (true/false: is "
         "this market, economy or corporate news useful to institutional "
         "portfolio managers? Consumer personal-finance advice, lifestyle, "
         "sport, entertainment and local/agri-trade content are false). "
         + hero_line +
         "Respond with ONLY a JSON array of objects with keys i, sentiment, "
-        "importance, region, asset, instruments, relevant" +
+        "importance, region, asset, instruments, tags, relevant" +
         (", and why (story 0 only)" if hero else "") + ".\n\n" + lines)
 
 
@@ -163,6 +175,10 @@ def _parse(text: str, hero: bool) -> dict[int, dict]:
         if isinstance(row.get("instruments"), list):
             fields["instruments"] = [x for x in row["instruments"]
                                      if x in _INSTR][:3]
+        if isinstance(row.get("tags"), list):
+            clean = [str(t).strip().lower()[:24] for t in row["tags"]
+                     if str(t).strip()]
+            fields["tags"] = clean[:2]  # model-decided, context-aware
         if isinstance(row.get("relevant"), bool) and not row["relevant"]:
             fields["_irrelevant"] = True
         if hero and i == 0 and isinstance(row.get("why"), str) and row["why"].strip():

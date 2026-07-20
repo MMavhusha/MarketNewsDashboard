@@ -46,14 +46,17 @@ def latest(series_key: str) -> dict | None:
     if not enabled() or series_key not in SERIES:
         return None
     sid, label = SERIES[series_key]
+    from data_sources import obs as _obs
     try:
-        r = requests.get(
-            "https://api.stlouisfed.org/fred/series/observations",
-            params={"series_id": sid, "api_key": _key(), "file_type": "json",
-                    "sort_order": "desc", "limit": 5},
-            timeout=15)
-        r.raise_for_status()
-        for obs in r.json().get("observations", []):
+        with _obs.track(f"FRED · {label}"):
+            r = requests.get(
+                "https://api.stlouisfed.org/fred/series/observations",
+                params={"series_id": sid, "api_key": _key(), "file_type": "json",
+                        "sort_order": "desc", "limit": 5},
+                timeout=15)
+            r.raise_for_status()
+            rows = r.json().get("observations", [])
+        for obs in rows:
             if obs.get("value") not in (".", "", None):
                 return {"value": f"{float(obs['value']):,.2f}",
                         "date": obs.get("date", ""), "label": label}
@@ -75,17 +78,20 @@ def history(series_key: str, years: int = 3, yoy: bool = False):
 
     import pandas as pd
     sid, _ = SERIES[series_key]
+    from data_sources import obs as _obs
     lookback = int((years + (1 if yoy else 0)) * 365.25) + 45
     start = dt.date.today() - dt.timedelta(days=lookback)
     try:
-        r = requests.get(
-            "https://api.stlouisfed.org/fred/series/observations",
-            params={"series_id": sid, "api_key": _key(), "file_type": "json",
-                    "observation_start": start.isoformat()},
-            timeout=20)
-        r.raise_for_status()
+        with _obs.track(f"FRED history · {sid}"):
+            r = requests.get(
+                "https://api.stlouisfed.org/fred/series/observations",
+                params={"series_id": sid, "api_key": _key(), "file_type": "json",
+                        "observation_start": start.isoformat()},
+                timeout=20)
+            r.raise_for_status()
+            payload = r.json().get("observations", [])
         obs = {pd.Timestamp(o["date"]): float(o["value"])
-               for o in r.json().get("observations", [])
+               for o in payload
                if o.get("value") not in (".", "", None)}
         if not obs:
             return None

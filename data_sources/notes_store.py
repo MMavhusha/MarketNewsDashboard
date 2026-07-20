@@ -77,11 +77,13 @@ def save_json(path: str, obj, sha: str | None, actor: str, action: str) -> str:
             "branch": _cfg("GITHUB_BRANCH", "main")}
     if sha:
         body["sha"] = sha
-    r = requests.put(_url(path), headers=_headers(), json=body, timeout=15)
-    if r.status_code == 409:
-        raise Conflict(f"{path} changed since load")
-    r.raise_for_status()
-    return r.json()["content"]["sha"]
+    from data_sources import obs
+    with obs.track(f"GitHub write · {path}"):
+        r = requests.put(_url(path), headers=_headers(), json=body, timeout=15)
+        if r.status_code == 409:
+            raise Conflict(f"{path} changed since load")
+        r.raise_for_status()
+        return r.json()["content"]["sha"]
 
 
 def load() -> tuple[list, str | None]:

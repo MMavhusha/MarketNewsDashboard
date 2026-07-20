@@ -105,11 +105,11 @@ def _download_cached(tickers: tuple[str, ...], period: str = "1mo") -> pd.DataFr
 def _download(tickers: tuple[str, ...], period: str = "1mo") -> pd.DataFrame:
     if yf is None:
         return pd.DataFrame()
+    from data_sources import obs
     try:
-        return _download_cached(tickers, period)
-    except Exception as e:
-        from data_sources import obs
-        obs.record(f"markets._download({len(tickers)} tickers, {period})", e)
+        with obs.track(f"yfinance download · {len(tickers)} tickers · {period}"):
+            return _download_cached(tickers, period)
+    except Exception:
         return pd.DataFrame()
 
 
@@ -172,11 +172,11 @@ def _history_cached(ticker: str, period: str) -> pd.Series:
 def get_history(ticker: str, period: str = "1y") -> pd.Series:
     if yf is None:
         return pd.Series(dtype=float)
+    from data_sources import obs
     try:
-        return _history_cached(ticker, period)
-    except Exception as e:
-        from data_sources import obs
-        obs.record(f"markets.get_history({ticker}, {period})", e)
+        with obs.track(f"yfinance history · {ticker} · {period}"):
+            return _history_cached(ticker, period)
+    except Exception:
         return pd.Series(dtype=float)
 
 
@@ -303,6 +303,8 @@ def clear_caches():
     """Refresh = latest prices and headlines. Slow-moving sources (SARB,
     World Bank, FRED, calendar) keep their own TTLs — clearing them would
     waste public-API quota for data that doesn't change intraday."""
+    from data_sources import obs
+    obs.note_action("cache clear", "markets + news + AI verdicts")
     for fn in (_download_cached, _history_cached, _intraday_cached):
         try:
             fn.clear()

@@ -157,11 +157,12 @@ section[data-testid="stSidebar"] * { color: #212322; }
   padding: 7px 4px; border-bottom: 1px solid #F2F2F2; font-size: 12.5px;
 }
 .mv-row:last-child { border-bottom: none; }
-.mv-nm { color: #212322; font-weight: 700; flex: 1; overflow: hidden;
-  white-space: nowrap; text-overflow: ellipsis; }
-.mv-val { color: #212322; font-weight: 700; width: 110px; text-align: right;
-  flex-shrink: 0; }
-.mv-chg { font-weight: 700; width: 72px; text-align: right; flex-shrink: 0; }
+.mv-nm { color: #212322; font-weight: 700; flex: 1 1 auto; min-width: 62px;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.mv-val { color: #4C4D52; font-weight: 600; flex: 0 1 auto; text-align: right;
+  overflow: hidden; text-overflow: ellipsis; }
+.mv-chg { font-weight: 700; flex: 0 0 auto; text-align: right;
+  min-width: 60px; }
 
 /* ---------- Right rail ---------- */
 .rail-card {

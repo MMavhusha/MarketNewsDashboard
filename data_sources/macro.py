@@ -56,10 +56,12 @@ def wb_series(country: str, indicator: str, years: int = 12) -> list[tuple[int, 
     """Returns [(year, value)] ascending; [] on failure."""
     url = (f"https://api.worldbank.org/v2/country/{country}/indicator/{indicator}"
            f"?format=json&per_page={years}")
+    from data_sources import obs
     try:
-        r = requests.get(url, timeout=12)
-        r.raise_for_status()
-        payload = r.json()
+        with obs.track(f"World Bank · {country}/{indicator}"):
+            r = requests.get(url, timeout=12)
+            r.raise_for_status()
+            payload = r.json()
         rows = payload[1] if isinstance(payload, list) and len(payload) > 1 else []
         out = [(int(x["date"]), float(x["value"])) for x in (rows or [])
                if x.get("value") is not None]

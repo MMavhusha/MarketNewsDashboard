@@ -317,12 +317,12 @@ def _classify(title: str, summary: str, default_region: str = "") -> dict:
         score = max(0, score - 2)
     importance = "High" if score >= 4 else "Medium" if score >= 2 else "Low"
 
-    # Visible tags from the TITLE only — digest-style summaries describe
-    # other stories. The affected instrument renders via its own dedicated
-    # chip (item["instrument"]), so it never duplicates into tags; score-
-    # only terms (billion/trillion) never surface as chips either.
+    # FALLBACK tags only. These are context-free keyword matches (they can
+    # tag a metaphorical "war" literally), so the model's context-aware tags
+    # OVERRIDE these whenever any provider is up — see ai_enrich prompt/parser.
+    # Kept solely so a chip still appears when every provider tier fails.
     kw_tags = [k for k in title_hits if k not in _TAG_EXCLUDE]
-    tags = ((["opinion"] if opinion else []) + kw_tags)[:3]
+    tags = ((["opinion"] if opinion else []) + kw_tags)[:2]
     return {"sentiment": sentiment, "region": region, "asset": asset,
             "confident": abs(_sc) >= 2, "instruments": instruments,
             "importance": importance, "score": score, "tags": tags}

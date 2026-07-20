@@ -45,11 +45,13 @@ def _row(item: dict) -> dict | None:
 def get_sa_indicators() -> dict[str, list[dict]]:
     """{group label: [rows]} — only groups that returned data."""
     out: dict[str, list[dict]] = {}
+    from data_sources import obs
     for label, path in _ENDPOINTS:
         try:
-            r = requests.get(BASE + path, timeout=15, headers=_HEADERS)
-            r.raise_for_status()
-            data = r.json()
+            with obs.track(f"SARB · {label}"):
+                r = requests.get(BASE + path, timeout=15, headers=_HEADERS)
+                r.raise_for_status()
+                data = r.json()
             if not isinstance(data, list):
                 continue
             rows = [x for x in (_row(i) for i in data if isinstance(i, dict)) if x]
