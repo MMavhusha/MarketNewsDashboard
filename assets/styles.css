@@ -547,3 +547,17 @@ div[data-testid="stPills"] button:focus-visible {
 /* ---------- Calendar: watchlist-matched rows ---------- */
 .tl-row.tl-watched .tl-card { border-left: 3px solid #003B71; }
 .tl-row.tl-watched.tl-mover .tl-card { border-left: 3px solid #FF671D; }
+
+/* ---------- Keyword watchlist items (Settings) ---------- */
+.wl-item { display: flex; align-items: center; gap: 12px; padding: 8px 12px;
+  background: #FFFFFF; border: 1px solid #E2E3E0; border-radius: 8px;
+  margin-bottom: 6px; }
+.wl-term { font-weight: 700; color: #212322; font-size: 13px; }
+.wl-scope { font-size: 11px; color: #909288; text-transform: uppercase;
+  letter-spacing: .6px; }
+
+/* ---------- Keyword alert cards (Calendar & Alerts) ---------- */
+.al-card .al-head { display: flex; align-items: baseline; gap: 12px;
+  flex-wrap: wrap; }
+.al-kw { font-weight: 700; color: #003B71; font-size: 13.5px; }
+.al-kw-meta { font-size: 12px; color: #4C4D52; }

@@ -377,33 +377,51 @@ def _admin_unlock_gate():
 
 
 def _team_keyword_watchlist():
-    ui.section("News keyword watchlist",
-               "Flag stories and calendar events on topics your team tracks")
-    st.caption("Add terms like Eskom, Fed, rate decision or Naspers. Matching "
-               "(typo-tolerant) news stories are flagged with \u2691 on Market "
-               "News and under Keyword Alerts on the Executive Summary; "
-               "matching calendar events are flagged \u2691 on Calendar & "
-               "Alerts, where you can also filter to just your watchlist.")
-    from data_sources import app_state as _apps
-    kws = st.session_state.setdefault("news_watch_keywords", [])
-    k1, k2 = st.columns([3, 0.8])
-    new_kw = k1.text_input("Add keyword or phrase", key="kw_new",
+    ui.section("Keyword watchlist \u0026 alerts",
+               "Standing alerts for topics your team tracks")
+    st.caption("Add terms like Eskom, Fed, rate decision or Naspers and choose "
+               "whether each watches news, the calendar, or both. Each becomes "
+               "a standing alert on Calendar & Alerts with live match counts "
+               "and one-click links to the exact stories or events \u2014 "
+               "remembered across logins until you remove it. Matches are also "
+               "flagged \u2691 on Market News and the Executive Summary.")
+    from data_sources import app_state as _apps, watchlist as _wl
+    if not _apps.enabled():
+        st.warning("Shared storage is off (no GITHUB_TOKEN) — keywords, saved "
+                   "articles and watchlist changes last for this session only "
+                   "and won't be remembered at next login. Add a GITHUB_TOKEN "
+                   "secret to persist them.", icon="⚠️")
+    kws = _wl.get()
+    a1, a2, a3 = st.columns([2.4, 1, 0.8])
+    new_kw = a1.text_input("Add keyword or phrase", key="kw_new",
                            placeholder="e.g. Eskom, rate decision, Naspers",
                            label_visibility="collapsed")
-    if k2.button("Add keyword", disabled=not new_kw.strip(),
-                 use_container_width=True):
-        if new_kw.strip().lower() not in [k.lower() for k in kws]:
-            kws.append(new_kw.strip())
-            _apps.persist("add news keyword")
+    scope_label = a2.selectbox("Watch", ["News + Calendar", "News only",
+                                         "Calendar only"], key="kw_scope",
+                               label_visibility="collapsed")
+    scope = {"News + Calendar": "both", "News only": "news",
+             "Calendar only": "calendar"}[scope_label]
+    if a3.button("Add", disabled=not new_kw.strip(), use_container_width=True):
+        if new_kw.strip().lower() not in [k["term"].lower() for k in kws]:
+            kws.append({"term": new_kw.strip(), "scope": scope})
+            _wl.set_list(kws)
+            _apps.persist("add watchlist keyword")
         st.session_state.pop("kw_new", None)
         st.rerun()
     if kws:
-        pick_rm = st.pills("Remove", [f"\u2715 {k}" for k in kws], default=None,
-                           key="kw_rm", label_visibility="collapsed")
-        if pick_rm:
-            kws.remove(pick_rm[2:])
-            _apps.persist("remove news keyword")
-            st.rerun()
+        _scope_txt = {"both": "news + calendar", "news": "news only",
+                      "calendar": "calendar only"}
+        for i, k in enumerate(kws):
+            c1, c2 = st.columns([5, 0.7])
+            c1.markdown(
+                f'<div class="wl-item"><span class="wl-term">{ui.esc(k["term"])}</span>'
+                f'<span class="wl-scope">{_scope_txt[k["scope"]]}</span></div>',
+                unsafe_allow_html=True)
+            if c2.button("Remove", key=f"wl_rm_{i}", use_container_width=True):
+                kws.pop(i)
+                _wl.set_list(kws)
+                _apps.persist("remove watchlist keyword")
+                st.rerun()
 
 
 def _team_alert_thresholds():

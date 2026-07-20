@@ -143,6 +143,21 @@ def test_relevance_gate_sports_and_anchors():
     assert _is_relevant("Fed holds rates steady", "Central bank decision.")
 
 
+def test_watchlist_model():
+    import sys, types
+    st = types.ModuleType("streamlit"); st.cache_data = lambda **k: (lambda f: f)
+    st.session_state = {}
+    sys.modules["streamlit"] = st
+    from data_sources import watchlist as wl
+    st.session_state["news_watch_keywords"] = [
+        "Eskom", {"term": "Fed", "scope": "news"}, {"term": "CPI", "scope": "calendar"}]
+    got = wl.get()
+    assert got[0] == {"term": "Eskom", "scope": "both"}  # legacy string upgraded
+    assert wl.terms() == ["Eskom", "Fed", "CPI"]
+    st.session_state["news_watch_keywords"] = ["fed", {"term": "Fed", "scope": "news"}]
+    assert len(wl.get()) == 1  # de-duped case-insensitively
+
+
 if __name__ == "__main__":
     fns = [v for k, v in list(globals().items()) if k.startswith("test_")]
     for fn in fns:

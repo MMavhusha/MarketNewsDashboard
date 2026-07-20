@@ -251,7 +251,12 @@ def page_market_news():
     region = f1.selectbox("Region", ["All"] + sorted({i["region"] for i in items}) if items else ["All"])
     asset = f2.selectbox("Asset class", ["All"] + sorted({i["asset"] for i in items}) if items else ["All"])
     imp = f3.selectbox("Importance", ["All", "High", "Medium", "Low"])
-    q = f4.text_input("Search headlines", placeholder="e.g. SARB, oil, tariffs")
+    # A watchlist alert can deep-link here pre-filtered to its term.
+    jump = st.session_state.pop("news_jump_query", None)
+    if jump is not None:
+        st.session_state["news_search_box"] = jump
+    q = f4.text_input("Search headlines", placeholder="e.g. SARB, oil, tariffs",
+                      key="news_search_box")
 
     view = items
     if region != "All":
@@ -268,7 +273,8 @@ def page_market_news():
     if not view:
         ui.empty_state("No stories match the current filters, or feeds are unreachable.")
         return
-    kw = st.session_state.get("news_watch_keywords", [])
+    from data_sources import watchlist as _wl
+    kw = _wl.terms()
     admin = st.session_state.get("_admin_ok")
     if admin:
         n_ai = sum(1 for it in view if it.get("_ai"))
@@ -389,9 +395,46 @@ def page_announcements():
 
 # ------------------------------------------------------------ calendar
 def page_calendar():
-    """Calendar & Alerts — one 'what needs my attention' surface: reactive
-    threshold breaches first (observed moves), then the scheduled agenda.
-    Merges the former standalone Shock Alerts page."""
+    """Calendar & Alerts — one 'what needs my attention' surface: standing
+    keyword alerts, reactive threshold breaches, then the scheduled agenda."""
+    from data_sources import watchlist as wl
+    kw_alerts = wl.get()
+    all_news = news.get_news()
+    all_cal_preview = calendar_data.get_calendar(days_ahead=14)
+    if kw_alerts:
+        ui.section("Watchlist alerts",
+                   "Your standing keyword alerts · live matches, one-click through")
+        for i, k in enumerate(kw_alerts):
+            term, scope = k["term"], k["scope"]
+            n_news = len(wl.news_matches(term, all_news)) if scope in ("both", "news") else None
+            n_cal = len(wl.calendar_matches(term, all_cal_preview)) if scope in ("both", "calendar") else None
+            bits = []
+            if n_news is not None:
+                bits.append(f"{n_news} news stor{'y' if n_news == 1 else 'ies'}")
+            if n_cal is not None:
+                bits.append(f"{n_cal} calendar event{'' if n_cal == 1 else 's'}")
+            total = (n_news or 0) + (n_cal or 0)
+            sev = "al-warning" if total else "al-info"
+            st.markdown(
+                f'<div class="al-card {sev}"><div class="al-head">'
+                f'<span class="al-kw">\u2691 {ui.esc(term)}</span>'
+                f'<span class="al-kw-meta">{ui.esc(" · ".join(bits)) or "no current matches"}</span>'
+                f'</div></div>', unsafe_allow_html=True)
+            b1, b2, b3, _ = st.columns([1.1, 1.2, 0.9, 3])
+            if n_news:
+                if b1.button(f"View {n_news} in News →", key=f"kwn_{i}",
+                             use_container_width=True):
+                    st.session_state["nav_to"] = "Market News"
+                    st.session_state["news_jump_query"] = term
+                    st.rerun()
+            if n_cal:
+                if b2.button(f"View {n_cal} in Calendar →", key=f"kwc_{i}",
+                             use_container_width=True):
+                    st.session_state["cal_jump_query"] = term
+                    st.rerun()
+        ui.legend("Manage these under Settings → Keyword watchlist \u0026 alerts. "
+                  "They persist across logins until removed.")
+
     alerts = markets.get_shock_alerts()
     t = markets.get_thresholds()
     ui.section("Market shock alerts", "Threshold breaches on observed session moves")
@@ -451,21 +494,26 @@ def page_calendar():
                         key="cal_imp") or "All"
     region_pick = f2.selectbox("Region", ["All regions"] + regions_present,
                                key="cal_region")
+    jump = st.session_state.pop("cal_jump_query", None)
+    if jump is not None:
+        st.session_state["cal_q"] = jump
     q = f3.text_input("Search events",
                       placeholder='e.g. "rate", "CPI", "bank holiday"',
                       key="cal_q")
     highlight_only = st.toggle(
         "Show only market-moving items (High impact + closures)",
         key="cal_hi_only")
-    watch_kw = st.session_state.get("news_watch_keywords", [])
+    from data_sources import watchlist as _wl
+    # calendar-scoped watch terms only (news-only keywords don't flag here)
+    watch_kw = [k["term"] for k in _wl.get() if k["scope"] in ("both", "calendar")]
     watch_only = False
     if watch_kw:
         watch_only = st.toggle(
             f"Show only my watchlist matches ({len(watch_kw)} keyword"
             f"{'s' if len(watch_kw) != 1 else ''})", key="cal_watch_only")
 
-    # Flag events matching the team's keyword watchlist (same typo-tolerant
-    # matcher used for news) so a watched term like 'Fed' is marked ⚑ here too.
+    # Flag events matching the watchlist (same typo-tolerant matcher as news)
+    # so a watched term like 'Fed' is marked ⚑ here too.
     if watch_kw:
         for e in cal:
             e["_watched"] = any(
