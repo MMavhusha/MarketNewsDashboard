@@ -58,35 +58,6 @@ def intraday_spark(values: list[float], prev_close: float,
     return fig
 
 
-def perf_ladder(items, title: str = "") -> go.Figure:
-    """Sell-side performance ladder: horizontal diverging bars ranked by %
-    move, green gains / burgundy losses, value labels. Observation only."""
-    items = sorted(items, key=lambda x: x[1])  # largest gain renders on top
-    names = [i[0] for i in items]
-    vals = [i[1] for i in items]
-    fig = go.Figure(go.Bar(
-        x=vals, y=names, orientation="h",
-        marker=dict(color=[GREEN if v >= 0 else RED for v in vals]),
-        text=[f"{v:+.2f}%" for v in vals], textposition="outside",
-        textfont=dict(size=11, family="Lato"),
-        hovertemplate="%{y}<br>%{x:+.2f}%<extra></extra>", width=0.62,
-    ))
-    pad = max(abs(min(vals)), abs(max(vals))) * 0.28 + 0.05
-    fig.update_layout(
-        title=dict(text=title, font=dict(size=13, color=TEXT, family="Lato")),
-        height=64 + 27 * len(items),
-        margin=dict(l=10, r=24, t=34 if title else 8, b=10),
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(family="Lato", size=11.5, color=TEXT),
-        xaxis=dict(gridcolor=GRID, zeroline=True, zerolinecolor="#C9CBC4",
-                   zerolinewidth=1, ticksuffix="%",
-                   range=[min(vals) - pad, max(vals) + pad]),
-        yaxis=dict(showgrid=False),
-        showlegend=False, bargap=0.25,
-    )
-    return fig
-
-
 def pack_history(series: pd.Series, title: str = "", height: int = 300,
                  y_title: str = "%") -> go.Figure:
     """Reference-pack style: navy marker line over a light fill, highest point

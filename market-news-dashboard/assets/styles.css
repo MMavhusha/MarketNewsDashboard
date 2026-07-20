@@ -413,16 +413,3 @@ div[class*="st-key-note_editor_"] .stRadio { margin: 0; }
 .rg-num { text-align: right; }
 .rg-mut { color: #909288; font-size: 11.5px; }
 .rg-na { color: #B9BBB3; font-size: 11.5px; }
-
-/* ---------- FX multi-horizon heat table ---------- */
-.fh-hd, .fh-row { display: grid;
-  grid-template-columns: minmax(110px, 1fr) repeat(5, 96px);
-  align-items: center; gap: 10px; padding: 0 18px; }
-.fh-hd { height: 34px; font-size: 10.5px; font-weight: 700; letter-spacing: 1px;
-  text-transform: uppercase; color: #909288; background: #FAFAF9;
-  border-bottom: 1px solid #E2E3E0; }
-.fh-row { height: 42px; border-bottom: 1px solid #F0F0EE; font-size: 12.5px; }
-.fh-row:last-child { border-bottom: none; }
-.fh-row:hover .fx-pair { color: #FF671D; }
-.fh-cell { display: block; text-align: right; padding: 6px 10px;
-  border-radius: 6px; color: #212322; }

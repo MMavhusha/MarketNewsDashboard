@@ -213,26 +213,6 @@ def get_movers(top_n: int = 6, universe: str = "core") -> tuple[list[Quote], lis
     return qs[:top_n], list(reversed(qs[-top_n:]))
 
 
-def get_weekly_movers(top_n: int = 6) -> tuple[list[Quote], list[Quote]]:
-    """True 1-week movers over the FULL core+extended universe: last close
-    vs the last close on/before 7 calendar days prior. Pure arithmetic on
-    published closes — same 1W convention as the FX heat table."""
-    out: list[Quote] = []
-    for name, tk in CORE_MOVERS + EXTENDED_MOVERS:
-        h = get_history(tk, "1mo")
-        if len(h) < 2:
-            continue
-        past = h[h.index <= h.index[-1] - pd.Timedelta(days=7)]
-        if not len(past) or float(past.iloc[-1]) == 0:
-            continue
-        last, prev = float(h.iloc[-1]), float(past.iloc[-1])
-        out.append(Quote(name=name, ticker=tk, price=last,
-                         change=last - prev,
-                         change_pct=(last - prev) / prev * 100))
-    out.sort(key=lambda q: q.change_pct, reverse=True)
-    return out[:top_n], list(reversed(out[-top_n:]))
-
-
 # ------------------------------------------------------------ shock alerts
 # Derived, factual display of observed moves — thresholds only, no forecasting.
 DEFAULT_THRESHOLDS = {

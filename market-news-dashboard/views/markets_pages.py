@@ -91,45 +91,6 @@ def page_commodities():
             unsafe_allow_html=True)
 
 
-_FX_WINDOWS = ["1D", "1W", "1M", "6M", "YTD"]
-
-
-def _pct_back(s, days):
-    """% change of last close vs last close on/before `days` ago."""
-    if s is None or len(s) < 2:
-        return None
-    past = s[s.index <= s.index[-1] - pd.Timedelta(days=days)]
-    return _pct(float(s.iloc[-1]), float(past.iloc[-1])) if len(past) else None
-
-
-def _fx_returns(quotes):
-    """{pair: {window: %}} from published daily closes. 1D uses the quote's
-    change vs prior close for consistency with every other page."""
-    out = {}
-    for q in quotes:
-        s = _fx_series(q.ticker)
-        ytd = None
-        if s is not None:
-            prior = s[s.index.year < s.index[-1].year]
-            if len(prior):
-                ytd = _pct(float(s.iloc[-1]), float(prior.iloc[-1]))
-        out[q.name] = {
-            "1D": round(q.change_pct, 2) if q.change_pct is not None else None,
-            "1W": _pct_back(s, 7), "1M": _pct_back(s, 30),
-            "6M": _pct_back(s, 182), "YTD": ytd,
-        }
-    return out
-
-
-def _heat_cell(v):
-    if v is None:
-        return '<span class="fh-cell rg-na">n/a</span>'
-    a = min(abs(v) / 8.0, 1.0) * 0.22  # full tint at an 8% move
-    rgb = "30,128,82" if v >= 0 else "176,33,44"
-    return (f'<span class="fh-cell num" style="background:rgba({rgb},{a:.3f});">'
-            f"{v:+.2f}%</span>")
-
-
 def page_currencies():
     quotes = markets.get_fx()
     names = [q.name for q in quotes]
@@ -148,46 +109,61 @@ def page_currencies():
                 f"For narrative context, see stories tagged FX under Market News.")
     _detail_panel(q, "Rate", key="fx_chart", note=note)
 
+    ui.section("All pairs at a glance",
+               "Neutral mini-trends · open any pair via the pills above")
     ok_q = [x for x in quotes if x.ok]
     asof = next((x.asof for x in ok_q if x.asof), "latest close")
-    rets = _fx_returns(ok_q)
-
-    lc1, lc2 = st.columns([3, 2])
-    with lc1:
-        ui.section("Performance ladder",
-                   "Pairs ranked by observed move over the window")
-    with lc2:
-        lwin = st.pills("Window", _FX_WINDOWS, default="1D",
-                        key="fx_ladder_win",
-                        label_visibility="collapsed") or "1D"
-    items = [(n, r[lwin]) for n, r in rets.items() if r.get(lwin) is not None]
-    if items:
-        st.plotly_chart(charts.perf_ladder(items),
-                        use_container_width=True,
-                        config={"displayModeBar": False}, key="fx_ladder")
+    p1, p2 = st.columns([1, 1.4])
+    win = p1.pills("Trend window", ["1M", "6M", "1Y"], default="1M",
+                   key="fx_grid_win", label_visibility="collapsed") or "1M"
+    order = p2.pills("Sort", ["Pair", f"{win} %", "1D %"], default="Pair",
+                     key="fx_grid_sort", label_visibility="collapsed") or "Pair"
+    if win == "1M":
+        trends = {x.name: (x.spark if len(x.spark) > 2 else None) for x in ok_q}
     else:
-        ui.empty_state("No history available for this window yet.")
-    ui.legend(f"As at {asof} · quote convention: a rise in USD/XXX = USD "
-              "strength (quoted-currency weakness); a rise in EUR/USD, "
-              "GBP/USD, AUD/USD = USD weakness · DXY = dollar index")
+        per = {"6M": "6mo", "1Y": "1y"}[win]
+        trends = {}
+        for x in ok_q:
+            h = markets.get_history(x.ticker, per)
+            trends[x.name] = [float(v) for v in h.tolist()] if len(h) > 2 else None
 
-    ui.section("Multi-horizon returns",
-               "ZAR pairs pinned first · shading scales with magnitude")
-    ordered = ([n for n in rets if "ZAR" in n]
-               + [n for n in rets if "ZAR" not in n])
+    rows = []
+    for x in ok_q:
+        t = trends.get(x.name)
+        wchg = _pct(t[-1], t[0]) if t else None
+        rows.append((x, t, wchg))
+    if order == "Pair":
+        rows.sort(key=lambda r: r[0].name)
+    elif order == "1D %":
+        rows.sort(key=lambda r: (r[0].change_pct is None,
+                                 -(r[0].change_pct or 0)))
+    else:
+        rows.sort(key=lambda r: (r[2] is None, -(r[2] or 0)))
+
+    def _num(v, cls=True):
+        if v is None:
+            return '<span style="color:#909288;">n/a</span>'
+        c = f' {ui.chg_cls(v)}' if cls else ""
+        return f'<span class="num{c}">{v:+.2f}%</span>'
+
     body = "".join(
-        f'<div class="fh-row"><span class="fx-pair">{ui.esc(n)}</span>'
-        + "".join(_heat_cell(rets[n].get(w)) for w in _FX_WINDOWS)
-        + "</div>"
-        for n in ordered)
+        f'<div class="fx-row"><span class="fx-pair">{ui.esc(x.name)}</span>'
+        f'<span class="fx-spark">'
+        + (ui.spark_svg(t, dot=("#1E8052" if (wchg or 0) >= 0 else "#B0212C"))
+           if t else '<span style="color:#C9CBC4;font-size:11px;">no history</span>')
+        + f'</span><span class="fx-num num">{x.fmt.format(x.price)}</span>'
+        f'<span class="fx-num">{_num(wchg)}</span>'
+        f'<span class="fx-num">{_num(x.change_pct)}</span></div>'
+        for x, t, wchg in rows)
     st.markdown(
-        '<div class="fx-table"><div class="fh-hd"><span>Pair</span>'
-        + "".join(f'<span class="rg-num">{w} %</span>' for w in _FX_WINDOWS)
-        + f"</div>{body}</div>", unsafe_allow_html=True)
-    ui.legend("1D vs prior close · 1W/1M/6M vs last close on or before the "
-              "lookback date · YTD vs final close of the prior year · "
-              "computed from published daily closes (yfinance) · n/a = "
-              "insufficient history")
+        f'<div class="fx-table"><div class="fx-hd"><span>Pair</span>'
+        f'<span>{win} trend</span><span class="fx-num">Last</span>'
+        f'<span class="fx-num">{win} %</span><span class="fx-num">1D %</span>'
+        f'</div>{body}</div>',
+        unsafe_allow_html=True)
+    ui.legend(f"As at {asof} · {win} % = change over the trend window · "
+              "1D % vs prior close · sparklines each on their own scale, "
+              "endpoint dot = window direction")
 
 
 def _sarb_find(*keywords):

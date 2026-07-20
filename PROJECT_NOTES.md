@@ -126,6 +126,91 @@ LLM_API_KEY (Gemini — regenerate after chat exposure) · ADMIN_PASSWORD ·
 optional: TE_API_KEY, ANTHROPIC_API_KEY, LLM_API_BASE, LLM_MODEL.
 
 ## Known limits / pending
+- **SHIPPED (this session) — pack-parity per-region reporting**: each
+  Regional Macro tab now opens with an "At a glance" grid (this region
+  only): Indicator+source | Latest | Release | Period | 1M/3M/12M Δ.
+  Old metric tiles removed (grid subsumes them; SARB `promoted` dedupe
+  preserved via _region_rows). Deltas = arithmetic on published
+  observations where history exists TODAY: US (CPI YoY, policy, UNRATE
+  unemployment, 10Y), EA (HICP YoY, policy), FX all regions (yfinance 2y);
+  everything else shows n/a* until the free-API source upgrades land.
+  Release column intentionally "—" (free APIs publish measured period,
+  not release dates) — richer sources fill it later. US/EA CPI + US
+  unemployment latest now come from monthly FRED series instead of WB
+  annual (SA CPI stays SARB monthly). "Compare regions" popover per tab:
+  opt-in toggle (popovers render eagerly, so the toggle gates the 7-region
+  fetch), one indicator at a time, never the default view.
+- **SHIPPED (this session) — FX "All pairs" v2, JPM sell-side style**:
+  performance ladder (Plotly horizontal diverging bars, ranked by move
+  over a 1D/1W/1M/6M/YTD window pill, green/burgundy, outside value
+  labels, quote-convention legend) + multi-horizon heat table (1D/1W/1M/
+  6M/YTD % per pair from published daily closes, cell tint scales with
+  magnitude, full tint at 8%, ZAR pairs pinned first). Sparkline board
+  retired (spark_svg kept in ui.py, unused); returns via _fx_returns on
+  the cached 2y _fx_series; YTD = vs final close of prior year; 1D = the
+  quote's change vs prior close for cross-page consistency.
+- **SHIPPED (this session) — Weekly movers fixed**: "Week's largest moves"
+  now uses get_weekly_movers — true 1W % (last close vs last close
+  on/before 7 calendar days prior, same convention as the FX heat table)
+  over the FULL core+extended universe (24 instruments), with an honest
+  computation legend. Previously ranked 1-DAY change over core only.
+- **NEXT SESSION — news PERMANENT FIX, three layers (~60–90 min; diagnosed
+  16 Jul from live screenshots + offline repro)**:
+  **A. Ingestion hygiene** — replace the bare "markets" Google News query
+  with a finance-scoped/business-topic feed (it pulls farmers markets,
+  prediction markets, soybean industrial markets); strip " - Publisher"
+  suffixes from Google News titles; suppress summaries that merely
+  duplicate the title; classify TITLE-weighted (Moneyweb digest summaries
+  describe different stories — made "Smarter skies" NEGATIVE/HIGH via
+  "war on construction mafia"/"crisis" in the summary).
+  **B. Relevance gate (new — no story-level filter exists today)** —
+  rules for consumer personal-finance / lifestyle / local-ag content
+  (MarketWatch Top Stories mixes in HELOC & retirement advice columns);
+  add a market_relevance field to the AI triage schema; drop irrelevant
+  stories rather than tagging them.
+  **C. Classifier correctness** — word-boundary regex for ALL keyword
+  lists (confirmed substring hits: Fedorov→FED tag, reWARd→WAR tag,
+  Warsh→war, FedEx→fed, brand/grand→rand→region SA, Indiana→india);
+  add geopolitical lexicon (warns, retaliate, worsen, threats, strike,
+  escalation — Iran/Hormuz stories read NEUTRAL); add corporate-event
+  importance keywords (acquisition, merger, $bn deal, earnings, capex —
+  Eli Lilly $2.8bn buy and TSMC $100bn/profit+77% both scored LOW);
+  normalise n't contractions into negation; downweight opinion markers
+  ("Macroscope |", op-ed sources); extend tests/test_logic.py with all
+  of the above; VERIFY AI triage key live (LLM_API_KEY flagged for
+  regeneration — silent rules fallback masks a dead key; check Settings
+  feed status + admin model-classified count).
+- **NEXT SESSION — Admin/developer observability page (~90–120 min)**:
+  dedicated admin-only page, unlocked via existing ADMIN_PASSWORD (harden
+  the Settings check from plain == to hmac.compare_digest). Panels:
+  (a) classification debugger — paste any headline, see the full trace
+  (which phrase / subject×verb rule fired, score, confident flag,
+  rules-vs-model provenance, relevance verdict once the gate exists);
+  (b) per-story AI provenance beyond the ✦ marks; (c) AI audit trail
+  extended with latency/error/provider stats; (d) feed diagnostics per
+  source (fetch latency, item counts, HTTP status, parse failures);
+  (e) error ring buffer — the app fails soft with bare `except` everywhere
+  so errors vanish silently today; capture in-memory for admin view;
+  (f) cache observability (TTLs, last refresh, per-cache clear);
+  (g) data quality (stale quotes by asof age, n/a instruments, history
+  gaps); (h) system info (package versions, deploy SHA, secrets-presence
+  checklist — names only, never values).
+  Tomorrow's full queue ≈ 3.5–4.5 hrs: FX board + movers fix + news
+  3-layer fix + admin build.
+- **QUEUED — Free-API source upgrades (from reference pack xlsx, 16 Jul;
+  after the four NEXT SESSION items, ~2–3 hrs)**: (a) **BIS SDMX API**
+  (free, no key) for ALL five policy rates incl. PBoC/BOJ/SARB histories —
+  removes them from the TE ask and fills the SA/UK/CN/IN/JP policy-history
+  pending blocks; (b) Bundesbank free API — Germany 10Y Bund;
+  (c) Japan MOF published CSV — 10Y JGB; (d) Eurostat keyless API — EZ
+  CPI/GDP/unemployment; (e) IMF IFS / DBnomics — China GDP/CPI;
+  (f) World Bank Pink Sheet monthly — iron ore; (g) e-Stat (free
+  registration) — Japan CPI/unemployment. Irreducible paid/manual residue
+  after this: all 5 PMIs (ISM/Caixin/HCOB/Jibun/Absa — proprietary press
+  releases; TE key or manual monthly entry), LME copper (COMEX conversion
+  stays the labelled proxy), China 10Y CGB (no open API). Reference-pack
+  audit notes: its "Methodology & Sources" tab is MISSING from the file,
+  and its commodities 12M forecasts use trend extrapolation (banned here).
 - Identity is one shared password; real roles need **Entra OIDC** (IT app
   registration). Names on notes are self-declared until then.
 - Keyword alerts are in-app only; email/Teams push needs SMTP/webhook.

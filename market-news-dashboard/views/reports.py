@@ -270,18 +270,11 @@ def _word_diff(old: str, new: str) -> str:
 
 
 def _moves_block():
-    ui.section("Week's largest moves",
-               "Core + extended universe · 24 tracked instruments")
-    gainers, losers = markets.get_weekly_movers(top_n=4)
-    if gainers or losers:
-        st.markdown('<div class="card">' +
-                    "".join(ui.mover_row(q) for q in gainers + losers) +
-                    "</div>", unsafe_allow_html=True)
-        ui.legend("1W % = last close vs the last close on/before 7 days "
-                  "prior · published closes, yfinance")
-    else:
-        ui.empty_state("Weekly history unavailable from the free feed "
-                       "right now.")
+    ui.section("Week's largest moves", "")
+    gainers, losers = markets.get_movers(top_n=4)
+    st.markdown('<div class="card">' +
+                "".join(ui.mover_row(q) for q in gainers + losers) +
+                "</div>", unsafe_allow_html=True)
 
 
 def _releases_block():
