@@ -25,10 +25,12 @@ def _detail_panel(q, unit: str, key: str, note: str = ""):
                 f'{q.fmt.format(abs(q.change))} ({q.change_pct:+.2f}%)</span>'
                 if q.change_pct is not None else "")
     st.markdown(
-        f'<div class="detail-head"><span class="dh-name">{ui.esc(q.name)}</span>'
+        f'<div class="detail-head"><span class="dh-name">{ui.esc(q.name)}'
+        f'{ui.alert_badge(q.name)}</span>'
         f'<span class="dh-price num">{q.fmt.format(q.price)}</span>{chg_html}'
         f'<span class="dh-meta">{ui.esc(unit)} · {ui.esc(q.asof or "")}</span></div>',
         unsafe_allow_html=True)
+    ui.alert_badge_button(q.name, key=f"albtn_{key}")
 
     rng = st.pills("Range", ["1M", "6M", "1Y", "5Y"], default="1Y",
                    key=f"rng_{key}", label_visibility="collapsed") or "1Y"

@@ -171,6 +171,28 @@ def test_fuzzy_short_query_strict():
     assert fm("tarrif", "new tariff announced")
 
 
+def test_alert_index_cross_page():
+    # Use the st reference the data modules already hold, rather than swapping
+    # sys.modules (modules bind `import streamlit as st` once at import, so a
+    # later swap wouldn't reach them — a test-only artifact, never real).
+    from data_sources import markets, alerts_index
+    from data_sources import watchlist as wl
+    st = wl.st
+    st.session_state.clear()
+    markets.get_shock_alerts = lambda: [
+        {"title": "Gold rose 4%", "severity": "Critical", "assets": "Gold", "asof": ""}]
+    st.session_state["news_watch_keywords"] = [{"term": "Platinum", "scope": "both"}]
+    alerts_index.clear_cache()
+    g = alerts_index.for_instrument("Gold")
+    assert g and g["shock"] == "Critical", g
+    alerts_index.clear_cache()
+    p = alerts_index.for_instrument("Platinum")
+    assert p and p["shock"] is None and "Platinum" in p["watch"], p
+    alerts_index.clear_cache()
+    assert alerts_index.for_instrument("Copper") is None
+    st.session_state.clear()
+
+
 if __name__ == "__main__":
     fns = [v for k, v in list(globals().items()) if k.startswith("test_")]
     for fn in fns:

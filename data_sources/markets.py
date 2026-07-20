@@ -305,6 +305,11 @@ def clear_caches():
     waste public-API quota for data that doesn't change intraday."""
     from data_sources import obs
     obs.note_action("cache clear", "markets + news + AI verdicts")
+    try:
+        from data_sources import alerts_index
+        alerts_index.clear_cache()
+    except Exception:
+        pass
     for fn in (_download_cached, _history_cached, _intraday_cached):
         try:
             fn.clear()

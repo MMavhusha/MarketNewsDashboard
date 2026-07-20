@@ -75,7 +75,38 @@ def news_card(item: dict, time_str: str):
     )
 
 
-def alert_card(a: dict):
+def alert_badge(name: str, inline: bool = True, compact: bool = False) -> str:
+    """Return an HTML alert badge for an instrument if it has an active alert
+    (shock or watchlist), else empty string. Colour reflects severity.
+    compact=True shows just the ⚠ icon (for tight rows like movers)."""
+    from data_sources import alerts_index
+    a = alerts_index.for_instrument(name)
+    if not a:
+        return ""
+    if a["shock"] == "Critical":
+        bg, bd, fg = "#F8ECED", "#EBC8CC", "#B0212C"
+    elif a["shock"] == "Warning":
+        bg, bd, fg = "#FFF1E9", "#FFCDB0", "#C24E11"
+    else:  # watchlist-only
+        bg, bd, fg = "#E7F3F5", "#B7DCE1", "#003B71"
+    style = ("margin-left:8px;" if inline else "")
+    text = "\u26a0" if compact else f"\u26a0 {esc(a['label'])}"
+    return (f'<span class="alert-badge" title="{esc(a["label"])}" '
+            f'style="background:{bg};border:1px solid {bd};color:{fg};{style}">'
+            f'{text}</span>')
+
+
+def alert_badge_button(name: str, key: str):
+    """Streamlit button variant: if the instrument has an alert, render a
+    small 'View alert →' button that navigates to the Alerts page."""
+    from data_sources import alerts_index
+    import streamlit as st
+    a = alerts_index.for_instrument(name)
+    if not a:
+        return
+    if st.button(f"\u26a0 {a['label']} — view →", key=key):
+        st.session_state["nav_to"] = "Alerts"
+        st.rerun()
     sev = a["severity"]
     cls = {"Critical": "al-critical", "Warning": "al-warning"}.get(sev, "al-info")
     kind = {"Critical": "red", "Warning": "amber"}.get(sev, "blue")
@@ -149,7 +180,8 @@ def spark_svg(vals, w: int = 150, h: int = 30, dot: str = "") -> str:
 
 
 def mover_row(q) -> str:
-    return (f'<div class="mv-row"><span class="mv-nm">{esc(q.name)}</span>'
+    badge = alert_badge(q.name, inline=True, compact=True)
+    return (f'<div class="mv-row"><span class="mv-nm">{esc(q.name)}{badge}</span>'
             f'<span class="mv-val num">{q.fmt.format(q.price)}</span>'
             f'<span class="mv-chg num {chg_cls(q.change_pct)}">{q.change_pct:+.2f}%</span></div>')
 
