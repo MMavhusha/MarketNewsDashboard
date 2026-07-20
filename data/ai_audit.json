@@ -1,0 +1,38 @@
+[
+ {
+  "when": "2026-07-20 20:25:20 SAST",
+  "provider": "generativelanguage.googleapis.com · gemini-2.5-flash",
+  "ok": false,
+  "headlines_sent": 25,
+  "classifications_returned": 0,
+  "latency_ms": 378,
+  "titles": [
+   "Russian central bank will keep key rate on hold as fuel prices spur inflation",
+   "India central bank draws over $20 billion from forex measures",
+   "India’s Central Bank Says Forex Deposits Net $17.4 Billion",
+   "The bar for Tesla earnings is sky-high. Here's why and how options traders can c",
+   "Russian central bank sells 44 tons of gold in first half of 2026",
+   "ECB Joins US Banks in Warning Stablecoins Could Drain Deposits",
+   "If a Stock Market Crash Is on the Way, History Says This Is the Smartest Thing I",
+   "Canada Inflation Cools to 2.8% in June as Gasoline Decelerates",
+   "Bond Traders Take Warsh at Word, See Inflation Fight Continuing",
+   "Stock market today: Dow, S&P 500, Nasdaq futures edge up as oil turns lower in w",
+   "Central Bank of the UAE Unveils Homegrown Payment Card Network",
+   "Climate risks push prudential transition plans to the top of central bank agenda",
+   "Trump’s War on the Future, Monetary Edition",
+   "South African rand steady as investors await central bank guidance",
+   "Ryanair says 'no shortage' of travelers despite Iran war denting profit",
+   "Shares of leading Indian private-sector banks slump 5% on weak earnings in June ",
+   "What the UK's Bond Market Can Teach Global Fixed Income Investors - Payden & Ryg",
+   "Business Partners teken appèl aan teen likwidasie-uitspraak",
+   "Thames Water wys dat privatisering nie altyd maanskyn en rose is nie",
+   "Opinion: Forget Nvidia. These 5 S&P 500 stocks are quietly going all in on AI.",
+   "U.K. stocks break two-day climbing streak",
+   "Global oil prices dip below $87 a barrel after new Iran ceasefire proposal. Bloc",
+   "Stocks making the biggest moves midday: AMD, Archer Aviation, SpaceX, Iren & mor",
+   "QFMA Decision No. 3 of 2026: New International License Regime for Qatar Financia",
+   "Three 'Dividend Aristocrats' on Josh Brown's list in July's hottest sector"
+  ],
+  "error": "429 Client Error: Too Many Requests for url: https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+ }
+]
