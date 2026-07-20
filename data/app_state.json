@@ -26,6 +26,10 @@
   {
    "term": "Rate",
    "scope": "news"
+  },
+  {
+   "term": "Public Sector Net Borrowing",
+   "scope": "calendar"
   }
  ]
 }
