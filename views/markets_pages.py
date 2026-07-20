@@ -500,11 +500,6 @@ def page_regional_macro():
                         f'Source: {ui.esc(bsrc)}</div></div>',
                         unsafe_allow_html=True)
 
-            fx_name, fx_tk = macro.REGION_FX[region]
-            q = markets.get_quotes([(fx_name, fx_tk)])[0]
-            with cols[2]:
-                st.markdown(ui.market_card_html(q), unsafe_allow_html=True)
-
             h3, h4 = st.columns(2, gap="large")
             pending: list[str] = []
             for hcol, registry, kind in ((h3, macro.REGION_POLICY_HIST, "pol"),
