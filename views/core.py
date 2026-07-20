@@ -107,6 +107,26 @@ def page_executive_summary():
                     st.rerun()
             else:
                 ui.empty_state("News feeds are currently unreachable.")
+
+            # Movers sit under the teasers so the left column's height tracks
+            # the right (alerts + calendar) — no dead space beneath either.
+            ui.section("Market movers", "Today's largest moves · core universe")
+            gainers, losers = markets.get_movers(universe="core")
+            g1, g2 = st.columns(2, gap="small")
+            with g1:
+                st.markdown('<div class="card"><div style="font-size:11px;font-weight:700;'
+                            'text-transform:uppercase;letter-spacing:1px;color:#1E8052;'
+                            'margin-bottom:6px;">Top gainers</div>' +
+                            "".join(ui.mover_row(q) for q in gainers[:4]) + "</div>",
+                            unsafe_allow_html=True)
+            with g2:
+                st.markdown('<div class="card"><div style="font-size:11px;font-weight:700;'
+                            'text-transform:uppercase;letter-spacing:1px;color:#B0212C;'
+                            'margin-bottom:6px;">Top decliners</div>' +
+                            "".join(ui.mover_row(q) for q in losers[:4]) + "</div>",
+                            unsafe_allow_html=True)
+            ui.legend("1-day moves · full FX ladder on Currencies · weekly "
+                      "movers under Market News → This week")
         with right:
             ui.section("Market shock alerts", "Derived from observed moves")
             alerts = markets.get_shock_alerts()
@@ -133,24 +153,6 @@ def page_executive_summary():
                 ui.legend("Cons = market forecast · Prev = prior · SAST")
             else:
                 ui.empty_state("Calendar feed unavailable right now.")
-
-        ui.section("Market movers", "Today's largest moves · core universe")
-        gainers, losers = markets.get_movers(universe="core")
-        c1, c2 = st.columns(2, gap="medium")
-        with c1:
-            st.markdown('<div class="card"><div style="font-size:11px;font-weight:700;'
-                        'text-transform:uppercase;letter-spacing:1px;color:#1E8052;'
-                        'margin-bottom:6px;">Top gainers</div>' +
-                        "".join(ui.mover_row(q) for q in gainers[:4]) + "</div>",
-                        unsafe_allow_html=True)
-        with c2:
-            st.markdown('<div class="card"><div style="font-size:11px;font-weight:700;'
-                        'text-transform:uppercase;letter-spacing:1px;color:#B0212C;'
-                        'margin-bottom:6px;">Top decliners</div>' +
-                        "".join(ui.mover_row(q) for q in losers[:4]) + "</div>",
-                        unsafe_allow_html=True)
-        ui.legend("1-day moves · full FX ladder and multi-horizon returns on "
-                  "Currencies · weekly movers under Market News → This week")
 
     with rail:
         _right_rail(items)
