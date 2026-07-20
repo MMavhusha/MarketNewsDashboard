@@ -455,3 +455,90 @@ div[class*="st-key-note_editor_"] .stRadio { margin: 0; }
   letter-spacing: 1px; color: #C24E11; background: #FFF1E9;
   border: 1px solid #FFCDB0; border-radius: 4px; padding: 1px 6px;
   margin-left: 8px; vertical-align: 1px; }
+
+/* ============================================================
+   RESPONSIVE + ACCESSIBILITY + MOTION LAYER
+   ============================================================ */
+
+/* --- Horizontal scroll for data-dense grids on narrow screens ---
+   The custom tables use fixed/px grid tracks that can't compress below a
+   legible width. Rather than crush them, allow the table to scroll
+   sideways within its card while every row keeps a sensible min-width. */
+.fx-table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.fx-hd, .fx-row { min-width: 520px; }
+.rg-hd, .rg-row { min-width: 660px; }
+.fh-hd, .fh-row { min-width: 560px; }
+/* a faint scroll affordance so users know there's more sideways */
+.fx-table::-webkit-scrollbar { height: 8px; }
+.fx-table::-webkit-scrollbar-thumb { background: #E2E3E0; border-radius: 4px; }
+.fx-table::-webkit-scrollbar-track { background: transparent; }
+
+/* --- Tablet / small-laptop: tighten dense chrome --- */
+@media (max-width: 1024px) {
+  .pagehead .ph-meta { display: none; }        /* refresh strip is noise here */
+  .sec-h { margin: 26px 0 12px 0; }
+}
+
+/* --- Phone: single-column, larger tap targets, calmer type --- */
+@media (max-width: 640px) {
+  .pagehead { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .ph-title { font-size: 18px; }
+  .hero-title { font-size: 18px !important; line-height: 1.3 !important; }
+  .news-card .hl { font-size: 14px; }
+  /* stacked KPI blocks read better full-width than squeezed side by side */
+  .kpi { margin-bottom: 8px; }
+  /* buttons and inputs need a 44px min touch target on mobile */
+  .stButton > button, .stDownloadButton > button { min-height: 44px; }
+  /* pills wrap instead of overflowing */
+  div[data-testid="stPills"] { flex-wrap: wrap; }
+  /* denser tables get a touch more breathing room per row when scrolled */
+  .fx-row, .fh-row { height: auto; min-height: 44px; }
+}
+
+/* --- Accessibility: visible keyboard focus everywhere ---
+   The base sheet had almost no focus styling, so keyboard users couldn't
+   see where they were. A consistent brand focus ring on every interactive
+   element. :focus-visible keeps it keyboard-only (no ring on mouse click). */
+a:focus-visible,
+button:focus-visible,
+.stButton > button:focus-visible,
+.stDownloadButton > button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[role="option"]:focus-visible,
+[data-baseweb] input:focus-visible,
+div[data-testid="stPills"] button:focus-visible {
+  outline: 2px solid #FF671D !important;
+  outline-offset: 2px !important;
+  border-radius: 6px;
+}
+/* interactive table rows: keyboard + hover parity */
+.fx-row:focus-visible, .rg-row:focus-visible, .fh-row:focus-visible {
+  outline: 2px solid #FF671D; outline-offset: -2px; background: #FFF8F4;
+}
+/* links carry an underline on focus/hover so they're not colour-only */
+.news-card .hl a:hover, .news-card .hl a:focus-visible { text-decoration: underline; }
+
+/* --- Motion: gentle entrance + honour reduced-motion --- */
+@keyframes rc-fade-in { from { opacity: 0; transform: translateY(4px); }
+                        to   { opacity: 1; transform: translateY(0); } }
+.news-card, .mkt-card, .fx-table, .tl-row, .kpi, .rail-card {
+  animation: rc-fade-in .18s ease-out both;
+}
+/* users who prefer reduced motion get none of it */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* --- Loading affordance: skeleton shimmer for slow feed loads --- */
+@keyframes rc-shimmer { 0% { background-position: -200px 0; }
+                        100% { background-position: 200px 0; } }
+.rc-skeleton {
+  background: linear-gradient(90deg, #F0F0EE 25%, #F7F7F6 50%, #F0F0EE 75%);
+  background-size: 400px 100%; animation: rc-shimmer 1.2s infinite linear;
+  border-radius: 8px; height: 14px; margin: 8px 0;
+}

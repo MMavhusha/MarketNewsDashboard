@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 import streamlit as st
 
 from components import report_builder, ui
-from data_sources import calendar_data, macro, markets, news, notes_store
+from data_sources import markets, news, notes_store
 
 NAMED_SOURCES = [
     ("Bloomberg", "News, markets, corporate actions", "Public RSS wires / yfinance"),
@@ -117,8 +117,10 @@ def render_weekly_view():
     if editing_now is None and (not author or st.session_state.get("_edit_identity")):
         c1, c2, _ = st.columns([1.4, 0.6, 3])
         name_in = c1.text_input("Your name", value=author,
-                                placeholder="e.g. Antonie")
-        if c2.button("Set", disabled=not name_in.strip()):
+                                placeholder="e.g. Jon Doe")
+        c2.markdown('<div style="height:28px"></div>', unsafe_allow_html=True)
+        if c2.button("Set", disabled=not name_in.strip(),
+                     use_container_width=True):
             st.session_state["note_author"] = name_in.strip()
             st.session_state.pop("_edit_identity", None)
             st.rerun()
@@ -288,18 +290,16 @@ def _moves_block():
 
 
 def _releases_block():
-    ui.section("Upcoming releases", "Next 7 days")
-    cal = calendar_data.get_calendar()
-    high = [e for e in cal if e["importance"] == "High"] or cal
-    if high:
-        day = None
-        for e in high[:6]:
-            if e.get("day") and e["day"] != day:
-                day = e["day"]
-                ui.cal_day_header(day)
-            ui.cal_row(e)
-    else:
-        ui.empty_state("Calendar feed unavailable right now.")
+    # Upcoming releases live on Calendar & Alerts — don't reproduce the feed
+    # here; point to the single source instead.
+    ui.section("Upcoming releases", "Scheduled data & market closures")
+    st.caption("The full scheduled agenda — data releases and market "
+               "holidays across all covered regions — lives on the "
+               "Calendar & Alerts page.")
+    if st.button("Open Calendar & Alerts →", key="wk_goto_cal",
+                 use_container_width=True):
+        st.session_state["nav_to"] = "Calendar & Alerts"
+        st.rerun()
 
 
 def _moves_and_releases(stacked=False):
@@ -413,7 +413,28 @@ def page_settings():
                                __import__("json").dumps(entries, indent=1),
                                file_name="ai_audit_log.json")
 
-    ui.section("Data Sources", "Target premium source → current free stand-in")
+    if st.session_state.get("_admin_ok"):
+        from data_sources import obs
+        s = obs.summary()
+        ui.section("System errors",
+                   "Admin · captured failures this session (fail-soft events)")
+        errs = obs.errors()
+        if not errs:
+            st.caption("No errors captured this session. Data-fetch, feed-parse "
+                       "and history failures are recorded here as they occur — "
+                       "the app still degrades gracefully, but nothing fails "
+                       "silently anymore.")
+        else:
+            ui.legend(f"{s['total']} events · {s['errors']} errors · "
+                      f"{s['warnings']} warnings · newest first · session-scoped")
+            import pandas as _pd
+            st.dataframe(_pd.DataFrame(errs), hide_index=True,
+                         use_container_width=True)
+            if st.button("Clear error log", key="obs_clear"):
+                obs.clear()
+                st.rerun()
+
+    ui.section("Data sources", "Target premium source → current free stand-in")
     for name, role, standin in NAMED_SOURCES:
         st.markdown(
             f'<div class="cal-row"><span class="cty" style="width:230px;">{ui.esc(name)}</span>'

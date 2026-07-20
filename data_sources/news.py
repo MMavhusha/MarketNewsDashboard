@@ -391,7 +391,9 @@ def get_news(max_per_feed: int = 12) -> list[dict]:
                         "source": source, "published": when}
                 item.update(_classify(title, summary, default_region))
                 items.append(item)
-        except Exception:
+        except Exception as e:
+            from data_sources import obs
+            obs.record(f"news feed parse: {source}", e, level="warning")
             continue
     items.sort(key=lambda i: (i["score"], i["published"] or datetime.min.replace(tzinfo=timezone.utc)),
                reverse=True)

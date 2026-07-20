@@ -238,6 +238,24 @@ def tl_row(e: dict):
         unsafe_allow_html=True)
 
 
+def news_teaser(item: dict, time_str: str):
+    """Compact one-line teaser for the Executive Summary preview — importance
+    dot, title, source. The full card (summary, tags, save) is on Market
+    News; the summary should tease, not duplicate it."""
+    edge = {"High": "#FF671D", "Medium": "#F2C84A"}.get(item["importance"], "#C9CBC4")
+    st.markdown(
+        f'''<div style="display:flex;gap:9px;align-items:baseline;padding:7px 0;
+        border-bottom:1px solid #F0F0EE;">
+        <span style="width:7px;height:7px;border-radius:50%;background:{edge};
+        flex-shrink:0;position:relative;top:4px;"></span>
+        <span style="flex:1;font-size:12.5px;line-height:1.35;">
+        <a href="{esc(item["link"])}" target="_blank"
+        style="color:#212322;text-decoration:none;font-weight:600;">{esc(item["title"])}</a>
+        <span style="color:#909288;font-weight:400;"> · {esc(item["source"])} ·
+        {esc(time_str)}</span></span></div>''',
+        unsafe_allow_html=True)
+
+
 def cal_mini(e: dict):
     """Compact stacked event card for narrow columns (exec summary rail)."""
     edge = {"High": "#FF671D", "Medium": "#F2C84A"}.get(e["importance"], "#E2E3E0")

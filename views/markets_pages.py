@@ -176,7 +176,7 @@ def page_currencies():
     ordered = ([n for n in rets if "ZAR" in n]
                + [n for n in rets if "ZAR" not in n])
     body = "".join(
-        f'<div class="fh-row"><span class="fx-pair">{ui.esc(n)}</span>'
+        f'<div class="fh-row" tabindex="0"><span class="fx-pair">{ui.esc(n)}</span>'
         + "".join(_heat_cell(rets[n].get(w)) for w in _FX_WINDOWS)
         + "</div>"
         for n in ordered)
@@ -256,7 +256,7 @@ def _fmt_date(v):
     try:
         return pd.to_datetime(str(v)).strftime("%d %b %Y")
     except (ValueError, TypeError):
-        return str(v)
+        return "—"
 
 
 def _region_rows(region, matrix):
@@ -403,7 +403,7 @@ def _grid_row_html(r, rid, selected):
     rel = _fmt_date(r.get("release", "—"))
     sel = " rg-row-sel" if selected else ""
     return (
-        f'<div class="rg-row{sel}"><span><span class="rg-ind">{ui.esc(r["ind"])}'
+        f'<div class="rg-row{sel}" tabindex="0"><span><span class="rg-ind">{ui.esc(r["ind"])}'
         f'</span><span class="rg-src">{ui.esc(r["source"])}</span></span>'
         f'<span class="rg-num">{latest}</span>'
         f'<span class="rg-num rg-mut">{ui.esc(rel)}</span>'
@@ -427,7 +427,7 @@ def _pack_grid(rows, region):
         '</div>', unsafe_allow_html=True)
 
 
-def _detail_panel(rows, region, matrix):
+def _region_detail_panel(rows, region, matrix):
     """Shared panel: pick an indicator, see its 3Y chart AND the same
     indicator across all regions — the consolidation of the old separate
     charts section and comparison popover into one place."""
@@ -498,7 +498,7 @@ def page_regional_macro():
                       "\u00b7 \u0394 in the indicator's own units, arithmetic "
                       "on published observations \u00b7 n/a* = history source "
                       "pending (BIS / Eurostat / Bundesbank queued)")
-            _detail_panel(rows, region, matrix)
+            _region_detail_panel(rows, region, matrix)
 
             if region == "South Africa":
                 groups = sarb.get_sa_indicators()

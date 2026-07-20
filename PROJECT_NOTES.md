@@ -184,23 +184,15 @@ optional: TE_API_KEY, ANTHROPIC_API_KEY, LLM_API_BASE, LLM_MODEL.
   status. Tests 7→14, all diagnosed cases covered.
   ACTION REQUIRED: add GROQ_API_KEY to Streamlit secrets (console.groq.com,
   free) and confirm the regenerated Gemini LLM_API_KEY is actually set.
-- **NEXT SESSION — Admin/developer observability page (~90–120 min)**:
-  dedicated admin-only page, unlocked via existing ADMIN_PASSWORD (harden
-  the Settings check from plain == to hmac.compare_digest). Panels:
-  (a) classification debugger — paste any headline, see the full trace
-  (which phrase / subject×verb rule fired, score, confident flag,
-  rules-vs-model provenance, relevance verdict once the gate exists);
-  (b) per-story AI provenance beyond the ✦ marks; (c) AI audit trail
-  extended with latency/error/provider stats; (d) feed diagnostics per
-  source (fetch latency, item counts, HTTP status, parse failures);
-  (e) error ring buffer — the app fails soft with bare `except` everywhere
-  so errors vanish silently today; capture in-memory for admin view;
-  (f) cache observability (TTLs, last refresh, per-cache clear);
-  (g) data quality (stale quotes by asof age, n/a instruments, history
-  gaps); (h) system info (package versions, deploy SHA, secrets-presence
-  checklist — names only, never values).
-  Tomorrow's full queue ≈ 3.5–4.5 hrs: FX board + movers fix + news
-  3-layer fix + admin build.
+- **PARTIALLY SHIPPED — observability**: error ring buffer
+  (data_sources/obs.py) now captures fail-soft failures (yfinance download/
+  history, news feed parse) that previously vanished silently; surfaced on
+  Settings → System errors (admin). Page-render smoke test added
+  (tests/test_smoke.py — renders all 9 pages against a mocked Streamlit;
+  would have caught the cols[2] and _detail_panel bugs). STILL QUEUED for a
+  fuller build: classification debugger, per-feed latency/HTTP diagnostics,
+  cache observability, data-quality panel, hmac admin-check hardening, and
+  wiring the remaining ~8 silent except-blocks into obs.guard().
 - **QUEUED — Free-API source upgrades (from reference pack xlsx, 16 Jul;
   after the four NEXT SESSION items, ~2–3 hrs)**: (a) **BIS SDMX API**
   (free, no key) for ALL five policy rates incl. PBoC/BOJ/SARB histories —

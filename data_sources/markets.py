@@ -6,7 +6,7 @@ never fabricates values. Swap this module for a premium provider
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from zoneinfo import ZoneInfo
 from typing import Optional
 
@@ -107,7 +107,9 @@ def _download(tickers: tuple[str, ...], period: str = "1mo") -> pd.DataFrame:
         return pd.DataFrame()
     try:
         return _download_cached(tickers, period)
-    except Exception:
+    except Exception as e:
+        from data_sources import obs
+        obs.record(f"markets._download({len(tickers)} tickers, {period})", e)
         return pd.DataFrame()
 
 
@@ -172,7 +174,9 @@ def get_history(ticker: str, period: str = "1y") -> pd.Series:
         return pd.Series(dtype=float)
     try:
         return _history_cached(ticker, period)
-    except Exception:
+    except Exception as e:
+        from data_sources import obs
+        obs.record(f"markets.get_history({ticker}, {period})", e)
         return pd.Series(dtype=float)
 
 

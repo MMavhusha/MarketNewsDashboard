@@ -90,21 +90,25 @@ def page_executive_summary():
         else:
             ui.empty_state("No live news available for the hero story.")
 
-        ui.section("Global Market Summary",
+        ui.section("Global market summary",
                    "Latest vs prior session · mini-chart = last month · yfinance")
         render_summary_strip()
 
         left, right = st.columns([1.5, 1], gap="medium")
         with left:
-            ui.section("Breaking News", "Ranked by importance")
+            ui.section("Breaking news", "Top stories · full coverage on Market News")
             if items:
                 pool = [i for i in items if i is not hero_item]
-                for item in pool[:5]:
-                    ui.news_card(item, news.fmt_time(item["published"]))
+                for item in pool[:3]:
+                    ui.news_teaser(item, news.fmt_time(item["published"]))
+                if st.button("All market news →", key="es_goto_news",
+                             use_container_width=True):
+                    st.session_state["nav_to"] = "Market News"
+                    st.rerun()
             else:
                 ui.empty_state("News feeds are currently unreachable.")
         with right:
-            ui.section("Market Shock Alerts", "Derived from observed moves")
+            ui.section("Market shock alerts", "Derived from observed moves")
             alerts = markets.get_shock_alerts()
             if alerts:
                 for a in alerts[:4]:
@@ -117,7 +121,7 @@ def page_executive_summary():
                 ui.empty_state("No moves beyond alert thresholds in the latest "
                                "session.")
 
-            ui.section("Economic Calendar", "Next 7 days")
+            ui.section("Economic calendar", "Next 7 days")
             cal = calendar_data.get_calendar()
             if cal:
                 day = None
@@ -130,25 +134,23 @@ def page_executive_summary():
             else:
                 ui.empty_state("Calendar feed unavailable right now.")
 
-        ui.section("Market Movers", "Requested instruments first")
-        extended = st.toggle("Include extended universe (global indices, other FX)",
-                             value=False, key="mv_ext")
-        gainers, losers = markets.get_movers(universe="extended" if extended else "core")
-        ui.legend(f"Top/bottom of "
-                  f"{len(markets.CORE_MOVERS) + (len(markets.EXTENDED_MOVERS) if extended else 0)} tracked instruments")
+        ui.section("Market movers", "Today's largest moves · core universe")
+        gainers, losers = markets.get_movers(universe="core")
         c1, c2 = st.columns(2, gap="medium")
         with c1:
             st.markdown('<div class="card"><div style="font-size:11px;font-weight:700;'
                         'text-transform:uppercase;letter-spacing:1px;color:#1E8052;'
                         'margin-bottom:6px;">Top gainers</div>' +
-                        "".join(ui.mover_row(q) for q in gainers) + "</div>",
+                        "".join(ui.mover_row(q) for q in gainers[:4]) + "</div>",
                         unsafe_allow_html=True)
         with c2:
             st.markdown('<div class="card"><div style="font-size:11px;font-weight:700;'
                         'text-transform:uppercase;letter-spacing:1px;color:#B0212C;'
                         'margin-bottom:6px;">Top decliners</div>' +
-                        "".join(ui.mover_row(q) for q in losers) + "</div>",
+                        "".join(ui.mover_row(q) for q in losers[:4]) + "</div>",
                         unsafe_allow_html=True)
+        ui.legend("1-day moves · full FX ladder and multi-horizon returns on "
+                  "Currencies · weekly movers under Market News → This week")
 
     with rail:
         _right_rail(items)
@@ -476,7 +478,6 @@ def page_calendar():
         return
     day = None
     sast = ZoneInfo("Africa/Johannesburg")
-    today_hdr = None
     for e in view:
         try:
             dt = datetime.fromisoformat(e["_dt"].replace("Z", "+00:00"))
