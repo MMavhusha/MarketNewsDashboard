@@ -1,0 +1,27 @@
+{
+ "watchlist": [
+  "USD/ZAR",
+  "Brent Crude",
+  "Gold"
+ ],
+ "alert_thresholds": {
+  "index": [
+   0.5,
+   0.5
+  ],
+  "fx": [
+   0.5,
+   0.5
+  ],
+  "commodity": [
+   3.0,
+   6.0
+  ],
+  "crypto": [
+   5.0,
+   10.0
+  ]
+ },
+ "saved_articles": [],
+ "news_watch_keywords": []
+}
