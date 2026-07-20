@@ -22,5 +22,10 @@
   ]
  },
  "saved_articles": [],
- "news_watch_keywords": []
+ "news_watch_keywords": [
+  {
+   "term": "FED",
+   "scope": "news"
+  }
+ ]
 }
