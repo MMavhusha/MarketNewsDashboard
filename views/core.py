@@ -99,7 +99,7 @@ def page_executive_summary():
         # to tile counts (news items, alerts, calendar rows) reopens dead
         # space. A single flow reorders naturally and never leaves a gap.
         from data_sources import watchlist as _wl
-        _news_kw = [k["term"] for k in _wl.get() if k["scope"] in ("both", "news")]
+        _news_kw = _wl.news_terms()
 
         ui.section("Breaking news", "Top stories · watched topics first · "
                    "full coverage on Market News")
@@ -137,8 +137,7 @@ def page_executive_summary():
             ui.section("Economic calendar", "Next 7 days")
             cal = calendar_data.get_calendar()
             if cal:
-                _cal_kw = [k["term"] for k in _wl.get()
-                           if k["scope"] in ("both", "calendar")]
+                _cal_kw = _wl.calendar_terms()
 
                 def _cal_watched(e):
                     return bool(_cal_kw) and any(_wl.matches_event(e, k)
@@ -302,7 +301,7 @@ def page_market_news():
         return
     from data_sources import watchlist as _wl
     # news-scoped watch terms only — a calendar-only keyword must not flag news
-    kw = [k["term"] for k in _wl.get() if k["scope"] in ("both", "news")]
+    kw = _wl.news_terms()
     admin = st.session_state.get("_admin_ok")
     if admin:
         n_ai = sum(1 for it in view if it.get("_ai"))
@@ -539,9 +538,14 @@ def page_calendar():
                         key="cal_imp") or "All"
     region_pick = f2.selectbox("Region", ["All regions"] + regions_present,
                                key="cal_region")
+    # Arriving from a watchlist alert: flip the 'my watchlist' toggle ON (the
+    # toggle IS the control that expresses "show this alert's matches"), so the
+    # deep-link lands already filtered to the watchlist rather than the full
+    # calendar. We set the toggle, not a search string — using both would
+    # double-filter and confuse.
     jump = st.session_state.pop("cal_jump_query", None)
     if jump is not None:
-        st.session_state["cal_q"] = jump
+        st.session_state["cal_watch_only"] = True
     q = f3.text_input("Search events",
                       placeholder='e.g. "rate", "CPI", "bank holiday"',
                       key="cal_q")
@@ -550,7 +554,7 @@ def page_calendar():
         key="cal_hi_only")
     from data_sources import watchlist as _wl
     # calendar-scoped watch terms only (news-only keywords don't flag here)
-    watch_kw = [k["term"] for k in _wl.get() if k["scope"] in ("both", "calendar")]
+    watch_kw = _wl.calendar_terms()
     watch_only = False
     if watch_kw:
         watch_only = st.toggle(
@@ -561,9 +565,7 @@ def page_calendar():
     # so a watched term like 'Fed' is marked ⚑ here too.
     if watch_kw:
         for e in cal:
-            e["_watched"] = any(
-                news.fuzzy_match(k, f'{e["event"]} {e["country"]}')
-                for k in watch_kw)
+            e["_watched"] = any(_wl.matches_event(e, k) for k in watch_kw)
 
     view = cal
     if imp_pick == "High":

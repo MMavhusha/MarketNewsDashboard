@@ -55,6 +55,17 @@ def terms() -> list[str]:
     return [k["term"] for k in get()]
 
 
+def news_terms() -> list[str]:
+    """Terms that watch news (scope 'news' or 'both'). Use everywhere a news
+    surface flags/filters, so the scope rule lives in one place."""
+    return [k["term"] for k in get() if k["scope"] in ("both", "news")]
+
+
+def calendar_terms() -> list[str]:
+    """Terms that watch the calendar (scope 'calendar' or 'both')."""
+    return [k["term"] for k in get() if k["scope"] in ("both", "calendar")]
+
+
 def matches_news(item: dict, term: str) -> bool:
     return news.fuzzy_match(term, f'{item.get("title", "")} {item.get("summary", "")}')
 

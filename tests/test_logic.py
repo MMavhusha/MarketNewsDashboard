@@ -193,6 +193,18 @@ def test_alert_index_cross_page():
     st.session_state.clear()
 
 
+def test_watchlist_scope_helpers():
+    from data_sources import watchlist as wl
+    st = wl.st
+    st.session_state.clear()
+    st.session_state["news_watch_keywords"] = [
+        {"term": "Fed", "scope": "news"}, {"term": "CPI", "scope": "calendar"},
+        {"term": "Eskom", "scope": "both"}]
+    assert wl.news_terms() == ["Fed", "Eskom"]
+    assert wl.calendar_terms() == ["CPI", "Eskom"]
+    st.session_state.clear()
+
+
 if __name__ == "__main__":
     fns = [v for k, v in list(globals().items()) if k.startswith("test_")]
     for fn in fns:

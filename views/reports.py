@@ -37,7 +37,7 @@ def render_weekly_view():
         backfilled = True
 
     from data_sources import watchlist as _wl
-    _kw = [k["term"] for k in _wl.get() if k["scope"] in ("both", "news")]
+    _kw = _wl.news_terms()
 
     def stories(block):
         for item in block:

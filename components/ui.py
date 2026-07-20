@@ -285,7 +285,7 @@ def news_teaser(item: dict, time_str: str):
     flag = ""
     try:
         from data_sources import watchlist as _wl
-        _kw = [k["term"] for k in _wl.get() if k["scope"] in ("both", "news")]
+        _kw = _wl.news_terms()
         if _kw and any(_wl.matches_news(item, k) for k in _kw):
             flag = "\u2691 "
     except Exception:
@@ -314,7 +314,7 @@ def cal_mini(e: dict):
     else:
         try:
             from data_sources import watchlist as _wl
-            _kw = [k["term"] for k in _wl.get() if k["scope"] in ("both", "calendar")]
+            _kw = _wl.calendar_terms()
             if _kw and any(_wl.matches_event(e, k) for k in _kw):
                 flag = "\u2691 "
         except Exception:
