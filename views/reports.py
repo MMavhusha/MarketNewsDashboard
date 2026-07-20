@@ -347,11 +347,12 @@ def page_settings():
         rows.append({"name": "AI classification",
                      "ok": ai_enrich.enabled(),
                      "detail": ((f"active via {ai_enrich.provider_label()} — "
-                                 "triaged: the model classifies only headlines "
-                                 "the rules engine finds ambiguous")
+                                 "model-primary: every displayed story is "
+                                 "classified by the chain in batches; rules "
+                                 "stand only if all providers fail")
                                 if ai_enrich.enabled() else
-                                "off — add LLM_API_KEY (Gemini/Groq/etc.) or "
-                                "ANTHROPIC_API_KEY to enable")})
+                                "off — add LLM_API_KEY (Gemini), GROQ_API_KEY "
+                                "or ANTHROPIC_API_KEY to enable")})
     except Exception:
         pass
     for r in rows:
