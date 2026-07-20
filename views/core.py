@@ -266,8 +266,8 @@ def page_market_news():
     if imp != "All":
         view = [i for i in view if i["importance"] == imp]
     if q:
-        ql = q.lower()
-        view = [i for i in view if ql in i["title"].lower() or ql in i["summary"].lower()]
+        from data_sources import watchlist as _wl
+        view = [i for i in view if _wl.matches_news(i, q)]
 
     ui.legend(f"{len(view)} stories · ranked by importance · public RSS wires")
     if not view:

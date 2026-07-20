@@ -158,6 +158,19 @@ def test_watchlist_model():
     assert len(wl.get()) == 1  # de-duped case-insensitively
 
 
+def test_fuzzy_short_query_strict():
+    from data_sources.news import fuzzy_match as fm
+    # short queries must not over-match unrelated short words
+    assert fm("Fed", "Fed signals ahead")
+    assert fm("Fed", "federal reserve meeting")
+    assert not fm("Fed", "chicken feed prices")
+    assert not fm("Fed", "red ink reported")
+    assert not fm("Fed", "fee income rises")
+    # longer typo tolerance still works
+    assert fm("escom", "Eskom load shedding")
+    assert fm("tarrif", "new tariff announced")
+
+
 if __name__ == "__main__":
     fns = [v for k, v in list(globals().items()) if k.startswith("test_")]
     for fn in fns:

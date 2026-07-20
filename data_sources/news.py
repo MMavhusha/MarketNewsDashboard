@@ -565,8 +565,12 @@ def get_feed_status() -> list[dict]:
 def fuzzy_match(query: str, text: str) -> bool:
     """Substring, prefix, or typo-tolerant word match (difflib, no deps).
     'escom'→Eskom, 'tarrif'→tariff, 'oli'→oil, 'infl'→inflation (prefix).
-    Threshold scales with word length: short words need a looser ratio or
-    they can never match with a one-letter typo."""
+
+    Short queries (≤4 chars, e.g. 'Fed', 'CPI') are matched STRICTLY — exact
+    word or clear prefix only — because a loose similarity ratio on a 3-letter
+    term wrongly catches unrelated words ('Fed'~'feed'/'red'/'bed'), which made
+    watchlist counts overstate real matches. Longer terms keep typo tolerance.
+    """
     from difflib import SequenceMatcher
     q = query.lower().strip()
     t = text.lower()
@@ -576,10 +580,21 @@ def fuzzy_match(query: str, text: str) -> bool:
         return True
     words = set(re.findall(r"[a-z0-9']+", t))
     for term in q.split():
-        thr = 0.66 if len(term) <= 4 else 0.75 if len(term) <= 6 else 0.8
-        ok = any(w.startswith(term) or term.startswith(w[:max(3, len(term))])
-                 or SequenceMatcher(None, term, w).ratio() >= thr
-                 for w in words if abs(len(w) - len(term)) <= 4)
+        if len(term) <= 4:
+            # Exact word or genuine prefix, OR a same-letters typo of equal
+            # length (transposition like 'oli'→'oil'): identical character
+            # multiset means a slip, not a different word. This admits real
+            # typos while rejecting unrelated short words ('fed'→'red'/'feed'),
+            # which a similarity ratio can't distinguish (both score ~0.67).
+            def _typo(term, w):
+                return (len(w) == len(term) and sorted(w) == sorted(term))
+            ok = any(w == term or w.startswith(term) or _typo(term, w)
+                     for w in words)
+        else:
+            thr = 0.75 if len(term) <= 6 else 0.8
+            ok = any(w.startswith(term) or term.startswith(w[:max(3, len(term))])
+                     or SequenceMatcher(None, term, w).ratio() >= thr
+                     for w in words if abs(len(w) - len(term)) <= 4)
         if not ok:
             return False
     return True
