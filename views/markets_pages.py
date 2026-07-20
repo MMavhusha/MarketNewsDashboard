@@ -503,16 +503,39 @@ def page_regional_macro():
             if region == "South Africa":
                 groups = sarb.get_sa_indicators()
                 if groups:
-                    ui.section("Live SARB releases", "SARB public Web API · no key")
+                    ui.section("Live SARB releases",
+                               "SA-specific series not shown on Commodities or "
+                               "Currencies · SARB Web API")
+                    # Drop series that duplicate the Commodities page (metal
+                    # prices) and the Currencies page (FX rates) — those are
+                    # shown there with live charts. Keep only SA-unique
+                    # monetary/real-sector data (prime, M3, credit, etc.).
+                    def _dup(name: str) -> bool:
+                        n = name.lower()
+                        price_dup = any(k in n for k in (
+                            "gold", "platinum", "palladium", "brent", "oil",
+                            "rhodium"))
+                        fx_dup = (("exchange rate" in n or "per us" in n
+                                   or "per dollar" in n or "/us$" in n
+                                   or "rand per" in n or "us$" in n
+                                   or "euro" in n or "pound" in n or "yen" in n)
+                                  and "real effective" not in n)
+                        return price_dup or fx_dup
                     key_rows = groups.get("Key rates & prices") or next(iter(groups.values()))
                     pool = [r for rows in groups.values() for r in rows]
-                    fresh = [r for r in key_rows if r["name"] not in promoted]
-                    for r in pool:  # backfill slots freed by promoted series
+                    fresh = [r for r in key_rows
+                             if r["name"] not in promoted and not _dup(r["name"])]
+                    for r in pool:  # backfill with other SA-unique series
                         if len(fresh) >= 8:
                             break
-                        if r["name"] not in promoted and r not in fresh:
+                        if (r["name"] not in promoted and r not in fresh
+                                and not _dup(r["name"])):
                             fresh.append(r)
                     tiles = fresh[:8]
+                    if not tiles:
+                        ui.empty_state("No SA-unique series available right now "
+                                       "(prices and FX are on Commodities and "
+                                       "Currencies).")
                     tcols = st.columns(4)
                     for i, r in enumerate(tiles):
                         with tcols[i % 4]:
@@ -524,19 +547,23 @@ def page_regional_macro():
                                 f'<div class="k-sub">{ui.esc(r["agency"])} · {ui.esc(r["date"])}</div></div>',
                                 unsafe_allow_html=True)
                     shown = {r["name"] for r in tiles} | promoted
+                    # "All published series" also excludes the duplicates now
                     n_other = sum(1 for rows in groups.values() for r in rows
-                                  if r["name"] not in shown)
+                                  if r["name"] not in shown and not _dup(r["name"]))
                     if n_other:
-                        with st.expander(f"All published series ({n_other})"):
+                        with st.expander(f"All SA-unique series ({n_other})"):
                             for glabel, rows in groups.items():
                                 for r in rows:
-                                    if r["name"] in shown:
+                                    if r["name"] in shown or _dup(r["name"]):
                                         continue
                                     st.markdown(
                                         f'<div class="cal-row"><span class="cty" style="width:340px;">{ui.esc(r["name"])}</span>'
                                         f'<span class="ev">{ui.esc(glabel)} · {ui.esc(r["agency"])} · {ui.esc(r["date"])}</span>'
                                         f'<span class="cal-val num">{ui.esc(r["value"])} {ui.esc(r["unit"])}</span></div>',
                                         unsafe_allow_html=True)
+                    st.caption("Metal prices are on Commodities; exchange rates "
+                               "on Currencies \u2014 excluded here to avoid "
+                               "duplication.")
 
             ind_pick = st.pills("History (10y)", list(macro.WB_INDICATORS.keys()),
                                 default="GDP Growth (YoY %)", key=f"ind_{iso}")
