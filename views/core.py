@@ -543,21 +543,60 @@ def page_calendar():
     if not view:
         ui.empty_state("No events match the current filters.")
         return
-    day = None
+
     sast = ZoneInfo("Africa/Johannesburg")
-    for e in view:
+    today = datetime.now(sast).date()
+
+    def _event_date(e):
         try:
             dt = datetime.fromisoformat(e["_dt"].replace("Z", "+00:00"))
             if dt.tzinfo is None:
                 dt = dt.replace(tzinfo=timezone.utc)
-            d = dt.astimezone(sast).date()
-            hdr = d.strftime("%A %d %B") + (
-                " · today" if d == datetime.now(sast).date() else "")
+            return dt.astimezone(sast).date()
         except Exception:
-            hdr = e.get("day") or "Scheduled"
-        if hdr != day:
-            day = hdr
+            return None
+
+    # Group events by calendar day, preserving the time order already sorted.
+    days: list[tuple] = []  # (date_or_None, header, [events])
+    seen_hdr = {}
+    for e in view:
+        d = _event_date(e)
+        hdr = (d.strftime("%A %d %B") if d else (e.get("day") or "Scheduled"))
+        if d == today:
+            hdr += " · today"
+        elif d and d == today + timedelta(days=1):
+            hdr += " · tomorrow"
+        if hdr not in seen_hdr:
+            seen_hdr[hdr] = len(days)
+            days.append((d, hdr, []))
+        days[seen_hdr[hdr]][2].append(e)
+
+    # Today + tomorrow expanded in full; later days collapse to a summary
+    # that always surfaces high-impact ("market-moving") events, expandable.
+    for d, hdr, events in days:
+        expanded = (d is None) or (d <= today + timedelta(days=1))
+        if expanded:
             ui.cal_day_header(hdr)
-        ui.tl_row(e)
-    st.caption("Importance is the provider's market-impact rating. No in-app "
-               "estimation is performed.")
+            for e in events:
+                ui.tl_row(e)
+        else:
+            movers = [e for e in events
+                      if e["importance"] == "High" or e.get("is_holiday")]
+            chips = "".join(
+                f'<span class="cal-chip">{ui.esc(e["country"])}: '
+                f'{ui.esc(e["event"][:40])}</span>' for e in movers[:4])
+            more = (f' +{len(movers) - 4} more' if len(movers) > 4 else "")
+            n = len(events)
+            summary = (f'{n} event{"s" if n != 1 else ""}'
+                       + (f" · {len(movers)} market-moving" if movers else ""))
+            with st.expander(f"{hdr} — {summary}", expanded=False):
+                for e in events:
+                    ui.tl_row(e)
+            if chips:
+                st.markdown(
+                    f'<div class="cal-collapsed-movers">Market-moving: {chips}'
+                    f'<span class="cal-chip-more">{more}</span></div>',
+                    unsafe_allow_html=True)
+    st.caption("Today and tomorrow shown in full; later days collapse to a "
+               "summary with market-moving events surfaced — expand any day "
+               "for its full agenda. Importance is the provider's rating.")

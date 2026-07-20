@@ -561,3 +561,11 @@ div[data-testid="stPills"] button:focus-visible {
   flex-wrap: wrap; }
 .al-kw { font-weight: 700; color: #003B71; font-size: 13.5px; }
 .al-kw-meta { font-size: 12px; color: #4C4D52; }
+
+/* ---------- Calendar: collapsed future-day summaries ---------- */
+.cal-collapsed-movers { font-size: 11.5px; color: #6B6D64; margin: -4px 0 10px 4px;
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.cal-chip { display: inline-block; background: #FFF1E9; color: #C24E11;
+  border: 1px solid #FFCDB0; border-radius: 4px; padding: 2px 8px;
+  font-weight: 600; }
+.cal-chip-more { color: #909288; }
