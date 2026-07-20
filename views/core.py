@@ -117,7 +117,7 @@ def page_executive_summary():
                 for a in alerts[:4]:
                     ui.alert_card(a)
                 if st.button("View alert details →", key="qi_goto_alerts"):
-                    st.session_state["nav_to"] = "Calendar & Alerts"
+                    st.session_state["nav_to"] = "Alerts"
                     st.rerun()
             else:
                 ui.empty_state("No moves beyond alert thresholds this session.")
@@ -132,7 +132,7 @@ def page_executive_summary():
                         ui.cal_day_header(day)
                     ui.cal_mini(e)
                 if st.button("Full calendar →", key="es_goto_cal"):
-                    st.session_state["nav_to"] = "Calendar & Alerts"
+                    st.session_state["nav_to"] = "Calendar"
                     st.rerun()
             else:
                 ui.empty_state("Calendar feed unavailable right now.")
@@ -394,9 +394,11 @@ def page_announcements():
 
 
 # ------------------------------------------------------------ calendar
-def page_calendar():
-    """Calendar & Alerts — one 'what needs my attention' surface: standing
-    keyword alerts, reactive threshold breaches, then the scheduled agenda."""
+def page_alerts():
+    """Alerts — the 'what needs my attention now' surface: standing keyword
+    watchlist alerts and reactive shock-threshold breaches. The scheduled
+    agenda lives on its own Calendar page (kept separate so neither view
+    crowds the other)."""
     from data_sources import watchlist as wl
     kw_alerts = wl.get()
     all_news = news.get_news()
@@ -430,6 +432,7 @@ def page_calendar():
             if n_cal:
                 if b2.button(f"View {n_cal} in Calendar →", key=f"kwc_{i}",
                              use_container_width=True):
+                    st.session_state["nav_to"] = "Calendar"
                     st.session_state["cal_jump_query"] = term
                     st.rerun()
         ui.legend("Manage these under Settings → Keyword watchlist \u0026 alerts. "
@@ -471,7 +474,15 @@ def page_calendar():
                f"commodities {t['commodity'][0]}%/{t['commodity'][1]}% · "
                f"crypto {t['crypto'][0]}%/{t['crypto'][1]}%. Adjust under "
                "Settings → Alert thresholds.")
+    if st.button("Open economic calendar →", key="alerts_goto_cal"):
+        st.session_state["nav_to"] = "Calendar"
+        st.rerun()
 
+
+def page_calendar():
+    """Economic calendar — the scheduled agenda with impact/region/keyword
+    filters. Today and tomorrow expand in full; later days collapse to
+    summaries surfacing market-moving events."""
     ui.section("Economic calendar",
                "Scheduled releases and events · agenda view")
     horizon = st.pills("Horizon", ["Next 7 days", "Next 14 days"],

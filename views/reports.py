@@ -290,15 +290,15 @@ def _moves_block():
 
 
 def _releases_block():
-    # Upcoming releases live on Calendar & Alerts — don't reproduce the feed
+    # Upcoming releases live on the Calendar page — don't reproduce the feed
     # here; point to the single source instead.
     ui.section("Upcoming releases", "Scheduled data & market closures")
     st.caption("The full scheduled agenda — data releases and market "
                "holidays across all covered regions — lives on the "
-               "Calendar & Alerts page.")
-    if st.button("Open Calendar & Alerts →", key="wk_goto_cal",
+               "Calendar page.")
+    if st.button("Open Calendar →", key="wk_goto_cal",
                  use_container_width=True):
-        st.session_state["nav_to"] = "Calendar & Alerts"
+        st.session_state["nav_to"] = "Calendar"
         st.rerun()
 
 
@@ -381,7 +381,7 @@ def _team_keyword_watchlist():
                "Standing alerts for topics your team tracks")
     st.caption("Add terms like Eskom, Fed, rate decision or Naspers and choose "
                "whether each watches news, the calendar, or both. Each becomes "
-               "a standing alert on Calendar & Alerts with live match counts "
+               "a standing alert on the Alerts page with live match counts "
                "and one-click links to the exact stories or events \u2014 "
                "remembered across logins until you remove it. Matches are also "
                "flagged \u2691 on Market News and the Executive Summary.")

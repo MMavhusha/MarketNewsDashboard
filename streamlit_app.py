@@ -29,8 +29,10 @@ PAGES = {
     # slower context -> weekly synthesis -> outputs -> admin.
     "Executive Summary": ("speedometer2", core.page_executive_summary,
                           "Morning briefing · overnight moves, top stories, alerts"),
-    "Calendar & Alerts": ("calendar3", core.page_calendar,
-                          "Shock alerts on observed moves · scheduled releases"),
+    "Alerts": ("bell", core.page_alerts,
+               "Watchlist keyword alerts · shock threshold breaches"),
+    "Calendar": ("calendar3", core.page_calendar,
+                 "Scheduled economic releases and market holidays"),
     "Market News": ("newspaper", core.page_market_news,
                     "Wire coverage with sentiment and importance · This-week view"),
     "Announcements": ("megaphone", core.page_announcements,
