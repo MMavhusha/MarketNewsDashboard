@@ -154,32 +154,36 @@ optional: TE_API_KEY, ANTHROPIC_API_KEY, LLM_API_BASE, LLM_MODEL.
   on/before 7 calendar days prior, same convention as the FX heat table)
   over the FULL core+extended universe (24 instruments), with an honest
   computation legend. Previously ranked 1-DAY change over core only.
-- **NEXT SESSION — news PERMANENT FIX, three layers (~60–90 min; diagnosed
-  16 Jul from live screenshots + offline repro)**:
-  **A. Ingestion hygiene** — replace the bare "markets" Google News query
-  with a finance-scoped/business-topic feed (it pulls farmers markets,
-  prediction markets, soybean industrial markets); strip " - Publisher"
-  suffixes from Google News titles; suppress summaries that merely
-  duplicate the title; classify TITLE-weighted (Moneyweb digest summaries
-  describe different stories — made "Smarter skies" NEGATIVE/HIGH via
-  "war on construction mafia"/"crisis" in the summary).
-  **B. Relevance gate (new — no story-level filter exists today)** —
-  rules for consumer personal-finance / lifestyle / local-ag content
-  (MarketWatch Top Stories mixes in HELOC & retirement advice columns);
-  add a market_relevance field to the AI triage schema; drop irrelevant
-  stories rather than tagging them.
-  **C. Classifier correctness** — word-boundary regex for ALL keyword
-  lists (confirmed substring hits: Fedorov→FED tag, reWARd→WAR tag,
-  Warsh→war, FedEx→fed, brand/grand→rand→region SA, Indiana→india);
-  add geopolitical lexicon (warns, retaliate, worsen, threats, strike,
-  escalation — Iran/Hormuz stories read NEUTRAL); add corporate-event
-  importance keywords (acquisition, merger, $bn deal, earnings, capex —
-  Eli Lilly $2.8bn buy and TSMC $100bn/profit+77% both scored LOW);
-  normalise n't contractions into negation; downweight opinion markers
-  ("Macroscope |", op-ed sources); extend tests/test_logic.py with all
-  of the above; VERIFY AI triage key live (LLM_API_KEY flagged for
-  regeneration — silent rules fallback masks a dead key; check Settings
-  feed status + admin model-classified count).
+- **SHIPPED (20 Jul) — news permanent fix, all four layers**:
+  A. Ingestion — Google News feed now finance-scoped ("stock market OR
+  bond market OR financial markets OR equity markets", was bare "markets");
+  " - Publisher" suffixes stripped from Google News titles AND summaries;
+  title-duplicate summaries suppressed; honest feed labels.
+  B. Relevance gate — rules tier (_is_relevant: personal-finance/lifestyle/
+  agri markers + first-person-advice regex) drops blatant cases pre-
+  classification; model tier adds `relevant` bool per story, _irrelevant
+  items dropped post-enrichment. Quirky phrasings can slip rules; the
+  scoped feed + model field are the second and third nets.
+  C. Classifier — word-boundary regex via _kw/_matches on ALL keyword
+  lists (kills wary/Warsh/reward→war, FedEx/Fedorov→fed, brand→rand,
+  Indiana→india); n't→not normalisation + negation window extended to
+  subject-verb gap ("profits didn't rise" no longer Positive);
+  geopolitical lexicon (warns/threats/retaliate/worsen/escalation/
+  conflict/skirmish...); corporate-event importance keywords (acquisition/
+  merger/earnings/billion/trillion/ipo...); opinion markers downweight
+  score −2 and tag "opinion"; TITLE-weighted classification — title
+  decides when decisive, summary capped (importance ≤+2, first 160 chars
+  for sentiment), visible tags from TITLE ONLY; US region list rebuilt
+  without bare "us"/space-hacks.
+  D. AI layer — MODEL-PRIMARY: top 50 stories in batches of 25 every
+  cycle (was ≤15 ambiguous); provider CHAIN in ai_enrich.providers():
+  Anthropic (if keyed) → Gemini (LLM_API_KEY) → Groq (GROQ_API_KEY, base
+  api.groq.com/openai/v1, default llama-3.3-70b-versatile, override
+  GROQ_MODEL) → rules stand if all fail; audit records the SERVING
+  provider per call; provider_label() shows the full chain in feed
+  status. Tests 7→14, all diagnosed cases covered.
+  ACTION REQUIRED: add GROQ_API_KEY to Streamlit secrets (console.groq.com,
+  free) and confirm the regenerated Gemini LLM_API_KEY is actually set.
 - **NEXT SESSION — Admin/developer observability page (~90–120 min)**:
   dedicated admin-only page, unlocked via existing ADMIN_PASSWORD (harden
   the Settings check from plain == to hmac.compare_digest). Panels:

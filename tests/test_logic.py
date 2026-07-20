@@ -58,6 +58,64 @@ def test_word_diff_marks_changes():
     assert "line-through" in d and "likely" in d and "expected" in d
 
 
+def test_word_boundary_no_substring_tags():
+    from data_sources.news import _classify
+    cases = [
+        ("Voters wary of government ownership as administration takes stakes", "war"),
+        ("Kevin Warsh tipped for Fed chair", "war"),
+        ("Minnesota Red Angus breeder: high markets reward hard work", "war"),
+        ("FedEx quarterly volumes steady", "fed"),
+        ("Zelenskyy ousts defense minister Mykhailo Fedorov", "fed"),
+        ("Toward a grand bargain on trade", "war"),
+    ]
+    for title, bad in cases:
+        c = _classify(title, "", "")
+        assert bad not in c["tags"], (title, c["tags"])
+    assert _classify("New brand strategy unveiled by retailer", "", "")["region"] != "South Africa"
+    assert _classify("Indiana factory output steady", "", "")["region"] != "India"
+
+
+def test_contraction_negation():
+    from data_sources.news import _sentiment
+    label, _ = _sentiment("Company profits didn't rise this quarter")
+    assert label != "Positive"
+
+
+def test_geopolitical_negative():
+    from data_sources.news import _classify
+    assert _classify("Iran warns U.S. of retaliation as tensions worsen", "", "")["sentiment"] == "Negative"
+    assert _classify("Iran-US skirmishes worsen as shipping dwindles", "", "")["sentiment"] == "Negative"
+
+
+def test_corporate_event_importance():
+    from data_sources.news import _classify
+    assert _classify("Eli Lilly to buy AtaiBeckley for $2.8 billion", "", "")["importance"] != "Low"
+    assert _classify("TSMC to invest $100 billion after earnings soar", "", "")["importance"] != "Low"
+
+
+def test_title_weighted_over_summary():
+    from data_sources.news import _classify
+    c = _classify("Smarter skies for 10bn travellers, without building more airports",
+                  "Minister speaks on government's war on construction mafia and electricity crisis.", "")
+    assert c["importance"] != "High" and "war" not in c["tags"]
+
+
+def test_relevance_gate():
+    from data_sources.news import _is_relevant
+    assert not _is_relevant("I'm 67, own two homes, should I get a HELOC?", "")
+    assert not _is_relevant("Her hummus twist at farmers markets", "")
+    assert not _is_relevant("Growing Soy's Industrial Markets", "Iowa Soybean Association")
+    assert _is_relevant("Fed raises rates by 25bp", "")
+    assert _is_relevant("SARB holds repo rate at 6.75%", "")
+
+
+def test_publisher_suffix_and_opinion():
+    from data_sources.news import _strip_publisher, _classify
+    assert _strip_publisher("Silence isn't golden - South China Morning Post") == "Silence isn't golden"
+    c = _classify("Macroscope | Silence isn't golden for a world looking to the Fed", "", "")
+    assert "opinion" in c["tags"] and c["importance"] != "High"
+
+
 if __name__ == "__main__":
     fns = [v for k, v in list(globals().items()) if k.startswith("test_")]
     for fn in fns:

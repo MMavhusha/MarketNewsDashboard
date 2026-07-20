@@ -1,7 +1,10 @@
-"""News via free RSS feeds (Reuters/CNBC/MarketWatch/Moneyweb et al.).
+"""News via free RSS feeds (Google News/CNBC/MarketWatch/Moneyweb et al.).
 
-Classification is rule-based (keyword lexicons) — descriptive tagging of
-published content only; no prediction, no generation. Feeds are pluggable so
+Classification is MODEL-PRIMARY (provider chain in ai_enrich: Gemini → Groq
+→ these keyword rules as the guaranteed fallback) — descriptive tagging of
+published content only; no prediction, no generation. A two-tier relevance
+gate (rules here + the model's `relevant` field) drops consumer
+personal-finance / lifestyle / agri-trade content. Feeds are pluggable so
 premium wires (Bloomberg, Reuters direct, RiscFlash) can replace them.
 """
 from __future__ import annotations
@@ -21,11 +24,11 @@ except Exception:  # pragma: no cover
 
 FEEDS = [
     # (source label, url, default region)
-    ("Reuters (via Google News)", "https://news.google.com/rss/search?q=markets+when:1d&hl=en-US&gl=US&ceid=US:en", "Global"),
+    ("Google News · Markets", "https://news.google.com/rss/search?q=%22stock+market%22+OR+%22bond+market%22+OR+%22financial+markets%22+OR+%22equity+markets%22+when:1d&hl=en-US&gl=US&ceid=US:en", "Global"),
     ("CNBC World Markets", "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100727362", "Global"),
     ("MarketWatch Top Stories", "https://feeds.content.dowjones.io/public/rss/mw_topstories", "United States"),
     ("Moneyweb", "https://www.moneyweb.co.za/feed/", "South Africa"),
-    ("Investing.com News (via Google News)", "https://news.google.com/rss/search?q=central+bank+OR+inflation+OR+rates+when:2d&hl=en-US&gl=US&ceid=US:en", "Global"),
+    ("Google News · Central banks", "https://news.google.com/rss/search?q=central+bank+OR+inflation+OR+rates+when:2d&hl=en-US&gl=US&ceid=US:en", "Global"),
 ]
 
 _POS = {"surge", "rally", "gain", "gains", "record", "beat", "beats", "strong",
@@ -34,15 +37,19 @@ _POS = {"surge", "rally", "gain", "gains", "record", "beat", "beats", "strong",
 _NEG = {"fall", "falls", "drop", "drops", "plunge", "slump", "crash", "fear",
         "fears", "recession", "cut", "cuts", "downgrade", "loss", "losses",
         "weak", "decline", "crisis", "default", "war", "sanctions", "selloff",
-        "lower", "tumble", "miss", "misses", "contraction", "layoffs"}
+        "lower", "tumble", "miss", "misses", "contraction", "layoffs",
+        "warns", "warning", "threat", "threats", "retaliate", "retaliation",
+        "worsen", "worsens", "worsening", "escalation", "escalates",
+        "conflict", "clash", "clashes", "skirmish", "skirmishes",
+        "turmoil", "slowdown", "missile", "airstrike", "invasion"}
 
 _REGIONS = {
     "South Africa": ["south africa", "south african", "sarb", "jse", "rand", "zar", "eskom", "stats sa", "pretoria", "johannesburg", "cape town", "sasol", "naspers", "mtn", "transnet", "load shedding", "ramaphosa", "godongwana"],
-    "United States": ["u.s.", "us ", "fed ", "federal reserve", "fomc", "wall street", "s&p", "nasdaq", "treasury", "dollar"],
+    "United States": ["u.s.", "united states", "america", "washington", "fed", "federal reserve", "fomc", "wall street", "s&p", "nasdaq", "treasury", "dollar", "trump"],
     "Euro Area": ["euro", "ecb", "eurozone", "germany", "france", "bund"],
-    "United Kingdom": ["uk ", "britain", "boe", "bank of england", "ftse", "sterling", "pound"],
+    "United Kingdom": ["uk", "britain", "boe", "bank of england", "ftse", "sterling", "pound"],
     "China": ["china", "pboc", "yuan", "beijing", "shanghai", "hang seng"],
-    "India": ["india", "rbi ", "rupee", "sensex", "nifty", "mumbai"],
+    "India": ["india", "rbi", "rupee", "sensex", "nifty", "mumbai"],
     "Japan": ["japan", "boj", "yen", "nikkei", "tokyo"],
 }
 
@@ -57,12 +64,73 @@ _ASSETS = {
 _HIGH_IMPORTANCE = ["fed", "fomc", "ecb", "sarb", "rate decision", "inflation",
                     "cpi", "gdp", "recession", "crash", "opec", "sanctions",
                     "war", "default", "emergency", "intervention", "crisis",
-                    "unemployment", "stimulus", "tariff"]
+                    "unemployment", "stimulus", "tariff", "tariffs", "acquisition", "merger",
+                    "takeover", "buyout", "earnings", "ipo", "bankruptcy",
+                    "bailout", "rate cut", "rate hike", "central bank",
+                    "payrolls", "jobs report", "retail sales", "pmi",
+                    "billion", "trillion", "capex"]
 
 
 def _clean(text: str) -> str:
     text = re.sub(r"<[^>]+>", " ", text or "")
     return html.unescape(re.sub(r"\s+", " ", text)).strip()
+
+
+# ---- Word-boundary keyword matching (permanent fix for the substring
+# class: "wary"→war, "Warsh"→war, "reward"→war, "FedEx"/"Fedorov"→fed,
+# "brand"/"grand"→rand, "Indiana"→india). Compiled once per keyword. ----
+_KW_CACHE: dict[str, "re.Pattern"] = {}
+
+
+def _kw(k: str) -> "re.Pattern":
+    p = _KW_CACHE.get(k)
+    if p is None:
+        p = re.compile(r"(?<![a-z0-9&])" + re.escape(k) + r"(?![a-z0-9&])")
+        _KW_CACHE[k] = p
+    return p
+
+
+def _matches(t: str, keys) -> list[str]:
+    return [k for k in keys if _kw(k).search(t)]
+
+
+def _norm(t: str) -> str:
+    """Lowercase + expand n't contractions so negation is visible to the
+    tokenizer ("isn't golden" must not read as positive "golden")."""
+    return t.lower().replace("n't", " not")
+
+
+_GNEWS_SUFFIX = re.compile(r"\s+-\s+[^-]{2,60}$")
+
+
+def _strip_publisher(title: str) -> str:
+    """Google News appends ' - Publisher' to titles; strip one suffix."""
+    return _GNEWS_SUFFIX.sub("", title).strip()
+
+
+_OPINION_MARKERS = ["opinion", "analysis |", "macroscope", "commentary",
+                    "column:", "editorial", "explainer", "newsletter",
+                    "podcast", "mises institute", "project syndicate"]
+
+# Rules tier of the relevance gate: blatant consumer personal-finance,
+# lifestyle and local/agri-trade content is dropped before classification.
+# Ambiguous stories are judged by the AI layer's `relevant` field.
+_IRRELEVANT_MARKERS = [
+    "heloc", "credit card debt", "credit-card debt", "my retirement",
+    "retirement mistake", "financial advisor says", "social security check",
+    "farmers market", "farmers markets", "soybean", "cattle", "angus",
+    "4-h", "county fair", "recipe", "horoscope", "crossword", "quiz",
+    "prediction market", "prediction markets",
+]
+_ADVICE_RE = re.compile(r"^(i'?m |i |we're |my )|should (i|you) |"
+                        r"here's how much ")
+
+
+def _is_relevant(title: str, summary: str) -> bool:
+    t = f"{title} {summary}".lower()
+    if _matches(t, _IRRELEVANT_MARKERS):
+        return False
+    return not _ADVICE_RE.search(title.lower())
 
 
 
@@ -84,7 +152,9 @@ _PHRASES = {
     "record low": -2, "profit warning": -2, "cuts forecast": -2,
     "cuts guidance": -2, "lowers outlook": -2, "rate hike fears": -2,
     "hard landing": -2, "trade war": -1, "load shedding": -1,
-    "state of disaster": -2, "downgrades outlook": -2,
+    "state of disaster": -2, "downgrades outlook": -2, "ceasefire": 2,
+    "strikes deal": 2, "reaches deal": 2, "supply crunch": -1,
+    "supply shock": -1, "red line": -1,
 }
 
 # Subjects that are GOOD news when they rise (and bad when they fall)
@@ -96,7 +166,7 @@ _GOOD_UP = {"growth", "gdp", "profit", "profits", "earnings", "stocks",
 _BAD_UP = {"inflation", "unemployment", "deficit", "debt", "defaults",
            "bankruptcies", "tariffs", "tensions", "fears", "costs",
            "joblessness", "insolvencies", "arrears", "volatility",
-           "shortages", "outages"}
+           "shortages", "outages", "sanctions", "skirmishes"}
 
 _UP_VERBS = {"rise", "rises", "rising", "rose", "jump", "jumps", "jumped",
              "surge", "surges", "surged", "climb", "climbs", "climbed",
@@ -118,7 +188,7 @@ _NEGATORS = {"not", "no", "without", "fails", "fail", "unlikely", "denies",
 
 
 def _sentiment(text: str) -> str:
-    t = text.lower()
+    t = _norm(text)
     score = 0
     for phrase, val in _PHRASES.items():
         if phrase in t:
@@ -132,13 +202,14 @@ def _sentiment(text: str) -> str:
         # AFTER the subject first, then nearest-first backwards (for
         # "falling inflation" constructions). A flat mixed window wrongly
         # binds a subject to the previous clause's verb.
-        direction = 0
-        for w in toks[i + 1:i + 4]:
+        direction, vpos = 0, -1
+        for off in range(i + 1, min(i + 4, len(toks))):
+            w = toks[off]
             if w in _UP_VERBS:
-                direction = 1
+                direction, vpos = 1, off
                 break
             if w in _DOWN_VERBS:
-                direction = -1
+                direction, vpos = -1, off
                 break
         if not direction:
             for w in reversed(toks[max(0, i - 2):i]):
@@ -151,7 +222,10 @@ def _sentiment(text: str) -> str:
         if not direction:
             continue
         pair = subj * direction  # good×up=+, bad×up=−, bad×down=+, good×down=−
-        if any(w in _NEGATORS for w in toks[max(0, i - 3):i]):
+        # Negators live before the subject ("no growth in exports") OR
+        # between subject and verb ("profits did not rise") — check both.
+        neg_zone = toks[max(0, i - 3):i] + (toks[i + 1:vpos] if vpos > i else [])
+        if any(w in _NEGATORS for w in neg_zone):
             pair = -pair
         score += 2 * pair
     if score == 0:  # tiebreaker: legacy single-word lexicon
@@ -165,29 +239,47 @@ def _sentiment_label(text: str) -> str:
 
 
 def _classify(title: str, summary: str, default_region: str = "") -> dict:
-    t = f"{title} {summary}".lower()
-    words = set(re.findall(r"[a-z&']+", t))
-    pos, neg = len(words & _POS), len(words & _NEG)
-    sentiment, _sc = _sentiment(t)
+    """Title-weighted classification. RSS summaries can describe a different
+    story (Moneyweb digests) or embed publisher junk (Google News), so the
+    TITLE decides whenever it is decisive; the summary only supplements —
+    capped for importance and never able to overturn a confident title."""
+    tt = _norm(title)
+    ts = _norm(f"{title} {summary[:160]}")
 
-    # Region = keyword match only; an outlet's nationality does not make a
-    # story about that country (a SA site covering a US IPO is Global).
+    sentiment, _sc = _sentiment(title)
+    if abs(_sc) < 2:  # title not decisive: let a capped slice of summary help
+        sentiment, _sc = _sentiment(f"{title} {summary[:160]}")
+
+    # Region/asset: keyword match only, title first — an outlet's
+    # nationality does not make a story about that country.
     region = "Global"
-    for reg, keys in _REGIONS.items():
-        if any(k in t for k in keys):
-            region = reg
+    for scope in (tt, ts):
+        hit = next((reg for reg, keys in _REGIONS.items()
+                    if _matches(scope, keys)), None)
+        if hit:
+            region = hit
             break
 
     asset = "Macro"
-    for a, keys in _ASSETS.items():
-        if any(k in t for k in keys):
-            asset = a
+    for scope in (tt, ts):
+        hit = next((a for a, keys in _ASSETS.items()
+                    if _matches(scope, keys)), None)
+        if hit:
+            asset = hit
             break
 
-    score = sum(2 for k in _HIGH_IMPORTANCE if k in t) + (1 if pos + neg >= 2 else 0)
+    title_hits = _matches(tt, _HIGH_IMPORTANCE)
+    sum_hits = [k for k in _matches(ts, _HIGH_IMPORTANCE) if k not in title_hits]
+    score = 2 * len(title_hits) + min(2, len(sum_hits))
+    opinion = bool(_matches(tt, _OPINION_MARKERS))
+    if opinion:  # op-eds and columns rank below primary reporting
+        score = max(0, score - 2)
     importance = "High" if score >= 4 else "Medium" if score >= 2 else "Low"
 
-    tags = [k for k in _HIGH_IMPORTANCE if k in t][:3]
+    tags = title_hits[:3]  # visible tags from the TITLE only — digest-style
+    # summaries describe other stories, so their keywords never surface
+    if opinion:
+        tags = (["opinion"] + tags)[:3]
     return {"sentiment": sentiment, "region": region, "asset": asset,
             "confident": abs(_sc) >= 2,
             "importance": importance, "score": score, "tags": tags}
@@ -200,15 +292,25 @@ def get_news(max_per_feed: int = 12) -> list[dict]:
     items, seen = [], set()
     with ThreadPoolExecutor(max_workers=len(FEEDS)) as ex:
         parsed_feeds = list(ex.map(
-            lambda f: (f[0], f[2], feedparser.parse(f[1])), FEEDS))
-    for source, default_region, parsed in parsed_feeds:
+            lambda f: (f[0], f[1], f[2], feedparser.parse(f[1])), FEEDS))
+    for source, url, default_region, parsed in parsed_feeds:
+        gnews = "news.google.com" in url
         try:
             for e in parsed.entries[:max_per_feed]:
                 title = _clean(getattr(e, "title", ""))
+                if gnews:
+                    title = _strip_publisher(title)
                 if not title or title.lower() in seen:
                     continue
                 seen.add(title.lower())
                 summary = _clean(getattr(e, "summary", ""))[:280]
+                if gnews:
+                    summary = _strip_publisher(summary)
+                # Suppress summaries that merely duplicate the title
+                if summary and summary.lower().startswith(title.lower()[:60]):
+                    summary = ""
+                if not _is_relevant(title, summary):
+                    continue  # relevance gate, rules tier
                 link = getattr(e, "link", "")
                 ts = getattr(e, "published_parsed", None) or getattr(e, "updated_parsed", None)
                 when = datetime.fromtimestamp(time.mktime(ts), tz=timezone.utc) if ts else None
@@ -220,20 +322,23 @@ def get_news(max_per_feed: int = 12) -> list[dict]:
             continue
     items.sort(key=lambda i: (i["score"], i["published"] or datetime.min.replace(tzinfo=timezone.utc)),
                reverse=True)
-    try:  # optional AI classification — triaged to control token cost:
-        # the rules engine's confident verdicts stand; the model only sees
-        # headlines the rules found ambiguous (plus the hero, for its "why").
+    try:  # AI classification — MODEL-PRIMARY: every displayed story goes to
+        # the provider chain (Gemini → Groq → rules) in batches; the rules
+        # verdicts above stand only when every provider tier fails. The
+        # model also judges relevance; stories it rejects are dropped.
         from data_sources import ai_enrich
         if ai_enrich.enabled() and items:
-            top = items[:25]
-            queue = [it for i, it in enumerate(top)
-                     if i == 0 or not it.get("confident")][:15]
-            fields = ai_enrich.classify_batch(
-                tuple((i["title"], i["summary"]) for i in queue))
-            for idx, f in fields.items():
-                if idx < len(queue):
-                    queue[idx].update(f)
-                    queue[idx]["_ai"] = True  # admin view marks model-touched
+            queue = items[:50]
+            for start in range(0, len(queue), 25):
+                chunk = queue[start:start + 25]
+                fields = ai_enrich.classify_batch(
+                    tuple((i["title"], i["summary"]) for i in chunk),
+                    hero=(start == 0))
+                for idx, f in fields.items():
+                    if idx < len(chunk):
+                        chunk[idx].update(f)
+                        chunk[idx]["_ai"] = True  # admin: model-touched
+            items = [i for i in items if not i.get("_irrelevant")]
             items.sort(key=lambda i: (i["score"], i["published"] or
                                       datetime.min.replace(tzinfo=timezone.utc)),
                        reverse=True)

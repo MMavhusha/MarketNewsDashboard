@@ -1,11 +1,11 @@
-"""Optional AI classification layer (Claude API).
+"""AI classification layer — MODEL-PRIMARY with a tiered provider chain.
 
-If ANTHROPIC_API_KEY is present in Streamlit Secrets, story sentiment,
-importance, region and asset tagging — plus the hero's one-line
-"why it matters" — are produced by a language model instead of keyword
-rules. This is classification and summarisation of published text only:
-no forecasting, no market prediction. On any failure the keyword rules
-stand unchanged.
+Chain: Anthropic (if ANTHROPIC_API_KEY) → Gemini via its OpenAI-compatible
+endpoint (LLM_API_KEY, the default primary) → Groq free tier (GROQ_API_KEY)
+→ and if every tier fails, the keyword rules engine's verdicts stand
+unchanged. Classification and summarisation of published text only: no
+forecasting, no market prediction. Every real call is audited with the
+provider that served it.
 """
 from __future__ import annotations
 
@@ -15,14 +15,12 @@ import time as _time
 import requests
 import streamlit as st
 
-_MODEL = "claude-haiku-4-5"
-_URL = "https://api.anthropic.com/v1/messages"
-
-# Generic OpenAI-compatible route (Gemini, Groq, Databricks, Mistral, ...).
-# Secrets: LLM_API_KEY (required), LLM_API_BASE and LLM_MODEL (optional —
-# defaults assume Google Gemini's OpenAI-compatible endpoint).
-_DEFAULT_OPENAI_BASE = "https://generativelanguage.googleapis.com/v1beta/openai"
-_DEFAULT_OPENAI_MODEL = "gemini-2.5-flash"
+_ANTHROPIC_MODEL = "claude-haiku-4-5"
+_ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
+_GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/openai"
+_GEMINI_MODEL = "gemini-2.5-flash"
+_GROQ_BASE = "https://api.groq.com/openai/v1"
+_GROQ_MODEL = "llama-3.3-70b-versatile"
 
 _SENT = {"Positive", "Negative", "Neutral"}
 _IMP = {"High", "Medium", "Low"}
@@ -42,104 +40,130 @@ def _secret(name: str) -> str | None:
     return os.environ.get(name) or None
 
 
-def _key() -> str | None:
-    return _secret("ANTHROPIC_API_KEY")
-
-
-def _generic() -> dict | None:
-    key = _secret("LLM_API_KEY")
-    if not key:
-        return None
-    return {"key": key,
-            "base": (_secret("LLM_API_BASE") or _DEFAULT_OPENAI_BASE).rstrip("/"),
-            "model": _secret("LLM_MODEL") or _DEFAULT_OPENAI_MODEL}
+def providers() -> list[dict]:
+    """Ordered provider chain. kind: 'anthropic' | 'openai'."""
+    chain: list[dict] = []
+    if _secret("ANTHROPIC_API_KEY"):
+        chain.append({"label": f"Anthropic · {_ANTHROPIC_MODEL}",
+                      "kind": "anthropic", "key": _secret("ANTHROPIC_API_KEY")})
+    if _secret("LLM_API_KEY"):
+        base = (_secret("LLM_API_BASE") or _GEMINI_BASE).rstrip("/")
+        model = _secret("LLM_MODEL") or _GEMINI_MODEL
+        from urllib.parse import urlparse
+        chain.append({"label": f"{urlparse(base).netloc} · {model}",
+                      "kind": "openai", "key": _secret("LLM_API_KEY"),
+                      "base": base, "model": model})
+    if _secret("GROQ_API_KEY"):
+        model = _secret("GROQ_MODEL") or _GROQ_MODEL
+        chain.append({"label": f"api.groq.com · {model}", "kind": "openai",
+                      "key": _secret("GROQ_API_KEY"),
+                      "base": _GROQ_BASE, "model": model})
+    return chain
 
 
 def enabled() -> bool:
-    return bool(_key() or _generic())
+    return bool(providers())
 
 
 def provider_label() -> str:
-    if _key():
-        return f"Anthropic · {_MODEL}"
-    g = _generic()
-    if g:
-        from urllib.parse import urlparse
-        return f"{urlparse(g['base']).netloc} · {g['model']}"
-    return "off"
+    chain = [p["label"] for p in providers()]
+    return " → ".join(chain + ["rules"]) if chain else "off (rules only)"
+
+
+def _prompt(headlines, hero: bool) -> str:
+    lines = "\n".join(f"{i}. {t} — {s[:160]}"
+                      for i, (t, s) in enumerate(headlines))
+    hero_line = ("For story 0 only, add why: ONE factual sentence on why it "
+                 "matters to investors, no predictions. " if hero else "")
+    return (
+        "You classify financial news for an institutional portfolio-"
+        "management dashboard. For each numbered story return sentiment "
+        "(Positive/Negative/Neutral — the tone for markets of what is "
+        "described, not a forecast), importance (High/Medium/Low for "
+        "institutional investors), region (South Africa/United States/"
+        "Euro Area/United Kingdom/China/India/Japan/Global), asset "
+        "(Equities/Rates & Bonds/FX/Commodities/Crypto/Macro) and relevant "
+        "(true/false: is this market, economy or corporate news useful to "
+        "institutional portfolio managers? Consumer personal-finance advice, "
+        "lifestyle, sport, entertainment and local/agri-trade content are "
+        "false). " + hero_line +
+        "Respond with ONLY a JSON array of objects with keys i, sentiment, "
+        "importance, region, asset, relevant" +
+        (", and why (story 0 only)" if hero else "") + ".\n\n" + lines)
+
+
+def _call(p: dict, prompt: str) -> str:
+    if p["kind"] == "anthropic":
+        r = requests.post(
+            _ANTHROPIC_URL, timeout=25,
+            headers={"x-api-key": p["key"],
+                     "anthropic-version": "2023-06-01",
+                     "content-type": "application/json"},
+            json={"model": _ANTHROPIC_MODEL, "max_tokens": 3000,
+                  "messages": [{"role": "user", "content": prompt}]})
+        r.raise_for_status()
+        return "".join(b.get("text", "") for b in r.json().get("content", []))
+    r = requests.post(
+        f"{p['base']}/chat/completions", timeout=25,
+        headers={"Authorization": f"Bearer {p['key']}",
+                 "content-type": "application/json"},
+        json={"model": p["model"], "max_tokens": 3000,
+              "messages": [{"role": "user", "content": prompt}]})
+    r.raise_for_status()
+    return (r.json().get("choices") or [{}])[0].get(
+        "message", {}).get("content", "") or ""
+
+
+def _parse(text: str, hero: bool) -> dict[int, dict]:
+    text = text.strip().removeprefix("```json").removeprefix("```").removesuffix("```")
+    out: dict[int, dict] = {}
+    for row in json.loads(text):
+        i = int(row.get("i", -1))
+        fields: dict = {}
+        if row.get("sentiment") in _SENT:
+            fields["sentiment"] = row["sentiment"]
+        if row.get("importance") in _IMP:
+            fields["importance"] = row["importance"]
+            fields["score"] = {"High": 5, "Medium": 3, "Low": 1}[row["importance"]]
+        if row.get("region") in _REG:
+            fields["region"] = row["region"]
+        if row.get("asset") in _AST:
+            fields["asset"] = row["asset"]
+        if isinstance(row.get("relevant"), bool) and not row["relevant"]:
+            fields["_irrelevant"] = True
+        if hero and i == 0 and isinstance(row.get("why"), str) and row["why"].strip():
+            fields["why"] = row["why"].strip()[:220]
+        if i >= 0 and fields:
+            out[i] = fields
+    return out
 
 
 @st.cache_data(ttl=900, show_spinner=False)
-def classify_batch(headlines: tuple[tuple[str, str], ...]) -> dict[int, dict]:
-    """headlines: ((title, summary), ...) -> {index: fields}. {} on failure."""
-    if not enabled() or not headlines:
+def classify_batch(headlines: tuple[tuple[str, str], ...],
+                   hero: bool = True) -> dict[int, dict]:
+    """((title, summary), ...) -> {index: fields}. Walks the provider chain
+    in order; {} only when every tier fails (rules then stand)."""
+    if not headlines:
         return {}
-    _t0 = _time.time()
-    lines = "\n".join(f"{i}. {t} — {s[:160]}" for i, (t, s) in enumerate(headlines))
-    prompt = (
-        "You classify financial news for an institutional dashboard. For each "
-        "numbered story return sentiment (Positive/Negative/Neutral, meaning "
-        "the tone for markets described, not a forecast), importance "
-        "(High/Medium/Low for institutional investors), region (South Africa/"
-        "United States/Euro Area/United Kingdom/China/India/Japan/Global) and "
-        "asset (Equities/Rates & Bonds/FX/Commodities/Crypto/Macro). For story "
-        "0 only, add why: ONE factual sentence on why it matters to investors, "
-        "no predictions. Respond with ONLY a JSON array of objects with keys "
-        "i, sentiment, importance, region, asset, and why (story 0 only).\n\n"
-        + lines)
-    try:
-        key = _key()
-        if key:  # Anthropic native
-            r = requests.post(
-                _URL, timeout=25,
-                headers={"x-api-key": key, "anthropic-version": "2023-06-01",
-                         "content-type": "application/json"},
-                json={"model": _MODEL, "max_tokens": 2000,
-                      "messages": [{"role": "user", "content": prompt}]})
-            r.raise_for_status()
-            text = "".join(b.get("text", "")
-                           for b in r.json().get("content", []))
-        else:  # any OpenAI-compatible endpoint (Gemini/Groq/Databricks/...)
-            g = _generic()
-            r = requests.post(
-                f"{g['base']}/chat/completions", timeout=25,
-                headers={"Authorization": f"Bearer {g['key']}",
-                         "content-type": "application/json"},
-                json={"model": g["model"], "max_tokens": 2000,
-                      "messages": [{"role": "user", "content": prompt}]})
-            r.raise_for_status()
-            text = (r.json().get("choices") or [{}])[0].get(
-                "message", {}).get("content", "") or ""
-        text = text.strip().removeprefix("```json").removeprefix("```").removesuffix("```")
-        out = {}
-        for row in json.loads(text):
-            i = int(row.get("i", -1))
-            fields = {}
-            if row.get("sentiment") in _SENT:
-                fields["sentiment"] = row["sentiment"]
-            if row.get("importance") in _IMP:
-                fields["importance"] = row["importance"]
-                fields["score"] = {"High": 5, "Medium": 3, "Low": 1}[row["importance"]]
-            if row.get("region") in _REG:
-                fields["region"] = row["region"]
-            if row.get("asset") in _AST:
-                fields["asset"] = row["asset"]
-            if i == 0 and isinstance(row.get("why"), str) and row["why"].strip():
-                fields["why"] = row["why"].strip()[:220]
-            if i >= 0 and fields:
-                out[i] = fields
-        _audit(headlines, out, _t0, ok=True)
-        return out
-    except Exception as e:
-        _audit(headlines, {}, _t0, ok=False, error=str(e)[:120])
-        return {}
+    prompt = _prompt(headlines, hero)
+    for p in providers():
+        _t0 = _time.time()
+        try:
+            out = _parse(_call(p, prompt), hero)
+            _audit(p["label"], headlines, out, _t0, ok=True)
+            return out
+        except Exception as e:
+            _audit(p["label"], headlines, {}, _t0, ok=False,
+                   error=str(e)[:120])
+            continue
+    return {}
 
 
-def _audit(headlines, out, t0, ok: bool, error: str = "") -> None:
+def _audit(label: str, headlines, out, t0, ok: bool, error: str = "") -> None:
     try:
         from data_sources import ai_audit
         ai_audit.record({
-            "provider": provider_label(), "ok": ok,
+            "provider": label, "ok": ok,
             "headlines_sent": len(headlines),
             "classifications_returned": len(out),
             "latency_ms": int((_time.time() - t0) * 1000),
