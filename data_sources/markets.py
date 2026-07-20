@@ -310,6 +310,11 @@ def clear_caches():
         _news.get_announcements.clear()
     except Exception:
         pass
+    try:  # refresh must re-grade too, not re-apply cached model verdicts
+        from data_sources import ai_enrich as _ai
+        _ai.classify_batch.clear()
+    except Exception:
+        pass
 
 
 @st.cache_data(ttl=120, show_spinner=False)

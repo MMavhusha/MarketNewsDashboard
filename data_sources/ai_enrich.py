@@ -71,22 +71,29 @@ def provider_label() -> str:
 
 
 def _prompt(headlines, hero: bool) -> str:
-    lines = "\n".join(f"{i}. {t} — {s[:160]}"
+    lines = "\n".join(f"{i}. {t} — {s[:240]}"
                       for i, (t, s) in enumerate(headlines))
     hero_line = ("For story 0 only, add why: ONE factual sentence on why it "
                  "matters to investors, no predictions. " if hero else "")
     return (
         "You classify financial news for an institutional portfolio-"
-        "management dashboard. For each numbered story return sentiment "
-        "(Positive/Negative/Neutral — the tone for markets of what is "
-        "described, not a forecast), importance (High/Medium/Low for "
-        "institutional investors), region (South Africa/United States/"
-        "Euro Area/United Kingdom/China/India/Japan/Global), asset "
-        "(Equities/Rates & Bonds/FX/Commodities/Crypto/Macro) and relevant "
-        "(true/false: is this market, economy or corporate news useful to "
-        "institutional portfolio managers? Consumer personal-finance advice, "
-        "lifestyle, sport, entertainment and local/agri-trade content are "
-        "false). " + hero_line +
+        "management dashboard. Weigh the summary's facts equally with the "
+        "title — headlines often understate. For each numbered story return: "
+        "sentiment (Positive/Negative/Neutral — the market RISK TONE of what "
+        "is described, not a forecast; active military conflict, attacks, "
+        "escalation or sanctions are Negative unless the story is clearly "
+        "about de-escalation succeeding), importance (High = central bank "
+        "decisions or surprises, major macro data for large economies, armed "
+        "conflict or sanctions affecting energy or supply chains, systemic "
+        "credit events, corporate events of $10bn+ or mega-cap earnings; "
+        "Medium = notable single-company or single-country developments with "
+        "market impact; Low = minor items, opinion pieces, advice content), "
+        "region (South Africa/United States/Euro Area/United Kingdom/China/"
+        "India/Japan/Global), asset (Equities/Rates & Bonds/FX/Commodities/"
+        "Crypto/Macro) and relevant (true/false: is this market, economy or "
+        "corporate news useful to institutional portfolio managers? Consumer "
+        "personal-finance advice, lifestyle, sport, entertainment and "
+        "local/agri-trade content are false). " + hero_line +
         "Respond with ONLY a JSON array of objects with keys i, sentiment, "
         "importance, region, asset, relevant" +
         (", and why (story 0 only)" if hero else "") + ".\n\n" + lines)
