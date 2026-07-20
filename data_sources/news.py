@@ -291,11 +291,22 @@ def _classify(title: str, summary: str, default_region: str = "") -> dict:
             asset = hit
             break
 
-    instrument = None
+    # Instruments are PLURAL — a story about oil AND the S&P 500 is about
+    # both. Rules tier: every word-boundary match, ordered by first mention,
+    # title first (summary only when the title names none), capped at 3.
+    # The model tier overrides with a context judgment of which instruments
+    # the story is MATERIALLY about (see ai_enrich prompt).
+    instruments: list[str] = []
     for scope in (tt, ts):
-        instrument = next((lbl for lbl, keys in _INSTRUMENTS.items()
-                           if _matches(scope, keys)), None)
-        if instrument:
+        found = []
+        for lbl, keys in _INSTRUMENTS.items():
+            pos = min((m.start() for m in
+                       (_kw(k).search(scope) for k in keys) if m),
+                      default=None)
+            if pos is not None:
+                found.append((pos, lbl))
+        if found:
+            instruments = [lbl for _, lbl in sorted(found)][:3]
             break
 
     title_hits = _matches(tt, _HIGH_IMPORTANCE)
@@ -313,7 +324,7 @@ def _classify(title: str, summary: str, default_region: str = "") -> dict:
     kw_tags = [k for k in title_hits if k not in _TAG_EXCLUDE]
     tags = ((["opinion"] if opinion else []) + kw_tags)[:3]
     return {"sentiment": sentiment, "region": region, "asset": asset,
-            "confident": abs(_sc) >= 2, "instrument": instrument,
+            "confident": abs(_sc) >= 2, "instruments": instruments,
             "importance": importance, "score": score, "tags": tags}
 
 
@@ -443,7 +454,7 @@ def get_announcements(max_per_cat: int = 5) -> list[dict]:
         try:
             parsed = feedparser.parse(url)
             for e in parsed.entries[:max_per_cat]:
-                title = _clean(getattr(e, "title", ""))
+                title = _strip_publisher(_clean(getattr(e, "title", "")))
                 if not title:
                     continue
                 ts = getattr(e, "published_parsed", None)

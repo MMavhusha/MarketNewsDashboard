@@ -125,6 +125,7 @@ section[data-testid="stSidebar"] * { color: #212322; }
 .bdg-red    { background: #F8ECED; color: #B0212C; border: 1px solid #EBC8CC; }
 .bdg-amber  { background: #FDF6E3; color: #8A6D1B; border: 1px solid #F2C84A; }
 .bdg-navy   { background: #FF671D; color: #FFFFFF; border: 1px solid #FF671D; }
+.bdg-orange { background: #FFF1E9; color: #C24E11; border: 1px solid #FFCDB0; }
 
 /* ---------- Alerts ---------- */
 .alert {

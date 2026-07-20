@@ -59,8 +59,8 @@ def market_card_html(q) -> str:
 
 def news_card(item: dict, time_str: str):
     tags = " ".join(badge(t, "blue") for t in item.get("tags", []))
-    instr = (badge(item["instrument"].upper(), "orange")
-             if item.get("instrument") else "")
+    instr = "".join(badge(i.upper(), "orange")
+                    for i in (item.get("instruments") or [])[:3])
     st.markdown(
         f'''<div class="news-card">
         <div class="hl"><a href="{esc(item["link"])}" target="_blank">{esc(item["title"])}</a></div>

@@ -28,6 +28,9 @@ _REG = {"South Africa", "United States", "Euro Area", "United Kingdom",
         "China", "India", "Japan", "Global"}
 _AST = {"Equities", "Rates & Bonds", "FX", "Commodities", "Crypto", "Macro"}
 _INSTR = {"Oil", "Gold", "Copper", "Platinum", "Iron Ore", "Coal",
+          "USD/ZAR", "EUR/USD", "USD/JPY", "Bitcoin", "S&P 500", "NASDAQ",
+          "FTSE 100", "JSE ALSI"}
+_INSTR = {"Oil", "Gold", "Copper", "Platinum", "Iron Ore", "Coal",
           "USD/ZAR", "EUR/USD", "USD/JPY", "Bitcoin", "S&P 500",
           "NASDAQ", "FTSE 100", "JSE ALSI"}
 
@@ -93,7 +96,12 @@ def _prompt(headlines, hero: bool) -> str:
         "market impact; Low = minor items, opinion pieces, advice content), "
         "region (South Africa/United States/Euro Area/United Kingdom/China/"
         "India/Japan/Global), asset (Equities/Rates & Bonds/FX/Commodities/"
-        "Crypto/Macro) and relevant (true/false: is this market, economy or "
+        "Crypto/Macro), instruments (a list, possibly empty, of the tracked "
+        "instruments this story is MATERIALLY about — judge from context, "
+        "not word presence; a story can be about several. Choose only "
+        "from: Oil, Gold, Copper, Platinum, Iron Ore, Coal, USD/ZAR, "
+        "EUR/USD, USD/JPY, Bitcoin, S&P 500, NASDAQ, FTSE 100, JSE ALSI) "
+        "and relevant (true/false: is this market, economy or "
         "corporate news useful to institutional portfolio managers? Consumer "
         "personal-finance advice, lifestyle, sport, entertainment and "
         "local/agri-trade content are false) and instrument (the single most-"
@@ -145,6 +153,9 @@ def _parse(text: str, hero: bool) -> dict[int, dict]:
             fields["asset"] = row["asset"]
         if row.get("instrument") in _INSTR:
             fields["instrument"] = row["instrument"]
+        if isinstance(row.get("instruments"), list):
+            fields["instruments"] = [x for x in row["instruments"]
+                                     if x in _INSTR][:3]
         if isinstance(row.get("relevant"), bool) and not row["relevant"]:
             fields["_irrelevant"] = True
         if hero and i == 0 and isinstance(row.get("why"), str) and row["why"].strip():

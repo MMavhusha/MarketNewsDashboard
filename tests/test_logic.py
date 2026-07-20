@@ -116,12 +116,14 @@ def test_publisher_suffix_and_opinion():
     assert "opinion" in c["tags"] and c["importance"] != "High"
 
 
-def test_instrument_field_and_score_only_terms():
+def test_instruments_plural_and_score_only_terms():
     from data_sources.news import _classify
-    oil = _classify("Oil prices erase gains after Iran says U.S. talks could be pursued", "", "")
-    assert oil["instrument"] == "Oil" and "oil" not in oil["tags"], oil
+    both = _classify("Oil slides as S&P 500 hits record", "", "")
+    assert "Oil" in both["instruments"] and "S&P 500" in both["instruments"], both
+    mixed = _classify("Stock market today: Dow, S&P 500, Nasdaq futures edge up as oil turns lower", "", "")
+    assert mixed["instruments"][0] == "S&P 500" and "Oil" in mixed["instruments"], mixed
     rand = _classify("Rand firms as SARB holds repo rate", "", "")
-    assert rand["instrument"] == "USD/ZAR", rand
+    assert rand["instruments"] == ["USD/ZAR"], rand
     india = _classify("India central bank draws over $20 billion from forex measures", "", "")
     assert "billion" not in india["tags"] and india["importance"] != "Low", india
     lilly = _classify("Eli Lilly to buy AtaiBeckley for $2.8 billion", "", "")
