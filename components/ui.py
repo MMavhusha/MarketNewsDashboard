@@ -107,6 +107,9 @@ def alert_badge_button(name: str, key: str):
     if st.button(f"\u26a0 {a['label']} — view →", key=key):
         st.session_state["nav_to"] = "Alerts"
         st.rerun()
+
+
+def alert_card(a: dict):
     sev = a["severity"]
     cls = {"Critical": "al-critical", "Warning": "al-warning"}.get(sev, "al-info")
     kind = {"Critical": "red", "Warning": "amber"}.get(sev, "blue")

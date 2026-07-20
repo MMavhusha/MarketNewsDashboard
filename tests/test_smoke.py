@@ -81,7 +81,10 @@ def _stub_data_sources():
     markets.get_intraday = lambda pairs: {}
     markets.get_movers = lambda **k: ([], [])
     markets.get_weekly_movers = lambda **k: ([], [])
-    markets.get_shock_alerts = lambda: []
+    markets.get_shock_alerts = lambda: [
+        {"title": "Gold rose 4.0% in the latest session", "severity": "Critical",
+         "assets": "Gold", "detail": "Exceeds critical threshold.",
+         "asof": "latest close"}]
     markets.get_quotes = lambda items, **k: [
         markets.Quote(name=i[0], ticker=i[1]) for i in items]
     markets.get_history = lambda *a, **k: pd.Series(dtype=float)
