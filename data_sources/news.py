@@ -24,9 +24,14 @@ except Exception:  # pragma: no cover
 
 FEEDS = [
     # (source label, url, default region)
+    # Source-side filtering: Google News queries ARE the filter, so almost
+    # nothing off-topic arrives. Publisher feeds that offer no category
+    # parameter (a plain "Top Stories" feed mixes in sport/human-interest)
+    # are instead pulled as site-scoped finance queries via Google News —
+    # same proven mechanism, filtered at the source rather than downstream.
     ("Google News · Markets", "https://news.google.com/rss/search?q=%22stock+market%22+OR+%22bond+market%22+OR+%22financial+markets%22+OR+%22equity+markets%22+when:1d&hl=en-US&gl=US&ceid=US:en", "Global"),
-    ("CNBC World Markets", "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100727362", "Global"),
-    ("MarketWatch Top Stories", "https://feeds.content.dowjones.io/public/rss/mw_topstories", "United States"),
+    ("CNBC Markets", "https://news.google.com/rss/search?q=site:cnbc.com+(markets+OR+economy+OR+stocks+OR+earnings+OR+fed)+when:1d&hl=en-US&gl=US&ceid=US:en", "Global"),
+    ("MarketWatch Markets", "https://news.google.com/rss/search?q=site:marketwatch.com+(markets+OR+economy+OR+stocks+OR+earnings+OR+fed)+when:1d&hl=en-US&gl=US&ceid=US:en", "United States"),
     ("Moneyweb", "https://www.moneyweb.co.za/feed/", "South Africa"),
     ("Google News · Central banks", "https://news.google.com/rss/search?q=central+bank+OR+inflation+OR+rates+when:2d&hl=en-US&gl=US&ceid=US:en", "Global"),
 ]
@@ -139,21 +144,60 @@ _TAG_EXCLUDE = {"billion", "trillion"}
 # lifestyle and local/agri-trade content is dropped before classification.
 # Ambiguous stories are judged by the AI layer's `relevant` field.
 _IRRELEVANT_MARKERS = [
+    # personal-finance advice / lifestyle
     "heloc", "credit card debt", "credit-card debt", "my retirement",
     "retirement mistake", "financial advisor says", "social security check",
+    "recipe", "horoscope", "crossword", "quiz", "puzzle",
+    # local / agri-trade (not institutional markets)
     "farmers market", "farmers markets", "soybean", "cattle", "angus",
-    "4-h", "county fair", "recipe", "horoscope", "crossword", "quiz",
+    "4-h", "county fair",
+    # betting / prediction markets (not securities markets)
     "prediction market", "prediction markets",
+    # sport
+    "world cup", "premier league", "champions league", "la liga", "nba",
+    "nfl", "super bowl", "wimbledon", "grand slam", "olympics", "olympic",
+    "fifa", "uefa", "cricket", "rugby", "springbok", "proteas", "test match",
+    "formula 1", "grand prix", "playoff", "playoffs", "world series",
+    "match report", "final score", "transfer window",
+    # entertainment / celebrity / lifestyle
+    "box office", "celebrity", "red carpet", "netflix series", "tv series",
+    "movie review", "album review", "concert tour", "taylor swift",
+    "kardashian", "royal family", "met gala", "grammy", "oscar", "emmy",
+    # travel / food / human-interest
+    "travel guide", "best restaurants", "raccoon", "zoo", "wedding",
 ]
+# Topic domains that, when a headline is clearly ABOUT them, are off-scope
+# for an institutional markets desk even if no exact phrase above matches.
+_OFFSCOPE_HINTS = ["sport", "soccer", "football match", "tournament",
+                   "championship", "athlete", "coach", "stadium", "fixture"]
 _ADVICE_RE = re.compile(r"^(i'?m |i |we're |my )|should (i|you) |"
                         r"here's how much ")
 
 
 def _is_relevant(title: str, summary: str) -> bool:
     t = f"{title} {summary}".lower()
-    if _matches(t, _IRRELEVANT_MARKERS):
+    tl = title.lower()
+    # A clear finance/market anchor keeps a story on-scope even if it also
+    # mentions sport/entertainment (e.g. "Nike earnings beat despite World
+    # Cup spend", "Man Utd bond sale"). Anchor wins over off-topic markers.
+    has_anchor = _matches(t, _FINANCE_ANCHORS)
+    if _matches(t, _IRRELEVANT_MARKERS) and not has_anchor:
         return False
-    return not _ADVICE_RE.search(title.lower())
+    # Off-scope domain hint in the TITLE with no finance anchor -> irrelevant.
+    if _matches(tl, _OFFSCOPE_HINTS) and not has_anchor:
+        return False
+    return not _ADVICE_RE.search(tl)
+
+
+# Finance/economy anchors — if any appears, a story is plausibly on-scope
+# regardless of other content (e.g. "football club bond sale" is markets news).
+_FINANCE_ANCHORS = [
+    "market", "stock", "share", "bond", "yield", "rate", "inflation", "gdp",
+    "earnings", "revenue", "profit", "ipo", "merger", "acquisition", "central bank",
+    "fed", "ecb", "sarb", "currency", "dollar", "euro", "rand", "oil", "gold",
+    "economy", "economic", "trade", "tariff", "sanction", "recession", "bank",
+    "investor", "fund", "index", "commodity", "crypto", "bitcoin", "debt",
+]
 
 
 

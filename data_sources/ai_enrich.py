@@ -127,8 +127,13 @@ def _prompt(headlines, hero: bool, themes: str = "") -> str:
         "'m&a', 'opinion'; omit if nothing material, and NEVER tag a "
         "figurative word literally) and relevant (true/false: is "
         "this market, economy or corporate news useful to institutional "
-        "portfolio managers? Consumer personal-finance advice, lifestyle, "
-        "sport, entertainment and local/agri-trade content are false). "
+        "portfolio managers? Set FALSE for sport (World Cup, football, "
+        "tennis, Olympics, cricket, rugby), entertainment/celebrity, "
+        "lifestyle, travel, food, human-interest and consumer personal-"
+        "finance advice — even when phrased cleverly or mentioning a country "
+        "or a company in passing. Set TRUE only if the story is genuinely "
+        "about markets, the economy, policy or a company's financial "
+        "position). "
         + hero_line +
         "Respond with ONLY a JSON array of objects with keys i, sentiment, "
         "importance, region, asset, instruments, tags, relevant" +

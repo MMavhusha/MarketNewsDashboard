@@ -543,3 +543,7 @@ div[data-testid="stPills"] button:focus-visible {
   background-size: 400px 100%; animation: rc-shimmer 1.2s infinite linear;
   border-radius: 8px; height: 14px; margin: 8px 0;
 }
+
+/* ---------- Calendar: watchlist-matched rows ---------- */
+.tl-row.tl-watched .tl-card { border-left: 3px solid #003B71; }
+.tl-row.tl-watched.tl-mover .tl-card { border-left: 3px solid #FF671D; }

@@ -207,16 +207,18 @@ def summary_row(q, spark_fig=None, key="", period=""):
 
 def tl_row(e: dict):
     """Timeline row for the economic calendar: time gutter, impact dot, card.
-    Market-holiday rows render distinctly (no consensus/previous fields)."""
+    Market-holiday rows render distinctly (no consensus/previous fields).
+    A ⚑ prefix marks events matching the team's keyword watchlist."""
     import streamlit as st
+    watch = "\u2691 " if e.get("_watched") else ""
     if e.get("is_holiday"):
         st.markdown(
-            f'''<div class="tl-row tl-holiday">
+            f'''<div class="tl-row tl-holiday{' tl-watched' if e.get("_watched") else ''}">
             <div class="tl-gutter num">—</div>
             <div class="tl-line"><span class="tl-dot"></span></div>
             <div class="tl-card">
               <span class="t-cty">{esc(e["country"])}</span>
-              <span class="t-ev">{esc(e["event"])}</span>
+              <span class="t-ev">{watch}{esc(e["event"])}</span>
               <span class="t-hol">MARKET CLOSED</span>
             </div></div>''',
             unsafe_allow_html=True)
@@ -225,13 +227,14 @@ def tl_row(e: dict):
            else "tl-medium" if e["importance"] == "Medium" else "")
     mover = e["importance"] == "High"  # market-moving flag on the card
     flag = '<span class="t-mover">MARKET-MOVING</span>' if mover else ""
+    cls = f"{sev}{' tl-mover' if mover else ''}{' tl-watched' if e.get('_watched') else ''}"
     st.markdown(
-        f'''<div class="tl-row {sev}{' tl-mover' if mover else ''}">
+        f'''<div class="tl-row {cls}">
         <div class="tl-gutter num">{esc((e.get("time") or "")[:5])}</div>
         <div class="tl-line"><span class="tl-dot"></span></div>
         <div class="tl-card">
           <span class="t-cty">{esc(e["country"])}</span>
-          <span class="t-ev">{esc(e["event"])}{flag}</span>
+          <span class="t-ev">{watch}{esc(e["event"])}{flag}</span>
           <span class="t-vals num">Consensus <b>{esc(e["expected"])}</b><br>
           Previous <b>{esc(e["previous"])}</b></span>
         </div></div>''',

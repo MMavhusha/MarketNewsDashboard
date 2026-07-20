@@ -457,6 +457,20 @@ def page_calendar():
     highlight_only = st.toggle(
         "Show only market-moving items (High impact + closures)",
         key="cal_hi_only")
+    watch_kw = st.session_state.get("news_watch_keywords", [])
+    watch_only = False
+    if watch_kw:
+        watch_only = st.toggle(
+            f"Show only my watchlist matches ({len(watch_kw)} keyword"
+            f"{'s' if len(watch_kw) != 1 else ''})", key="cal_watch_only")
+
+    # Flag events matching the team's keyword watchlist (same typo-tolerant
+    # matcher used for news) so a watched term like 'Fed' is marked ⚑ here too.
+    if watch_kw:
+        for e in cal:
+            e["_watched"] = any(
+                news.fuzzy_match(k, f'{e["event"]} {e["country"]}')
+                for k in watch_kw)
 
     view = cal
     if imp_pick == "High":
@@ -468,6 +482,8 @@ def page_calendar():
     if highlight_only:
         view = [e for e in view
                 if e["importance"] == "High" or e.get("is_holiday")]
+    if watch_only:
+        view = [e for e in view if e.get("_watched")]
     if q:
         ql = q.lower()
         view = [e for e in view

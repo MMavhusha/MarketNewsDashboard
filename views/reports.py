@@ -337,8 +337,14 @@ def _admin_ok() -> bool:
     return bool(st.session_state.get("_admin_ok"))
 
 
+# Only these accounts may unlock the admin area.
+_ADMIN_EMAILS = {"ltshirangwana@riscura.com", "mmavhusha@riscura.com"}
+
+
 def _admin_unlock_gate():
-    """Single admin gate. Timing-safe comparison (hmac) rather than ==."""
+    """Admin gate: authorized email AND correct password, both required.
+    Email is checked against an allowlist; password uses a timing-safe
+    comparison (hmac) so it can't be probed by response timing."""
     import hmac
     try:
         admin_pw = st.secrets.get("ADMIN_PASSWORD")
@@ -348,25 +354,36 @@ def _admin_unlock_gate():
         st.caption("Admin area not configured — add an ADMIN_PASSWORD secret "
                    "to Streamlit Cloud to unlock developer diagnostics.")
         return
-    a1, a2, _ = st.columns([1.6, 0.6, 3])
-    attempt = a1.text_input("Admin password", type="password",
+    st.caption("Restricted to authorized RisCura administrators. "
+               "Both email and password are required.")
+    e1, p1, b1 = st.columns([1.6, 1.2, 0.6])
+    email = e1.text_input("Admin email", key="_admin_email",
+                          label_visibility="collapsed",
+                          placeholder="name@riscura.com")
+    attempt = p1.text_input("Admin password", type="password",
                             key="_admin_try", label_visibility="collapsed",
                             placeholder="Admin password")
-    if a2.button("Unlock", use_container_width=True):
-        if hmac.compare_digest(str(attempt), str(admin_pw)):
+    if b1.button("Unlock", use_container_width=True):
+        email_ok = email.strip().lower() in _ADMIN_EMAILS
+        pw_ok = hmac.compare_digest(str(attempt), str(admin_pw))
+        # Check both before responding; don't reveal which half failed.
+        if email_ok and pw_ok:
             st.session_state["_admin_ok"] = True
+            st.session_state["_admin_email"] = email.strip().lower()
             st.rerun()
         else:
-            st.error("Incorrect admin password.")
+            st.error("Access denied — email not authorized or password "
+                     "incorrect.")
 
 
 def _team_keyword_watchlist():
     ui.section("News keyword watchlist",
-               "Flag stories on topics your team tracks")
-    st.caption("Add terms like Eskom, rate decision or Naspers. Any story "
-               "whose headline or summary matches (typo-tolerant) is flagged "
-               "with \u2691 on Market News and surfaced under Keyword Alerts "
-               "on the Executive Summary.")
+               "Flag stories and calendar events on topics your team tracks")
+    st.caption("Add terms like Eskom, Fed, rate decision or Naspers. Matching "
+               "(typo-tolerant) news stories are flagged with \u2691 on Market "
+               "News and under Keyword Alerts on the Executive Summary; "
+               "matching calendar events are flagged \u2691 on Calendar & "
+               "Alerts, where you can also filter to just your watchlist.")
     from data_sources import app_state as _apps
     kws = st.session_state.setdefault("news_watch_keywords", [])
     k1, k2 = st.columns([3, 0.8])
@@ -611,11 +628,17 @@ def page_settings():
     _team_alert_thresholds()
     _feed_status_panel()
 
-    ui.section("Admin \u0026 diagnostics", "Developer tools \u00b7 password-gated")
+    ui.section("Admin \u0026 diagnostics", "Developer tools \u00b7 restricted access")
     if not _admin_ok():
         _admin_unlock_gate()
         return
-    st.caption("Admin unlocked for this session.")
+    who = st.session_state.get("_admin_email", "admin")
+    lc1, lc2 = st.columns([3, 0.8])
+    lc1.caption(f"Signed in as {who} · admin unlocked for this session.")
+    if lc2.button("Log out", use_container_width=True):
+        st.session_state.pop("_admin_ok", None)
+        st.session_state.pop("_admin_email", None)
+        st.rerun()
     _admin_call_log()
     _admin_error_log()
     _admin_classification_debugger()

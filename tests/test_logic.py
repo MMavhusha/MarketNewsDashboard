@@ -130,6 +130,19 @@ def test_instruments_plural_and_score_only_terms():
     assert "billion" not in lilly["tags"] and lilly["importance"] != "Low"
 
 
+def test_relevance_gate_sports_and_anchors():
+    from data_sources.news import _is_relevant
+    # off-topic sport/entertainment dropped
+    assert not _is_relevant("Spain isn't the World Cup's only winner",
+                            "Spain beat Argentina to win the World Cup.")
+    assert not _is_relevant("Wimbledon final draws record crowds", "Tennis.")
+    assert not _is_relevant("Taylor Swift concert tour breaks records", "")
+    # finance anchor keeps a story even if it mentions sport
+    assert _is_relevant("Nike earnings beat despite World Cup spend", "Revenue up.")
+    assert _is_relevant("Man Utd bond sale oversubscribed", "Club raised debt.")
+    assert _is_relevant("Fed holds rates steady", "Central bank decision.")
+
+
 if __name__ == "__main__":
     fns = [v for k, v in list(globals().items()) if k.startswith("test_")]
     for fn in fns:
