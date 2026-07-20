@@ -279,8 +279,17 @@ def tl_row(e: dict):
 def news_teaser(item: dict, time_str: str):
     """Compact one-line teaser for the Executive Summary preview — importance
     dot, title, source. The full card (summary, tags, save) is on Market
-    News; the summary should tease, not duplicate it."""
+    News; the summary should tease, not duplicate it. Watched-keyword stories
+    are flagged ⚑ so alerts stay visible here too."""
     edge = {"High": "#FF671D", "Medium": "#F2C84A"}.get(item["importance"], "#C9CBC4")
+    flag = ""
+    try:
+        from data_sources import watchlist as _wl
+        _kw = [k["term"] for k in _wl.get() if k["scope"] in ("both", "news")]
+        if _kw and any(_wl.matches_news(item, k) for k in _kw):
+            flag = "\u2691 "
+    except Exception:
+        pass
     st.markdown(
         f'''<div style="display:flex;gap:9px;align-items:baseline;padding:7px 0;
         border-bottom:1px solid #F0F0EE;">
@@ -288,7 +297,7 @@ def news_teaser(item: dict, time_str: str):
         flex-shrink:0;position:relative;top:4px;"></span>
         <span style="flex:1;font-size:12.5px;line-height:1.35;">
         <a href="{esc(item["link"])}" target="_blank"
-        style="color:#212322;text-decoration:none;font-weight:600;">{esc(item["title"])}</a>
+        style="color:#212322;text-decoration:none;font-weight:600;">{flag}{esc(item["title"])}</a>
         <span style="color:#909288;font-weight:400;"> · {esc(item["source"])} ·
         {esc(time_str)}</span></span></div>''',
         unsafe_allow_html=True)

@@ -111,16 +111,42 @@ def page_executive_summary():
 
         a_col, c_col = st.columns(2, gap="medium")
         with a_col:
-            ui.section("Market shock alerts", "Observed threshold breaches")
+            ui.section("Alerts", "Watchlist keywords & threshold breaches")
+            # Keyword watchlist alerts (compact) — surface here so the morning
+            # briefing shows what the team is tracking, not only shock moves.
+            from data_sources import watchlist as _wl
+            kw = _wl.get()
+            kw_hits = []
+            if kw:
+                _allnews = news.get_news()
+                _allcal = calendar_data.get_calendar(days_ahead=14)
+                for k in kw:
+                    nn = len(_wl.news_matches(k["term"], _allnews)) if k["scope"] in ("both", "news") else 0
+                    nc = len(_wl.calendar_matches(k["term"], _allcal)) if k["scope"] in ("both", "calendar") else 0
+                    if nn or nc:
+                        bits = []
+                        if nn:
+                            bits.append(f"{nn} news")
+                        if nc:
+                            bits.append(f"{nc} calendar")
+                        kw_hits.append((k["term"], " · ".join(bits)))
+            if kw_hits:
+                for term, meta in kw_hits[:4]:
+                    st.markdown(
+                        f'<div class="es-kw"><span class="es-kw-t">\u2691 {ui.esc(term)}</span>'
+                        f'<span class="es-kw-m">{ui.esc(meta)}</span></div>',
+                        unsafe_allow_html=True)
+
             alerts = markets.get_shock_alerts()
             if alerts:
                 for a in alerts[:4]:
                     ui.alert_card(a)
-                if st.button("View alert details →", key="qi_goto_alerts"):
+            elif not kw_hits:
+                ui.empty_state("No moves beyond alert thresholds this session.")
+            if alerts or kw_hits:
+                if st.button("View all alerts →", key="qi_goto_alerts"):
                     st.session_state["nav_to"] = "Alerts"
                     st.rerun()
-            else:
-                ui.empty_state("No moves beyond alert thresholds this session.")
         with c_col:
             ui.section("Economic calendar", "Next 7 days")
             cal = calendar_data.get_calendar()
@@ -274,7 +300,8 @@ def page_market_news():
         ui.empty_state("No stories match the current filters, or feeds are unreachable.")
         return
     from data_sources import watchlist as _wl
-    kw = _wl.terms()
+    # news-scoped watch terms only — a calendar-only keyword must not flag news
+    kw = [k["term"] for k in _wl.get() if k["scope"] in ("both", "news")]
     admin = st.session_state.get("_admin_ok")
     if admin:
         n_ai = sum(1 for it in view if it.get("_ai"))
@@ -287,8 +314,7 @@ def page_market_news():
                   f"{n_ai} of {len(view)} visible stories were model-"
                   f"classified (marked ✦); the rest fell back to rules")
     for idx, item in enumerate(view[:30]):
-        if kw and any(news.fuzzy_match(k, item["title"] + " " + item["summary"])
-                      for k in kw):
+        if kw and any(_wl.matches_news(item, k) for k in kw):
             item = {**item, "title": "⚑ " + item["title"]}
         if admin and item.get("_ai"):
             item = {**item, "title": item["title"] + " ✦"}
@@ -422,19 +448,26 @@ def page_alerts():
                 f'<span class="al-kw">\u2691 {ui.esc(term)}</span>'
                 f'<span class="al-kw-meta">{ui.esc(" · ".join(bits)) or "no current matches"}</span>'
                 f'</div></div>', unsafe_allow_html=True)
-            b1, b2, b3, _ = st.columns([1.1, 1.2, 0.9, 3])
+            # Lay the available buttons side-by-side from the left so a
+            # calendar-only alert doesn't leave an empty News slot (which
+            # pushed the button awkwardly to the right).
+            btns = []
             if n_news:
-                if b1.button(f"View {n_news} in News →", key=f"kwn_{i}",
-                             use_container_width=True):
-                    st.session_state["nav_to"] = "Market News"
-                    st.session_state["news_jump_query"] = term
-                    st.rerun()
+                btns.append(("news", f"View {n_news} in News →"))
             if n_cal:
-                if b2.button(f"View {n_cal} in Calendar →", key=f"kwc_{i}",
-                             use_container_width=True):
-                    st.session_state["nav_to"] = "Calendar"
-                    st.session_state["cal_jump_query"] = term
-                    st.rerun()
+                btns.append(("cal", f"View {n_cal} in Calendar →"))
+            if btns:
+                cols = st.columns([1.4, 1.4, 3][:len(btns)] + [3])
+                for j, (dest, label) in enumerate(btns):
+                    if cols[j].button(label, key=f"kw{dest}_{i}",
+                                      use_container_width=True):
+                        if dest == "news":
+                            st.session_state["nav_to"] = "Market News"
+                            st.session_state["news_jump_query"] = term
+                        else:
+                            st.session_state["nav_to"] = "Calendar"
+                            st.session_state["cal_jump_query"] = term
+                        st.rerun()
         ui.legend("Manage these under Settings → Keyword watchlist \u0026 alerts. "
                   "They persist across logins until removed.")
 

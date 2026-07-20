@@ -36,14 +36,19 @@ def render_weekly_view():
         weekly = weekly + [i for i in recent if i["importance"] == "Medium"][:5 - len(weekly)]
         backfilled = True
 
+    from data_sources import watchlist as _wl
+    _kw = [k["term"] for k in _wl.get() if k["scope"] in ("both", "news")]
+
     def stories(block):
         for item in block:
+            flag = ("\u2691 " if _kw and any(_wl.matches_news(item, k)
+                                             for k in _kw) else "")
             st.markdown(
                 f'''<div class="ann-row">
                 <span class="b-col">{ui.importance_badge(item["importance"])}</span>
                 <span class="b-col">{ui.sentiment_badge(item["sentiment"])}</span>
                 <span class="a-t"><a href="{ui.esc(item["link"])}" target="_blank"
-                title="{ui.esc(item["title"])}">{ui.esc(item["title"])}</a></span>
+                title="{ui.esc(item["title"])}">{flag}{ui.esc(item["title"])}</a></span>
                 <span class="a-m">{ui.esc(item["source"])} ·
                 {ui.esc(news.fmt_time(item["published"]))}</span></div>''',
                 unsafe_allow_html=True)
