@@ -59,13 +59,15 @@ def market_card_html(q) -> str:
 
 def news_card(item: dict, time_str: str):
     tags = " ".join(badge(t, "blue") for t in item.get("tags", []))
+    instr = (badge(item["instrument"].upper(), "orange")
+             if item.get("instrument") else "")
     st.markdown(
         f'''<div class="news-card">
         <div class="hl"><a href="{esc(item["link"])}" target="_blank">{esc(item["title"])}</a></div>
         <div class="sm">{esc(item["summary"])}</div>
         <div class="mt">
           {sentiment_badge(item["sentiment"])}{importance_badge(item["importance"])}
-          {badge(item["region"], "grey")}{badge(item["asset"], "grey")}{tags}
+          {instr}{badge(item["region"], "grey")}{badge(item["asset"], "grey")}{tags}
         </div>
         <div class="mt"><b>{esc(item["source"])}</b> · {esc(time_str)}</div>
         </div>''',

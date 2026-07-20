@@ -27,6 +27,9 @@ _IMP = {"High", "Medium", "Low"}
 _REG = {"South Africa", "United States", "Euro Area", "United Kingdom",
         "China", "India", "Japan", "Global"}
 _AST = {"Equities", "Rates & Bonds", "FX", "Commodities", "Crypto", "Macro"}
+_INSTR = {"Oil", "Gold", "Copper", "Platinum", "Iron Ore", "Coal",
+          "USD/ZAR", "EUR/USD", "USD/JPY", "Bitcoin", "S&P 500",
+          "NASDAQ", "FTSE 100", "JSE ALSI"}
 
 
 def _secret(name: str) -> str | None:
@@ -93,9 +96,13 @@ def _prompt(headlines, hero: bool) -> str:
         "Crypto/Macro) and relevant (true/false: is this market, economy or "
         "corporate news useful to institutional portfolio managers? Consumer "
         "personal-finance advice, lifestyle, sport, entertainment and "
-        "local/agri-trade content are false). " + hero_line +
+        "local/agri-trade content are false) and instrument (the single most-"
+        "affected traded instrument if clearly identifiable, exactly one of: "
+        "Oil, Gold, Copper, Platinum, Iron Ore, Coal, USD/ZAR, EUR/USD, "
+        "USD/JPY, Bitcoin, S&P 500, NASDAQ, FTSE 100, JSE ALSI; else null). "
+        + hero_line +
         "Respond with ONLY a JSON array of objects with keys i, sentiment, "
-        "importance, region, asset, relevant" +
+        "importance, region, asset, relevant, instrument" +
         (", and why (story 0 only)" if hero else "") + ".\n\n" + lines)
 
 
@@ -136,6 +143,8 @@ def _parse(text: str, hero: bool) -> dict[int, dict]:
             fields["region"] = row["region"]
         if row.get("asset") in _AST:
             fields["asset"] = row["asset"]
+        if row.get("instrument") in _INSTR:
+            fields["instrument"] = row["instrument"]
         if isinstance(row.get("relevant"), bool) and not row["relevant"]:
             fields["_irrelevant"] = True
         if hero and i == 0 and isinstance(row.get("why"), str) and row["why"].strip():

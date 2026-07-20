@@ -61,6 +61,26 @@ _ASSETS = {
     "Crypto": ["bitcoin", "crypto", "ethereum"],
 }
 
+# Instrument-level tagging: the single most-affected traded instrument,
+# priority-ordered (first match wins), keyword-boundary matched. Labels
+# align with the app's tracked instruments.
+_INSTRUMENTS = {
+    "Oil": ["oil", "brent", "crude", "wti", "opec"],
+    "Gold": ["gold"],
+    "Copper": ["copper"],
+    "Platinum": ["platinum"],
+    "Iron Ore": ["iron ore"],
+    "Coal": ["coal"],
+    "USD/ZAR": ["rand", "usdzar", "zar"],
+    "EUR/USD": ["eurusd"],
+    "USD/JPY": ["usdjpy"],
+    "Bitcoin": ["bitcoin", "btc"],
+    "S&P 500": ["s&p 500", "s&p"],
+    "NASDAQ": ["nasdaq"],
+    "FTSE 100": ["ftse"],
+    "JSE ALSI": ["jse", "alsi"],
+}
+
 _HIGH_IMPORTANCE = ["fed", "fomc", "ecb", "sarb", "rate decision", "inflation",
                     "cpi", "gdp", "recession", "crash", "opec", "sanctions",
                     "war", "default", "emergency", "intervention", "crisis",
@@ -111,6 +131,22 @@ def _strip_publisher(title: str) -> str:
 _OPINION_MARKERS = ["opinion", "analysis |", "macroscope", "commentary",
                     "column:", "editorial", "explainer", "newsletter",
                     "podcast", "mises institute", "project syndicate"]
+
+# Instrument chips: deterministic word-boundary matches on the TITLE.
+# Scoped to instruments the dashboard actually tracks — no noisy terms.
+_INSTRUMENTS = {
+    "oil": ["oil", "brent", "crude", "wti", "opec"],
+    "gold": ["gold"],
+    "copper": ["copper"],
+    "platinum": ["platinum"],
+    "iron ore": ["iron ore"],
+    "coal": ["coal"],
+    "zar": ["rand", "usd/zar", "usdzar"],
+    "bitcoin": ["bitcoin", "btc"],
+}
+
+# Score-only keywords: they raise importance but make meaningless chips.
+_TAG_EXCLUDE = {"billion", "trillion"}
 
 # Rules tier of the relevance gate: blatant consumer personal-finance,
 # lifestyle and local/agri-trade content is dropped before classification.
@@ -268,6 +304,13 @@ def _classify(title: str, summary: str, default_region: str = "") -> dict:
             asset = hit
             break
 
+    instrument = None
+    for scope in (tt, ts):
+        instrument = next((lbl for lbl, keys in _INSTRUMENTS.items()
+                           if _matches(scope, keys)), None)
+        if instrument:
+            break
+
     title_hits = _matches(tt, _HIGH_IMPORTANCE)
     sum_hits = [k for k in _matches(ts, _HIGH_IMPORTANCE) if k not in title_hits]
     score = 2 * len(title_hits) + min(2, len(sum_hits))
@@ -276,12 +319,16 @@ def _classify(title: str, summary: str, default_region: str = "") -> dict:
         score = max(0, score - 2)
     importance = "High" if score >= 4 else "Medium" if score >= 2 else "Low"
 
-    tags = title_hits[:3]  # visible tags from the TITLE only — digest-style
-    # summaries describe other stories, so their keywords never surface
-    if opinion:
-        tags = (["opinion"] + tags)[:3]
+    # Visible tags from the TITLE only — digest-style summaries describe
+    # other stories. Order: opinion flag, instruments, importance keywords;
+    # score-only terms (billion/trillion) never surface as chips.
+    instruments = [name for name, keys in _INSTRUMENTS.items()
+                   if _matches(tt, keys)]
+    kw_tags = [k for k in title_hits if k not in _TAG_EXCLUDE]
+    tags = (["opinion"] if opinion else []) + instruments + kw_tags
+    tags = list(dict.fromkeys(tags))[:3]
     return {"sentiment": sentiment, "region": region, "asset": asset,
-            "confident": abs(_sc) >= 2,
+            "confident": abs(_sc) >= 2, "instrument": instrument,
             "importance": importance, "score": score, "tags": tags}
 
 

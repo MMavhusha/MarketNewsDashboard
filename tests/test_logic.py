@@ -116,6 +116,18 @@ def test_publisher_suffix_and_opinion():
     assert "opinion" in c["tags"] and c["importance"] != "High"
 
 
+def test_instrument_tags_and_score_only_terms():
+    from data_sources.news import _classify
+    oil = _classify("Oil prices erase gains after Iran says U.S. talks could be pursued", "", "")
+    assert "oil" in oil["tags"], oil["tags"]
+    rand = _classify("Rand firms as SARB holds repo rate", "", "")
+    assert "zar" in rand["tags"], rand["tags"]
+    india = _classify("India central bank draws over $20 billion from forex measures", "", "")
+    assert "billion" not in india["tags"] and india["importance"] != "Low", india
+    lilly = _classify("Eli Lilly to buy AtaiBeckley for $2.8 billion", "", "")
+    assert "billion" not in lilly["tags"] and lilly["importance"] != "Low"
+
+
 if __name__ == "__main__":
     fns = [v for k, v in list(globals().items()) if k.startswith("test_")]
     for fn in fns:
