@@ -1,8 +1,5 @@
 {
- "watchlist": [
-  "Brent Crude",
-  "Gold"
- ],
+ "watchlist": [],
  "alert_thresholds": null,
  "saved_articles": [],
  "news_watch_keywords": []
