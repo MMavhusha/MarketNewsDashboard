@@ -1,6 +1,7 @@
 {
  "watchlist": [
-  "Copper (COMEX conv., $/t)"
+  "Copper (COMEX conv., $/t)",
+  "Gold Spot (COMEX proxy)"
  ],
  "alert_thresholds": null,
  "saved_articles": [],
