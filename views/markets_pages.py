@@ -280,12 +280,17 @@ def _region_rows(region, matrix):
     promoted: set = set()
     rows = []
 
-    def add(ind, latest, fmt, source, period, hist=None, release="—"):
+    def add(ind, latest, fmt, source, period, hist=None, release="—",
+            metric=None):
         # release = actual publication date when the source gives one (SARB,
         # FRED monthly obs); '—' when only a measured period is published
         # (World Bank annual). period = the measured period label.
+        # metric = canonical grouping key for the metric-first view (defaults
+        # to ind; FX/Commodity override it so all regions group together while
+        # keeping their instrument-specific ind label).
         rows.append({"ind": ind, "latest": latest, "fmt": fmt, "source": source,
-                     "period": period, "hist": hist, "release": release})
+                     "period": period, "hist": hist, "release": release,
+                     "metric": metric or ind})
 
     # GDP (World Bank annual — pack cadence is quarterly; deltas need history)
     cell = matrix.get("GDP Growth (YoY %)", {}).get(region)
@@ -399,7 +404,8 @@ def _region_rows(region, matrix):
               else (q.asof or "—"))
     add(f"FX — {fx_name}", float(s.iloc[-1]) if s is not None
         else (float(q.price) if q.ok else None),
-        "{:,.4f}", "yfinance (daily close)", fx_rel, s, release=fx_rel)
+        "{:,.4f}", "yfinance (daily close)", fx_rel, s, release=fx_rel,
+        metric="FX (vs USD)")
 
     # Signature commodity (3Y history, free proxy) — chart lives in the panel
     cname, ctk, cunit, cmult = macro.REGION_COMMODITY[region]
@@ -409,7 +415,8 @@ def _region_rows(region, matrix):
         float(cs.iloc[-1]) if cs is not None else None,
         "{:,.2f}", f"yfinance · {cunit}",
         cs.index[-1].strftime("%d %b %Y") if cs is not None else "—", cs,
-        release=cs.index[-1].strftime("%d %b %Y") if cs is not None else "—")
+        release=cs.index[-1].strftime("%d %b %Y") if cs is not None else "—",
+        metric="Commodity (signature)")
 
     # PMI (no free source — proprietary press releases)
     add("Manufacturing PMI", None, "{:,.1f}", _PENDING["Manufacturing PMI"], "—")
@@ -422,14 +429,14 @@ def _fmt_delta(v, fmt):
     return f'<span class="num">{"+" if v >= 0 else "\u2212"}{fmt.format(abs(v))}</span>'
 
 
-def _grid_row_html(r, rid, selected):
+def _metric_row_html(region, r):
+    """One region's cell-set for a metric comparison table (country-major)."""
     d1, d3, d12 = _hist_deltas(r["hist"])
     latest = (f'<span class="num">{r["fmt"].format(r["latest"])}</span>'
               if r["latest"] is not None else '<span class="rg-na">n/a</span>')
     rel = _fmt_date(r.get("release", "—"))
-    sel = " rg-row-sel" if selected else ""
     return (
-        f'<div class="rg-row{sel}" tabindex="0"><span><span class="rg-ind">{ui.esc(r["ind"])}'
+        f'<div class="rg-row" tabindex="0"><span><span class="rg-ind">{ui.esc(region)}'
         f'</span><span class="rg-src">{ui.esc(r["source"])}</span></span>'
         f'<span class="rg-num">{latest}</span>'
         f'<span class="rg-num rg-mut">{ui.esc(rel)}</span>'
@@ -439,165 +446,175 @@ def _grid_row_html(r, rid, selected):
         f'<span class="rg-num">{_fmt_delta(d12, r["fmt"])}</span></div>')
 
 
-def _pack_grid(rows, region):
-    """Single interactive grid. A row-select control drives ONE shared detail
-    panel below (chart + cross-region compare) — no separate charts section,
-    no comparison popover; those were three views of the same series."""
+def _metric_grid(metric, by_region):
+    """Comparison table for ONE metric across every region (country-major),
+    mirroring the reference pack: Country | Latest | Release | Period | deltas.
+    by_region: {region: {metric_name: row}}."""
+    body = ""
+    for region in macro.REGIONS:
+        r = by_region.get(region, {}).get(metric)
+        if r is None:
+            continue
+        body += _metric_row_html(region, r)
     st.markdown(
-        '<div class="fx-table"><div class="rg-hd"><span>Indicator</span>'
+        '<div class="fx-table"><div class="rg-hd"><span>Country</span>'
         '<span class="rg-num">Latest</span><span class="rg-num">Release</span>'
         '<span class="rg-num">Period</span><span class="rg-num">1M \u0394</span>'
         '<span class="rg-num">3M \u0394</span><span class="rg-num">12M \u0394</span>'
-        '</div>' +
-        "".join(_grid_row_html(r, i, False) for i, r in enumerate(rows)) +
-        '</div>', unsafe_allow_html=True)
+        '</div>' + body + '</div>', unsafe_allow_html=True)
 
 
-def _region_detail_panel(rows, region, matrix):
-    """Shared panel: pick an indicator, see its 3Y chart AND the same
-    indicator across all regions — the consolidation of the old separate
-    charts section and comparison popover into one place."""
-    labels = [r["ind"] for r in rows]
-    pick = st.selectbox("Detail & cross-region compare", labels,
-                        key=f"rm_detail_{region}", label_visibility="collapsed")
-    row = next((r for r in rows if r["ind"] == pick), None)
-    if row is None:
-        return
-    c_chart, c_cmp = st.columns([3, 2], gap="large")
-    with c_chart:
-        if row["hist"] is not None and len(row["hist"]) > 2:
-            unit = "%" if "%" in row["ind"] else ""
-            st.plotly_chart(
-                charts.pack_history(row["hist"], f"{region} — {row['ind']}",
-                                    height=280, y_title=unit),
-                use_container_width=True, config={"displayModeBar": False},
-                key=f"rm_chart_{region}")
-        else:
-            ui.empty_state(f"{row['ind']}: 3-year history source pending "
-                           "(BIS / Eurostat / Bundesbank queued).")
-    with c_cmp:
-        _compare_block(pick, matrix)
-
-
-def _compare_block(ind, matrix):
-    """One indicator across all regions — compact bars, latest value each."""
-    vals = []
+def _metric_compare_chart(metric, by_region):
+    """3-year overlay of the chosen metric across regions that have history."""
+    series = {}
     for region in macro.REGIONS:
-        rows, _ = _region_rows(region, matrix)
-        r = next((x for x in rows if x["ind"] == ind), None)
-        if r and r["latest"] is not None:
-            vals.append((region, float(r["latest"]), r["fmt"]))
-    if not vals:
-        ui.empty_state("No comparable values across regions yet.")
+        r = by_region.get(region, {}).get(metric)
+        if r is not None and r["hist"] is not None and len(r["hist"]) > 2:
+            series[region] = r["hist"]
+    if not series:
+        ui.empty_state(f"{metric}: 3-year history source pending for all "
+                       "regions — deltas and overlay fill as free sources land.")
         return
-    st.markdown('<div class="rg-cmp-h">Across regions · latest</div>',
-                unsafe_allow_html=True)
-    hi = max(abs(v) for _, v, _ in vals) or 1.0
-    body = ""
-    for region, v, fmt in sorted(vals, key=lambda x: x[1], reverse=True):
-        w = min(abs(v) / hi, 1.0) * 100
-        col = "#1E8052" if v >= 0 else "#B0212C"
-        body += (
-            f'<div class="rg-cmp-row"><span class="rg-cmp-nm">{ui.esc(region)}</span>'
-            f'<span class="rg-cmp-bar"><span style="width:{w:.0f}%;'
-            f'background:{col};"></span></span>'
-            f'<span class="rg-cmp-v num">{fmt.format(v)}</span></div>')
-    st.markdown(f'<div class="rg-cmp">{body}</div>', unsafe_allow_html=True)
+    unit = "%" if "%" in metric else ""
+    st.plotly_chart(
+        charts.pack_multi_history(series, metric, height=300, y_title=unit),
+        use_container_width=True, config={"displayModeBar": False})
+    if len(series) < len(macro.REGIONS):
+        missing = [r for r in macro.REGIONS if r not in series]
+        st.caption("History available for: " + ", ".join(series.keys())
+                   + ". Pending for: " + ", ".join(missing) + ".")
+
+
+def _sa_specific_detail(promoted):
+    """SA-only SARB series (prime, M3, credit, etc.) that do not fit the
+    cross-country metric frame. Metal prices and FX are excluded (they live
+    on Commodities/Currencies)."""
+    groups = sarb.get_sa_indicators()
+    if groups:
+        ui.section("Live SARB releases",
+                   "SA-specific series not shown on Commodities or "
+                   "Currencies · SARB Web API")
+        # Drop series that duplicate the Commodities page (metal
+        # prices) and the Currencies page (FX rates) — those are
+        # shown there with live charts. Keep only SA-unique
+        # monetary/real-sector data (prime, M3, credit, etc.).
+        def _dup(name: str) -> bool:
+            n = name.lower()
+            price_dup = any(k in n for k in (
+                "gold", "platinum", "palladium", "brent", "oil",
+                "rhodium"))
+            fx_dup = (("exchange rate" in n or "per us" in n
+                       or "per dollar" in n or "/us$" in n
+                       or "rand per" in n or "us$" in n
+                       or "euro" in n or "pound" in n or "yen" in n)
+                      and "real effective" not in n)
+            return price_dup or fx_dup
+        key_rows = groups.get("Key rates & prices") or next(iter(groups.values()))
+        pool = [r for rows in groups.values() for r in rows]
+        fresh = [r for r in key_rows
+                 if r["name"] not in promoted and not _dup(r["name"])]
+        for r in pool:  # backfill with other SA-unique series
+            if len(fresh) >= 8:
+                break
+            if (r["name"] not in promoted and r not in fresh
+                    and not _dup(r["name"])):
+                fresh.append(r)
+        tiles = fresh[:8]
+        if not tiles:
+            ui.empty_state("No SA-unique series available right now "
+                           "(prices and FX are on Commodities and "
+                           "Currencies).")
+        tcols = st.columns(4)
+        for i, r in enumerate(tiles):
+            with tcols[i % 4]:
+                st.markdown(
+                    f'<div class="kpi" style="margin-bottom:10px;">'
+                    f'<div class="k-label" title="{ui.esc(r["name"])}">{ui.esc(r["name"][:34])}</div>'
+                    f'<div class="k-val num">{ui.esc(r["value"])}'
+                    f'<span style="font-size:11px;font-weight:400;color:#909288;"> {ui.esc(r["unit"])}</span></div>'
+                    f'<div class="k-sub">{ui.esc(r["agency"])} · {ui.esc(r["date"])}</div></div>',
+                    unsafe_allow_html=True)
+        shown = {r["name"] for r in tiles} | promoted
+        # "All published series" also excludes the duplicates now
+        n_other = sum(1 for rows in groups.values() for r in rows
+                      if r["name"] not in shown and not _dup(r["name"]))
+        if n_other:
+            with st.expander(f"All SA-unique series ({n_other})"):
+                for glabel, rows in groups.items():
+                    for r in rows:
+                        if r["name"] in shown or _dup(r["name"]):
+                            continue
+                        st.markdown(
+                            f'<div class="cal-row"><span class="cty" style="width:340px;">{ui.esc(r["name"])}</span>'
+                            f'<span class="ev">{ui.esc(glabel)} · {ui.esc(r["agency"])} · {ui.esc(r["date"])}</span>'
+                            f'<span class="cal-val num">{ui.esc(r["value"])} {ui.esc(r["unit"])}</span></div>',
+                            unsafe_allow_html=True)
+        st.caption("Metal prices are on Commodities; exchange rates "
+                   "on Currencies \u2014 excluded here to avoid "
+                   "duplication.")
 
 
 def page_regional_macro():
-    st.caption("Indicator set mirrors the macro pack. Live free sources fill "
-               "what they can (World Bank, SARB, FRED, yfinance); the rest "
-               "shows its named target source. No estimation is performed.")
+    st.caption("Navigate by indicator: pick a metric below to compare every "
+               "region side by side. Live free sources fill what they can "
+               "(World Bank, SARB, FRED, yfinance); the rest shows its named "
+               "target source. No estimation is performed.")
 
     matrix = macro.wb_latest_matrix()
-    tabs = st.tabs(list(macro.REGIONS.keys()))
-    for tab, (region, iso) in zip(tabs, macro.REGIONS.items()):
+    # Compute every region's rows ONCE, then pivot by canonical metric key.
+    by_region = {}
+    promoted_sa = set()
+    for region in macro.REGIONS:
+        rows, promoted = _region_rows(region, matrix)
+        by_region[region] = {r["metric"]: r for r in rows}
+        if region == "South Africa":
+            promoted_sa = promoted
+    # Metric order = the reference-pack row order (canonical keys).
+    any_region = next(iter(macro.REGIONS))
+    metric_order = [r["metric"] for r in _region_rows(any_region, matrix)[0]]
+
+    # Short tab labels for the metrics.
+    label_map = {
+        "GDP Growth (YoY %)": "GDP",
+        "Inflation, CPI (YoY %)": "Inflation",
+        "Policy Rate (%)": "Policy Rate",
+        "Unemployment Rate (%)": "Unemployment",
+        "10Y Government Yield (%)": "10Y Yield",
+        "FX (vs USD)": "FX",
+        "Commodity (signature)": "Commodity",
+        "Manufacturing PMI": "PMI",
+    }
+    short_labels = [label_map.get(m, m) for m in metric_order]
+
+    tabs = st.tabs(short_labels)
+    for tab, metric in zip(tabs, metric_order):
         with tab:
-            rows, promoted = _region_rows(region, matrix)
-            ui.section("At a glance",
-                       "This region \u00b7 pick a row below for its 3-year "
-                       "chart and cross-region comparison")
-            _pack_grid(rows, region)
+            title = label_map.get(metric, metric)
+            ui.section(title,
+                       "All regions \u00b7 same indicator \u00b7 reference-pack layout")
+            _metric_grid(metric, by_region)
             ui.legend("Release = publication date where the source provides "
                       "one, else \u2014 \u00b7 Period = the measured period "
                       "\u00b7 \u0394 in the indicator's own units, arithmetic "
-                      "on published observations \u00b7 n/a* = history source "
-                      "pending (BIS / Eurostat / Bundesbank queued)")
-            _region_detail_panel(rows, region, matrix)
+                      "on published observations \u00b7 n/a = source pending "
+                      "(BIS / Eurostat / Bundesbank queued)")
+            ui.section("3-year comparison", "History where a free source exists")
+            _metric_compare_chart(metric, by_region)
 
-            if region == "South Africa":
-                groups = sarb.get_sa_indicators()
-                if groups:
-                    ui.section("Live SARB releases",
-                               "SA-specific series not shown on Commodities or "
-                               "Currencies · SARB Web API")
-                    # Drop series that duplicate the Commodities page (metal
-                    # prices) and the Currencies page (FX rates) — those are
-                    # shown there with live charts. Keep only SA-unique
-                    # monetary/real-sector data (prime, M3, credit, etc.).
-                    def _dup(name: str) -> bool:
-                        n = name.lower()
-                        price_dup = any(k in n for k in (
-                            "gold", "platinum", "palladium", "brent", "oil",
-                            "rhodium"))
-                        fx_dup = (("exchange rate" in n or "per us" in n
-                                   or "per dollar" in n or "/us$" in n
-                                   or "rand per" in n or "us$" in n
-                                   or "euro" in n or "pound" in n or "yen" in n)
-                                  and "real effective" not in n)
-                        return price_dup or fx_dup
-                    key_rows = groups.get("Key rates & prices") or next(iter(groups.values()))
-                    pool = [r for rows in groups.values() for r in rows]
-                    fresh = [r for r in key_rows
-                             if r["name"] not in promoted and not _dup(r["name"])]
-                    for r in pool:  # backfill with other SA-unique series
-                        if len(fresh) >= 8:
-                            break
-                        if (r["name"] not in promoted and r not in fresh
-                                and not _dup(r["name"])):
-                            fresh.append(r)
-                    tiles = fresh[:8]
-                    if not tiles:
-                        ui.empty_state("No SA-unique series available right now "
-                                       "(prices and FX are on Commodities and "
-                                       "Currencies).")
-                    tcols = st.columns(4)
-                    for i, r in enumerate(tiles):
-                        with tcols[i % 4]:
-                            st.markdown(
-                                f'<div class="kpi" style="margin-bottom:10px;">'
-                                f'<div class="k-label" title="{ui.esc(r["name"])}">{ui.esc(r["name"][:34])}</div>'
-                                f'<div class="k-val num">{ui.esc(r["value"])}'
-                                f'<span style="font-size:11px;font-weight:400;color:#909288;"> {ui.esc(r["unit"])}</span></div>'
-                                f'<div class="k-sub">{ui.esc(r["agency"])} · {ui.esc(r["date"])}</div></div>',
-                                unsafe_allow_html=True)
-                    shown = {r["name"] for r in tiles} | promoted
-                    # "All published series" also excludes the duplicates now
-                    n_other = sum(1 for rows in groups.values() for r in rows
-                                  if r["name"] not in shown and not _dup(r["name"]))
-                    if n_other:
-                        with st.expander(f"All SA-unique series ({n_other})"):
-                            for glabel, rows in groups.items():
-                                for r in rows:
-                                    if r["name"] in shown or _dup(r["name"]):
-                                        continue
-                                    st.markdown(
-                                        f'<div class="cal-row"><span class="cty" style="width:340px;">{ui.esc(r["name"])}</span>'
-                                        f'<span class="ev">{ui.esc(glabel)} · {ui.esc(r["agency"])} · {ui.esc(r["date"])}</span>'
-                                        f'<span class="cal-val num">{ui.esc(r["value"])} {ui.esc(r["unit"])}</span></div>',
-                                        unsafe_allow_html=True)
-                    st.caption("Metal prices are on Commodities; exchange rates "
-                               "on Currencies \u2014 excluded here to avoid "
-                               "duplication.")
-
-            ind_pick = st.pills("History (10y)", list(macro.WB_INDICATORS.keys()),
-                                default="GDP Growth (YoY %)", key=f"ind_{iso}")
-            if ind_pick:
-                series = macro.wb_series(iso, macro.WB_INDICATORS[ind_pick])
-                if series:
-                    st.plotly_chart(
-                        charts.bar_years(series, f"{region} — {ind_pick}", y_title="%"),
-                        use_container_width=True, config={"displayModeBar": False})
-                else:
-                    ui.empty_state("World Bank API unreachable for this series.")
+    # SA-specific series and World Bank history remain below (SA-only data that
+    # does not fit the cross-country metric frame).
+    st.divider()
+    ui.section("South Africa detail", "SARB series and long-run history")
+    _sa_specific_detail(promoted_sa)
+    ind_pick = st.pills("World Bank history (10y)",
+                        list(macro.WB_INDICATORS.keys()),
+                        default="GDP Growth (YoY %)", key="rm_wb_hist")
+    if ind_pick:
+        series = macro.wb_series(macro.REGIONS["South Africa"],
+                                 macro.WB_INDICATORS[ind_pick])
+        if series:
+            st.plotly_chart(
+                charts.bar_years(series, f"South Africa \u2014 {ind_pick}", y_title="%"),
+                use_container_width=True, config={"displayModeBar": False})
+        else:
+            ui.empty_state("World Bank API unreachable for this series.")

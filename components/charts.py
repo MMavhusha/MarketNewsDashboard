@@ -122,6 +122,37 @@ def pack_history(series: pd.Series, title: str = "", height: int = 300,
     return fig
 
 
+def pack_multi_history(series_map: dict, title: str = "", height: int = 300,
+                       y_title: str = "%") -> go.Figure:
+    """Overlay one line per region for a shared metric. Distinct brand colours,
+    a legend, and a labelled latest marker per series. Observation only — each
+    line ends at its last published value."""
+    palette = [NAVY, "#FF671D", GREEN, RED, BLUE, "#6B4E9E", "#909288"]
+    fig = go.Figure()
+    for i, (name, s) in enumerate(series_map.items()):
+        col = palette[i % len(palette)]
+        fig.add_scatter(
+            x=s.index, y=s.values, mode="lines", name=name,
+            line=dict(width=2, color=col),
+            hovertemplate=f"<b>{name}</b><br>%{{x|%b %Y}}<br>%{{y:,.2f}}<extra></extra>")
+        lx, ly = s.index[-1], float(s.values[-1])
+        fig.add_scatter(x=[lx], y=[ly], mode="markers",
+                        marker=dict(size=7, color=col), showlegend=False,
+                        hoverinfo="skip")
+    fig.update_layout(
+        title=dict(text=title, font=dict(size=13, color=TEXT, family="Lato")),
+        height=height, margin=dict(l=10, r=52, t=36 if title else 10, b=10),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="Lato", size=11, color=TEXT),
+        xaxis=dict(gridcolor=GRID, zeroline=False),
+        yaxis=dict(gridcolor=GRID, zeroline=False,
+                   title=dict(text=y_title, font=dict(size=11))),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0,
+                    font=dict(size=10)),
+    )
+    return fig
+
+
 def line_chart(series: pd.Series, title: str = "", height: int = 300,
                color: str = NAVY, y_title: str = "") -> go.Figure:
     fig = go.Figure(go.Scatter(
