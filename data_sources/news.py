@@ -563,34 +563,48 @@ def get_feed_status() -> list[dict]:
 
 
 def fuzzy_match(query: str, text: str) -> bool:
-    """Substring, prefix, or typo-tolerant word match (difflib, no deps).
-    'escom'→Eskom, 'tarrif'→tariff, 'oli'→oil, 'infl'→inflation (prefix).
+    """Typo/prefix-tolerant match with sensible precision (difflib, no deps).
 
-    Short queries (≤4 chars, e.g. 'Fed', 'CPI') are matched STRICTLY — exact
-    word or clear prefix only — because a loose similarity ratio on a 3-letter
-    term wrongly catches unrelated words ('Fed'~'feed'/'red'/'bed'), which made
-    watchlist counts overstate real matches. Longer terms keep typo tolerance.
+    Single-word queries stay forgiving: 'escom'→Eskom, 'tarrif'→tariff,
+    'infl'→inflation (prefix), 'oli'→oil (transposition). Short single words
+    (≤4 chars, e.g. 'Fed', 'CPI') match strictly — exact/prefix/same-letters
+    typo only — so 'Fed' doesn't catch 'feed'/'red'.
+
+    Multi-word queries ('rate cut', 'Fed decision') require EACH word to match
+    a WHOLE word in the text (an AND, order-independent) — no prefix bleed, so
+    'rate cut' won't fire on 'accurate cutbacks'. Longer individual words still
+    tolerate a one-letter typo; short ones must be exact.
     """
     from difflib import SequenceMatcher
     q = query.lower().strip()
     t = text.lower()
     if not q:
         return True
-    if q in t:
+    parts = q.split()
+    multi = len(parts) > 1
+    # Fast path: exact substring. Only for single-word queries — for multi-word
+    # queries a raw substring ignores word boundaries ('rate cut' would hit
+    # 'accu[rate cut]backs'), so those must go through the whole-word loop.
+    if not multi and q in t:
         return True
     words = set(re.findall(r"[a-z0-9']+", t))
-    for term in q.split():
-        if len(term) <= 4:
-            # Exact word or genuine prefix, OR a same-letters typo of equal
-            # length (transposition like 'oli'→'oil'): identical character
-            # multiset means a slip, not a different word. This admits real
-            # typos while rejecting unrelated short words ('fed'→'red'/'feed'),
-            # which a similarity ratio can't distinguish (both score ~0.67).
+    for term in parts:
+        if multi:
+            # whole-word match only; small typo tolerance for longer words
+            if len(term) <= 4:
+                ok = term in words
+            else:
+                thr = 0.8 if len(term) <= 6 else 0.85
+                ok = any(w == term or SequenceMatcher(None, term, w).ratio() >= thr
+                         for w in words if abs(len(w) - len(term)) <= 2)
+        elif len(term) <= 4:
+            # single short word: exact, prefix, or same-letters typo
             def _typo(term, w):
                 return (len(w) == len(term) and sorted(w) == sorted(term))
             ok = any(w == term or w.startswith(term) or _typo(term, w)
                      for w in words)
         else:
+            # single longer word: prefix or typo tolerance
             thr = 0.75 if len(term) <= 6 else 0.8
             ok = any(w.startswith(term) or term.startswith(w[:max(3, len(term))])
                      or SequenceMatcher(None, term, w).ratio() >= thr

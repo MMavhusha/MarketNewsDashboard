@@ -169,6 +169,14 @@ def test_fuzzy_short_query_strict():
     # longer typo tolerance still works
     assert fm("escom", "Eskom load shedding")
     assert fm("tarrif", "new tariff announced")
+    # multi-word queries: whole-word AND, order-independent, no prefix bleed
+    assert fm("rate cut", "Hungary set for another rate cut")
+    assert fm("rate cut", "the central bank will cut the rate")
+    assert not fm("rate cut", "accurate cutbacks in budget")
+    assert not fm("rate cut", "rate hike expected")
+    assert fm("Fed decision", "the Fed made a decision")
+    assert not fm("Fed decision", "Fed minutes released")
+
 
 
 def test_alert_index_cross_page():
