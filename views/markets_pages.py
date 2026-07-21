@@ -659,20 +659,44 @@ def page_regional_macro():
                        "Overlay of all regions \u00b7 pick a window below")
             _metric_compare_chart(metric, by_region)
 
-    # SA-specific series and World Bank history remain below (SA-only data that
-    # does not fit the cross-country metric frame).
+    # Central bank detail, per region. Only SARB has a rich free API (shown
+    # live in a collapsed dropdown); other central banks are linked, since
+    # their headline series already appear in the metric tabs above and there
+    # is no free per-CB release feed to reproduce here.
     st.divider()
-    ui.section("South Africa detail", "SARB series and long-run history")
-    _sa_specific_detail(promoted_sa)
-    ind_pick = st.pills("World Bank history (10y)",
-                        list(macro.WB_INDICATORS.keys()),
-                        default="GDP Growth (YoY %)", key="rm_wb_hist")
-    if ind_pick:
-        series = macro.wb_series(macro.REGIONS["South Africa"],
-                                 macro.WB_INDICATORS[ind_pick])
-        if series:
-            st.plotly_chart(
-                charts.bar_years(series, f"South Africa \u2014 {ind_pick}", y_title="%"),
-                use_container_width=True, config={"displayModeBar": False})
+    ui.section("Central bank detail",
+               "SARB releases live \u00b7 others linked to source")
+    for region in macro.REGIONS:
+        cb = macro.CENTRAL_BANKS.get(region)
+        if not cb:
+            continue
+        cb_name, cb_url = cb
+        if region == "South Africa":
+            with st.expander(f"{region} \u2014 {cb_name} live releases"):
+                _sa_specific_detail(promoted_sa)
+                ind_pick = st.pills("World Bank history (10y)",
+                                    list(macro.WB_INDICATORS.keys()),
+                                    default="GDP Growth (YoY %)", key="rm_wb_hist")
+                if ind_pick:
+                    series = macro.wb_series(macro.REGIONS["South Africa"],
+                                             macro.WB_INDICATORS[ind_pick])
+                    if series:
+                        st.plotly_chart(
+                            charts.bar_years(series, f"South Africa \u2014 {ind_pick}",
+                                             y_title="%"),
+                            use_container_width=True,
+                            config={"displayModeBar": False})
+                    else:
+                        ui.empty_state("World Bank API unreachable for this series.")
         else:
-            ui.empty_state("World Bank API unreachable for this series.")
+            st.markdown(
+                f'<div class="cb-row"><span class="cb-name">{ui.esc(region)} '
+                f'\u00b7 {ui.esc(cb_name)}</span>'
+                f'<span class="cb-note">Headline series (policy rate, 10Y, CPI) '
+                f'are in the tabs above. Full releases: '
+                f'<a href="{ui.esc(cb_url)}" target="_blank">{ui.esc(cb_url)}</a>'
+                f'</span></div>', unsafe_allow_html=True)
+    st.caption("Only SARB publishes a rich free statistics API, so its series "
+               "are shown live. Other central banks are linked to their "
+               "official statistics portals rather than reproduced, to avoid "
+               "duplicating the metric tabs or showing stand-in data.")

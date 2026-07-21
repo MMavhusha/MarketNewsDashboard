@@ -21,6 +21,20 @@ REGIONS = {
     "Japan": "JPN",
 }
 
+# Central bank per region + official statistics/release site. Only SARB exposes
+# a rich free API (surfaced live below); for the others we link to the source
+# rather than fabricate an equivalent feed — their headline series already
+# appear in the metric tabs above.
+CENTRAL_BANKS = {
+    "South Africa": ("South African Reserve Bank (SARB)", "https://www.resbank.co.za"),
+    "United States": ("US Federal Reserve", "https://www.federalreserve.gov/data.htm"),
+    "Euro Area": ("European Central Bank (ECB)", "https://data.ecb.europa.eu"),
+    "United Kingdom": ("Bank of England", "https://www.bankofengland.co.uk/statistics"),
+    "China": ("People's Bank of China (PBoC)", "http://www.pbc.gov.cn/en/3688006/index.html"),
+    "India": ("Reserve Bank of India (RBI)", "https://www.rbi.org.in/Scripts/Statistics.aspx"),
+    "Japan": ("Bank of Japan (BOJ)", "https://www.boj.or.jp/en/statistics/index.htm"),
+}
+
 WB_INDICATORS = {
     "GDP Growth (YoY %)": "NY.GDP.MKTP.KD.ZG",
     "Inflation, CPI (YoY %)": "FP.CPI.TOTL.ZG",
