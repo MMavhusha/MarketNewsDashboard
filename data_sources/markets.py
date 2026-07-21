@@ -23,8 +23,6 @@ except Exception:  # pragma: no cover
 # ---------------------------------------------------------------- config
 SUMMARY_STRIP = [
     ("S&P 500", "^GSPC", "index", "{:,.2f}"),
-    ("NASDAQ", "^IXIC", "index", "{:,.2f}"),
-    ("FTSE 100", "^FTSE", "index", "{:,.2f}"),
     ("JSE ALSI", "^J203.JO", "index", "{:,.0f}"),
     ("USD/ZAR", "USDZAR=X", "fx", "{:,.4f}"),
     ("EUR/USD", "EURUSD=X", "fx", "{:,.4f}"),
@@ -57,16 +55,14 @@ FX_MAJORS = [
 # CORE = instruments explicitly requested in the spec
 # (summary strip + the six spec commodities). EXTENDED = broader context set.
 CORE_MOVERS = [
-    ("S&P 500", "^GSPC"), ("NASDAQ", "^IXIC"), ("FTSE 100", "^FTSE"),
-    ("JSE ALSI", "^J203.JO"), ("USD/ZAR", "USDZAR=X"), ("EUR/USD", "EURUSD=X"),
+    ("S&P 500", "^GSPC"), ("JSE ALSI", "^J203.JO"),
+    ("USD/ZAR", "USDZAR=X"), ("EUR/USD", "EURUSD=X"),
     ("Gold", "GC=F"), ("Brent Crude", "BZ=F"),
     ("Iron Ore", "TIO=F"), ("Platinum", "PL=F"), ("Coal", "MTF=F"),
     ("Copper", "HG=F"),
 ]
 EXTENDED_MOVERS = [
-    ("Dow Jones", "^DJI"), ("DAX", "^GDAXI"), ("CAC 40", "^FCHI"),
-    ("Nikkei 225", "^N225"), ("Hang Seng", "^HSI"), ("Shanghai Comp", "000001.SS"),
-    ("Sensex", "^BSESN"), ("USD/JPY", "USDJPY=X"), ("GBP/USD", "GBPUSD=X"),
+    ("USD/JPY", "USDJPY=X"), ("GBP/USD", "GBPUSD=X"),
     ("USD/CNY", "USDCNY=X"), ("USD/INR", "USDINR=X"),
 ]
 
@@ -88,7 +84,7 @@ class Quote:
 
 
 # ---------------------------------------------------------------- fetch
-@st.cache_data(ttl=120, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)
 def _download_cached(tickers: tuple[str, ...], period: str = "1mo") -> pd.DataFrame:
     """Batch OHLC download. Raises on total failure so empty results are
     NOT cached — the next run retries instead of pinning a dead cache."""
@@ -156,7 +152,7 @@ def get_quotes(items: list[tuple], period: str = "1mo") -> list[Quote]:
     return out
 
 
-@st.cache_data(ttl=120, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)
 def _history_cached(ticker: str, period: str) -> pd.Series:
     df = yf.download(ticker, period=period, interval="1d",
                      auto_adjust=True, progress=False)
@@ -166,6 +162,47 @@ def _history_cached(ticker: str, period: str) -> pd.Series:
     if isinstance(s, pd.DataFrame):
         s = s.iloc[:, 0].dropna()
     return s
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _history_batch_cached(tickers: tuple[str, ...], period: str) -> dict:
+    """ONE multi-ticker download for a whole page's worth of history, instead
+    of N separate single-ticker calls. Returns {ticker: Close-series}. This is
+    the main latency win for the Commodities/Currencies return ladders, which
+    otherwise fire one network round-trip per instrument."""
+    df = yf.download(list(tickers), period=period, interval="1d",
+                     group_by="ticker", auto_adjust=True, progress=False,
+                     threads=True)
+    if not isinstance(df, pd.DataFrame) or df.empty:
+        raise RuntimeError("empty batch")
+    out = {}
+    single = len(tickers) == 1
+    for t in tickers:
+        try:
+            s = df["Close"] if single else df[t]["Close"]
+            s = s.dropna()
+            if isinstance(s, pd.DataFrame):
+                s = s.iloc[:, 0].dropna()
+            if len(s):
+                out[t] = s
+        except Exception:
+            continue
+    if not out:
+        raise RuntimeError("no series")
+    return out
+
+
+def get_history_batch(tickers: list[str], period: str = "1y") -> dict:
+    """Batched history for many tickers in one call. Falls back to an empty
+    dict on total failure (callers treat missing tickers as n/a)."""
+    if yf is None or not tickers:
+        return {}
+    from data_sources import obs
+    try:
+        with obs.track(f"yfinance history batch · {len(tickers)} tickers · {period}"):
+            return _history_batch_cached(tuple(tickers), period)
+    except Exception:
+        return {}
 
 
 def get_history(ticker: str, period: str = "1y") -> pd.Series:
@@ -182,7 +219,7 @@ def get_history(ticker: str, period: str = "1y") -> pd.Series:
 SUMMARY_PRIMARY = ["JSE ALSI", "USD/ZAR", "S&P 500", "EUR/USD", "Gold", "Brent Crude"]
 
 SUMMARY_SUBTITLES = {
-    "S&P 500": "US large cap", "NASDAQ": "US tech", "FTSE 100": "UK large cap",
+    "S&P 500": "US large cap",
     "JSE ALSI": "FTSE/JSE All Share", "USD/ZAR": "Rand per US Dollar",
     "EUR/USD": "Euro vs Dollar", "Gold": "USD per ounce",
     "Brent Crude": "USD per barrel",
@@ -327,7 +364,7 @@ def clear_caches():
         pass
 
 
-@st.cache_data(ttl=120, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)
 def _intraday_cached(tickers: tuple[str, ...]) -> pd.DataFrame:
     df = yf.download(list(tickers), period="2d", interval="15m",
                      group_by="ticker", auto_adjust=True, progress=False,

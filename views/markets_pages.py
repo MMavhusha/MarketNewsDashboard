@@ -106,10 +106,13 @@ def _pct_back(s, days):
 
 def _fx_returns(quotes):
     """{pair: {window: %}} from published daily closes. 1D uses the quote's
-    change vs prior close for consistency with every other page."""
+    change vs prior close for consistency with every other page. Histories are
+    fetched in ONE batched call rather than per-pair."""
+    hist = markets.get_history_batch([q.ticker for q in quotes], "2y")
     out = {}
     for q in quotes:
-        s = _fx_series(q.ticker)
+        s = hist.get(q.ticker)
+        s = s if s is not None and len(s) > 2 else None
         ytd = None
         if s is not None:
             prior = s[s.index.year < s.index[-1].year]

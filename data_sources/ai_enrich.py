@@ -28,8 +28,7 @@ _REG = {"South Africa", "United States", "Euro Area", "United Kingdom",
         "China", "India", "Japan", "Global"}
 _AST = {"Equities", "Rates & Bonds", "FX", "Commodities", "Macro"}
 _INSTR = {"Oil", "Gold", "Copper", "Platinum", "Iron Ore", "Coal",
-          "USD/ZAR", "EUR/USD", "USD/JPY", "S&P 500",
-          "NASDAQ", "FTSE 100", "JSE ALSI"}
+          "USD/ZAR", "EUR/USD", "USD/JPY", "S&P 500", "JSE ALSI"}
 
 
 def _secret(name: str) -> str | None:
@@ -126,7 +125,7 @@ def _prompt(headlines, hero: bool, themes: str = "") -> str:
         "MATERIALLY about — judge from context, not word presence; a story "
         "can be about several. Choose only from: Oil, Gold, Copper, "
         "Platinum, Iron Ore, Coal, USD/ZAR, EUR/USD, USD/JPY, "
-        "S&P 500, NASDAQ, FTSE 100, JSE ALSI), tags (0-2 SHORT lowercase "
+        "S&P 500, JSE ALSI), tags (0-2 SHORT lowercase "
         "topic labels capturing what the story is really about for a PM — "
         "e.g. 'rate decision', 'earnings', 'sanctions', 'election', "
         "'m&a', 'opinion'; omit if nothing material, and NEVER tag a "

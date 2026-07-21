@@ -12,12 +12,12 @@ from data_sources import app_state, calendar_data, markets, news
 
 
 # ------------------------------------------------------------ shared bits
-@st.fragment(run_every=120)
+@st.fragment(run_every=300)
 def render_summary_strip():
-    """Auto-refreshes itself every 2 minutes (fragment rerun): the shared
-    server-side cache (TTL 120s) means all users together cost roughly one
+    """Auto-refreshes itself every 5 minutes (fragment rerun): the shared
+    server-side cache (TTL 300s) means all users together cost roughly one
     Yahoo batch request per cycle — safe for an unofficial rate-limited
-    source."""
+    source, and fewer refreshes means snappier navigation."""
     quotes = markets.get_summary_strip()
     r1, r2 = st.columns([2, 1])
     with r1:
@@ -61,7 +61,7 @@ def render_summary_strip():
                     tag = "1M"
                 ui.summary_row(q, fig, key=f"spark_{mode[:3]}_{period[:2]}_{q.ticker}",
                                period=tag)
-    tail = (f"Auto-refreshes every 2 minutes · updated {markets.last_refresh()} · "
+    tail = (f"Auto-refreshes every 5 minutes · updated {markets.last_refresh()} · "
             "source prices may be delayed up to ~15 min by the exchange")
     if intraday_mode:
         extra = (f" · no intraday session right now for "

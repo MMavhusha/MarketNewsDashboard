@@ -15,7 +15,7 @@ from __future__ import annotations
 
 # figure key -> (canonical source, where it is shown, note on why / how dups avoided)
 CANONICAL = {
-    # ---- Prices (single owner: yfinance, shared 120s cache) ----
+    # ---- Prices (single owner: yfinance, shared 300s cache) ----
     "gold_price": ("yfinance GC=F", "Commodities",
                    "One yfinance download cache feeds strip, Commodities and "
                    "movers, so the price is identical everywhere. SARB gold "

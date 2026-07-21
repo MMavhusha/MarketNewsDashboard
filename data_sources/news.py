@@ -79,8 +79,6 @@ _INSTRUMENTS = {
     "EUR/USD": ["eurusd"],
     "USD/JPY": ["usdjpy"],
     "S&P 500": ["s&p 500", "s&p"],
-    "NASDAQ": ["nasdaq"],
-    "FTSE 100": ["ftse"],
     "JSE ALSI": ["jse", "alsi"],
 }
 
