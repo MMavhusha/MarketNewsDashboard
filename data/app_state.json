@@ -1,7 +1,8 @@
 {
  "watchlist": [
   "Copper (COMEX conv., $/t)",
-  "Gold Spot (COMEX proxy)"
+  "Gold Spot (COMEX proxy)",
+  "WTI Crude Oil"
  ],
  "alert_thresholds": null,
  "saved_articles": [],
