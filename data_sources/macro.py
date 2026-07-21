@@ -83,38 +83,42 @@ def wb_latest_matrix() -> dict:
 
 
 # ---------------------------------------------------------- SA BoP context
-# Structural mapping of South Africa's main commodity trade exposures. The
-# price moves shown alongside are LIVE data; everything here is well-documented
-# structural context. The `share` strings are INDICATIVE magnitudes from
-# published SARS/SARB trade composition (there is no free per-commodity BoP
-# API — these are approximate, for interpretation only, not live figures).
-# Fields: (name, ticker, side, role_note, share_note, effect_up)
-#   effect_up = what a PRICE RISE does to SA's external position.
+# Structural mapping of South Africa's main commodity trade exposures. Price
+# moves shown alongside are LIVE; the trade values here are REAL published
+# figures from the OEC 2024 SA trade profile (oec.world), cross-checked against
+# World Bank WITS commodity-chapter data. They are ANNUAL, VALUE-BASED (USD).
+# There is no free per-commodity, per-period API — customs data is monthly PDF
+# only — but shares change slowly, so an annual structural figure is the right
+# tool for "is this big enough to move the BoP".
+#
+# We store the commodity's trade value and the relevant total, and DERIVE the
+# percentage from them at render time, so the displayed share always reconciles
+# with the two values the user can see (value / total = %). This makes the
+# figure self-checking rather than a separate number that could drift.
+#
+# SA_TRADE_TOTALS_2024: denominators (USD bn, OEC 2024 / WITS).
+SA_TRADE_TOTALS_2024 = {"exports": 151.0, "imports": 107.0}
+# Fields: (name, ticker, side, role_note, value_usd_bn, value_label, band)
+#   value_usd_bn = None where only a chapter-level figure exists (shown as text).
 SA_BOP_EXPOSURES = [
     ("Platinum", "PL=F", "Export",
-     "PGMs (platinum, palladium, rhodium) are among SA's largest merchandise export earners.",
-     "PGM group \u2248 12-18% of merchandise exports (indicative, SARS composition)",
-     "improves the trade surplus and tends to support the rand"),
+     "PGMs (platinum, palladium, rhodium) — SA supplies the majority of world PGM output.",
+     15.8, "platinum line; PGM group larger", "Major"),
     ("Gold", "GC=F", "Export",
-     "A major export; SA is a significant producer and gold rallies lift export receipts.",
-     "Gold \u2248 12-16% of merchandise exports (indicative)",
-     "raises export receipts, supporting the current account and the rand"),
+     "SA's single largest export line by value; a major source of foreign receipts.",
+     29.0, None, "Major"),
     ("Coal", "MTF=F", "Export",
      "Key bulk export shipped mainly via Richards Bay Coal Terminal.",
-     "Coal \u2248 4-7% of merchandise exports (indicative)",
-     "lifts bulk export revenue, a modest current-account positive"),
+     7.75, None, "Moderate"),
     ("Iron Ore", "TIO=F", "Export",
-     "Significant bulk export; earnings are highly sensitive to Chinese steel demand.",
-     "Iron ore \u2248 4-6% of merchandise exports (indicative)",
-     "increases export revenue; a China-demand-driven price fall does the reverse"),
+     "Significant bulk export; earnings highly sensitive to Chinese steel demand.",
+     6.69, None, "Moderate"),
     ("Copper", "HG=F", "Export",
-     "Smaller direct SA export, but a bellwether for the broader resource basket and risk appetite.",
-     "Small direct share; read as a resource-sector signal",
-     "signals resource-sector strength; limited direct BoP effect on its own"),
+     "Not a top-10 SA export line; read as a resource-sector / risk-appetite bellwether.",
+     None, "not a top-10 export line (<$1.5bn)", "Minor"),
     ("Brent Crude Oil", "BZ=F", "Import",
-     "SA imports nearly all of its crude oil, so oil is the dominant commodity IMPORT.",
-     "Crude + refined petroleum among the largest single import lines (indicative)",
-     "widens the import bill, pressuring the trade balance and the current account"),
+     "SA imports nearly all its crude oil; mineral fuels are the dominant import group.",
+     22.0, "mineral fuels chapter; crude the largest single line", "Major"),
 ]
 
 

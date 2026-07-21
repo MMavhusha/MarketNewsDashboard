@@ -588,3 +588,12 @@ div[data-testid="stPills"] button:focus-visible {
 .bop-read { color:#212322; font-size:12.5px; margin-top:5px; font-weight:600;
   line-height:1.45; }
 .bop-share { color:#909288; font-size:11px; margin-top:6px; font-style:italic; }
+/* BoP card: impact band + weight bar */
+.bop-band { font-size:10px; font-weight:700; letter-spacing:.3px;
+  border:1px solid; border-radius:4px; padding:0 7px; margin-left:8px;
+  vertical-align:1px; text-transform:uppercase; }
+.bop-weightbar { height:5px; background:#EEF0F1; border-radius:3px;
+  overflow:hidden; margin:9px 0 5px 0; }
+.bop-weightbar > span { display:block; height:100%; border-radius:3px; }
+.bop-calc { color:#4C4D52; font-size:12px; }
+.bop-calc b { color:#212322; }

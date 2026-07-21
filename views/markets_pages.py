@@ -74,13 +74,13 @@ def page_commodities():
 
     ui.section("Impact on South Africa's Balance of Payments",
                "Structural trade exposure × price move over the chosen window")
-    st.caption("How to read this: each commodity is an export earner or an "
-               "import cost for SA. A price move changes the trade balance in "
-               "the direction shown \u2014 the arrow tells you whether the "
-               "latest move is currently helping or hurting the external "
-               "position. Share figures are indicative structural magnitudes "
-               "from published SARS/SARB trade composition (no free "
-               "per-commodity series exists); the price moves are live.")
+    st.caption("How to read this: each row shows the commodity's annual trade "
+               "value \u00f7 SA's total merchandise trade = its share, so you "
+               "can verify the percentage directly. The band and bar flag "
+               "whether a price move is big enough to matter (Major) or largely "
+               "noise (Minor). Values are annual USD from the OEC 2024 SA trade "
+               "profile / World Bank WITS (no free per-commodity live series "
+               "exists); price moves are live.")
 
     win = st.pills("Price-move window", ["1D", "1M", "3M", "12M"],
                    default="1M", key="bop_win", label_visibility="collapsed") or "1M"
@@ -91,15 +91,14 @@ def page_commodities():
     tickers = [tk for _n, tk, *_ in macro.SA_BOP_EXPOSURES]
     hist = markets.get_history_batch(tickers, "2y")
 
-    for name, tk, side, role, share, _effect in macro.SA_BOP_EXPOSURES:
+    totals = macro.SA_TRADE_TOTALS_2024
+    for name, tk, side, role, val_bn, val_note, band in macro.SA_BOP_EXPOSURES:
         x = live.get(name) or live.get(alias.get(name, ""))
         s = hist.get(tk)
-        # period-aware move
         if win == "1D":
             mv = x.change_pct if (x and x.ok) else None
         else:
             mv = _pct_back(s, _win_days) if s is not None else None
-        # direction-aware plain-language read of what the move means NOW
         if mv is None:
             move_html = '<span style="color:#909288;">n/a</span>'
             read = "price move unavailable for this window."
@@ -110,27 +109,49 @@ def page_commodities():
             if abs(mv) < 0.05:
                 read = "broadly flat over this window \u2014 little BoP impact."
             elif side == "Export":
-                # export price up = good for BoP; down = bad
                 effect = ("supports the trade surplus and the rand" if up
                           else "weighs on export receipts and the rand")
                 read = (f"{arrow} as an export, a {'higher' if up else 'lower'} "
                         f"price {effect}.")
-            else:  # Import
-                # import price up = bad for BoP; down = good
+            else:
                 effect = ("widens the import bill, pressuring the current account"
                           if up else
                           "eases the import bill, a current-account positive")
                 read = (f"{arrow} as an import, a {'higher' if up else 'lower'} "
                         f"price {effect}.")
         kind = "green" if side == "Export" else "red"
+        band_col = {"Major": "#B0212C", "Moderate": "#C77D0A",
+                    "Minor": "#909288"}[band]
+
+        # Verifiable share breakdown: value / total = derived %. The % is
+        # computed here from the two displayed values, so it always reconciles.
+        total_bn = totals["exports"] if side == "Export" else totals["imports"]
+        denom_lbl = "exports" if side == "Export" else "imports"
+        if val_bn is not None:
+            share = val_bn / total_bn * 100
+            note = f" ({val_note})" if val_note else ""
+            breakdown = (
+                f'<span class="bop-calc"><b>${val_bn:,.1f}bn</b>{ui.esc(note)} '
+                f'\u00f7 ${total_bn:,.0f}bn total {denom_lbl} '
+                f'= <b>{share:.1f}%</b></span>')
+            bar_w = min(100, (share / 20.0) * 100)
+        else:
+            breakdown = (f'<span class="bop-calc">{ui.esc(val_note or "")} '
+                         f'of ${total_bn:,.0f}bn total {denom_lbl}</span>')
+            bar_w = 3
         st.markdown(
             f'<div class="bop-card">'
             f'<div class="bop-top"><span class="bop-name">{ui.esc(name)}</span>'
-            f'{ui.badge(side, kind)}<span class="bop-move">{move_html} '
+            f'{ui.badge(side, kind)}'
+            f'<span class="bop-band" style="color:{band_col};border-color:{band_col};">'
+            f'{band} · BoP weight</span>'
+            f'<span class="bop-move">{move_html} '
             f'<span class="bop-win">{win}</span></span></div>'
+            f'<div class="bop-weightbar"><span style="width:{bar_w:.0f}%;'
+            f'background:{band_col};"></span></div>'
+            f'<div class="bop-share">{breakdown}</div>'
             f'<div class="bop-role">{ui.esc(role)}</div>'
             f'<div class="bop-read">{ui.esc(read)}</div>'
-            f'<div class="bop-share">{ui.esc(share)}</div>'
             f'</div>', unsafe_allow_html=True)
     ui.legend("Direction of BoP effect is structural (export vs import); the "
               "magnitude of any actual current-account impact also depends on "
@@ -291,11 +312,6 @@ def _hist_deltas(s, days=(30, 91, 365)):
     return tuple(out)
 
 
-def _fx_series(ticker):
-    h = markets.get_history(ticker, "2y")
-    return h if len(h) > 2 else None
-
-
 def _period_month(s):
     return s.index[-1].strftime("%b %Y") if s is not None and len(s) else "—"
 
@@ -440,16 +456,8 @@ def _region_rows(region, matrix):
         add("10Y Government Yield (%)", None, "{:,.2f}",
             _PENDING["10Y Government Yield (%)"], "—")
 
-    # FX vs USD (full history free via yfinance for every region)
-    fx_name, fx_tk = macro.REGION_FX[region]
-    s = _fx_series(fx_tk)
-    q = markets.get_quotes([(fx_name, fx_tk)])[0]
-    fx_rel = (s.index[-1].strftime("%d %b %Y") if s is not None
-              else (q.asof or "—"))
-    add(f"FX — {fx_name}", float(s.iloc[-1]) if s is not None
-        else (float(q.price) if q.ok else None),
-        "{:,.4f}", "yfinance (daily close)", fx_rel, s, release=fx_rel,
-        metric="FX (vs USD)")
+    # FX is intentionally NOT a Regional Macro metric — the Currencies page
+    # carries every pair with a full detail panel and return ladder.
 
     # PMI (no free source — proprietary press releases)
     add("Manufacturing PMI", None, "{:,.1f}", _PENDING["Manufacturing PMI"], "—")
@@ -613,7 +621,6 @@ def page_regional_macro():
         "Policy Rate (%)": "Policy Rate",
         "Unemployment Rate (%)": "Unemployment",
         "10Y Government Yield (%)": "10Y Yield",
-        "FX (vs USD)": "FX",
         "Manufacturing PMI": "PMI",
     }
     short_labels = [label_map.get(m, m) for m in metric_order]
