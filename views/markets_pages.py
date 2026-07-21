@@ -499,24 +499,49 @@ def _metric_grid(metric, by_region):
 
 
 def _metric_compare_chart(metric, by_region):
-    """3-year overlay of the chosen metric across regions that have history."""
-    series = {}
+    """Country-overlay of the chosen metric, rescalable to a selected window
+    (1M/6M/12M/2Y/3Y). Each country is a line; the window trims every series to
+    the same date cutoff so they stay comparable."""
+    import pandas as pd
+    series_full = {}
     for region in macro.REGIONS:
         r = by_region.get(region, {}).get(metric)
         if r is not None and r["hist"] is not None and len(r["hist"]) > 2:
-            series[region] = r["hist"]
-    if not series:
-        ui.empty_state(f"{metric}: 3-year history source pending for all "
-                       "regions — deltas and overlay fill as free sources land.")
+            series_full[region] = r["hist"]
+    if not series_full:
+        ui.empty_state(f"{metric}: history source pending for all regions "
+                       "\u2014 the overlay fills as free sources land.")
         return
+
+    win = st.pills("Comparison window", ["1M", "6M", "12M", "2Y", "3Y"],
+                   default="12M", key=f"cmp_win_{metric}",
+                   label_visibility="collapsed") or "12M"
+    _days = {"1M": 30, "6M": 182, "12M": 365, "2Y": 730, "3Y": 1095}[win]
+
+    # Trim each series to the window by date cutoff (works for monthly and
+    # daily series alike). Keep a series only if it still has >1 point in-window.
+    series = {}
+    for name, s in series_full.items():
+        cutoff = s.index[-1] - pd.Timedelta(days=_days)
+        w = s[s.index >= cutoff]
+        if len(w) > 1:
+            series[name] = w
+    if not series:
+        ui.empty_state(f"No region has enough history for a {win} overlay of "
+                       f"{metric}. Try a longer window.")
+        return
+
     unit = "%" if "%" in metric else ""
     st.plotly_chart(
-        charts.pack_multi_history(series, metric, height=300, y_title=unit),
+        charts.pack_multi_history(series, f"{metric} \u2014 last {win}",
+                                  height=300, y_title=unit),
         use_container_width=True, config={"displayModeBar": False})
+    notes = []
     if len(series) < len(macro.REGIONS):
         missing = [r for r in macro.REGIONS if r not in series]
-        st.caption("History available for: " + ", ".join(series.keys())
-                   + ". Pending for: " + ", ".join(missing) + ".")
+        notes.append("no in-window history for: " + ", ".join(missing))
+    st.caption(("Overlay of " + ", ".join(series.keys()) + " over the last "
+                + win + (". " + notes[0] if notes else ".")))
 
 
 def _sa_specific_detail(promoted):
@@ -630,7 +655,8 @@ def page_regional_macro():
                       "\u00b7 \u0394 in the indicator's own units, arithmetic "
                       "on published observations \u00b7 n/a = source pending "
                       "(BIS / Eurostat / Bundesbank queued)")
-            ui.section("3-year comparison", "History where a free source exists")
+            ui.section("Cross-country comparison",
+                       "Overlay of all regions \u00b7 pick a window below")
             _metric_compare_chart(metric, by_region)
 
     # SA-specific series and World Bank history remain below (SA-only data that
