@@ -455,8 +455,17 @@ def _team_alert_thresholds():
                  + (" and saved for the team." if app_state.enabled() else "."))
         st.rerun()
     if b2.button("Reset to defaults"):
+        # Clearing alert_thresholds isn't enough: each slider holds its own
+        # widget state under thr_w_*/thr_c_*, which survives the rerun and
+        # snaps the sliders back to the dragged values. Pop those too so the
+        # sliders re-initialise from DEFAULT_THRESHOLDS.
         st.session_state.pop("alert_thresholds", None)
+        for k in labels:
+            st.session_state.pop(f"thr_w_{k}", None)
+            st.session_state.pop(f"thr_c_{k}", None)
         app_state.persist("reset alert thresholds")
+        st.toast("Alert thresholds reset to defaults"
+                 + (" and saved for the team." if app_state.enabled() else "."))
         st.rerun()
 
 
