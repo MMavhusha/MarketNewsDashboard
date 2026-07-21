@@ -6,6 +6,11 @@
   "Iron Ore 62% Fe CFR (CME TSI)"
  ],
  "alert_thresholds": null,
- "saved_articles": [],
+ "saved_articles": [
+  {
+   "title": "Climbing interest rates reshape Japan’s corporate bond market",
+   "link": "https://news.google.com/rss/articles/CBMikAFBVV95cUxQYnZJUzRHdW5Na2x4QzB4Rk1UWVdrRi11VUNOY19hX1FMdXBZczFJNW5Ja0VCQy02dG9tTkkxOUpzWWlxN29PdVRQU3FDMGhvRDRjcDFFLWFGV1IyTlZRQTE4U2NlS2RCVkRWLTFPYkotSVNQQVlGbndzUTNhbm0yZ2tVRjJmUHNkS0tsWlJ6cWc?oc=5"
+  }
+ ],
  "news_watch_keywords": []
 }
