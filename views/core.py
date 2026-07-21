@@ -305,19 +305,29 @@ def page_market_news():
     admin = st.session_state.get("_admin_ok")
     if admin:
         n_ai = sum(1 for it in view if it.get("_ai"))
+        n_rules = len(view) - n_ai
         try:
             from data_sources import ai_enrich
             prov = ai_enrich.provider_label()
         except Exception:
             prov = "off"
-        ui.legend(f"Admin · model-primary classification via {prov} · "
-                  f"{n_ai} of {len(view)} visible stories were model-"
-                  f"classified (marked ✦); the rest fell back to rules")
+        if n_rules:
+            tail = (f"{n_rules} of {len(view)} visible stories fell back to "
+                    f"rules (marked \u2699) \u2014 check why the model missed them")
+        else:
+            tail = (f"all {len(view)} visible stories were model-classified "
+                    f"\u2014 no rules fallbacks")
+        ui.legend(f"Admin · model-primary classification via {prov} · {tail}")
     for idx, item in enumerate(view[:30]):
         if kw and any(_wl.matches_news(item, k) for k in kw):
             item = {**item, "title": "⚑ " + item["title"]}
-        if admin and item.get("_ai"):
-            item = {**item, "title": item["title"] + " ✦"}
+        if admin and not item.get("_ai"):
+            # Admin diagnostic: mark the EXCEPTIONS — stories that fell back to
+            # the rules engine because the model didn't classify them. A clean
+            # feed shows no marks; any ⚙ is a genuine "check why AI missed this"
+            # signal, which is more useful than starring the near-universal
+            # model-classified majority.
+            item = {**item, "title": item["title"] + " \u2699"}
         c1, c2 = st.columns([12, 1])
         with c1:
             ui.news_card(item, news.fmt_time(item["published"]))
