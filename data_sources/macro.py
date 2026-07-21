@@ -83,17 +83,38 @@ def wb_latest_matrix() -> dict:
 
 
 # ---------------------------------------------------------- SA BoP context
-# Qualitative mapping of South Africa's main trade exposures (structural,
-# well-documented composition of SA trade: PGMs, gold, coal, iron ore as key
-# exports; crude oil as the dominant commodity import). Displayed alongside
-# live prices — the price moves are data; the exposure mapping is context.
+# Structural mapping of South Africa's main commodity trade exposures. The
+# price moves shown alongside are LIVE data; everything here is well-documented
+# structural context. The `share` strings are INDICATIVE magnitudes from
+# published SARS/SARB trade composition (there is no free per-commodity BoP
+# API — these are approximate, for interpretation only, not live figures).
+# Fields: (name, ticker, side, role_note, share_note, effect_up)
+#   effect_up = what a PRICE RISE does to SA's external position.
 SA_BOP_EXPOSURES = [
-    ("Platinum", "PL=F", "Export", "PGMs are among SA's largest export earners; higher prices support the trade balance."),
-    ("Gold", "GC=F", "Export", "A major export; rallies typically improve export receipts and support the rand."),
-    ("Coal", "MTF=F", "Export", "Key bulk export (Richards Bay); price strength lifts export revenue."),
-    ("Iron Ore", "TIO=F", "Export", "Significant bulk export; sensitive to Chinese steel demand."),
-    ("Copper", "HG=F", "Export", "Smaller direct exposure but a bellwether for the broader resource basket."),
-    ("Brent Crude Oil", "BZ=F", "Import", "SA imports nearly all crude; higher Brent widens the import bill and pressures the current account."),
+    ("Platinum", "PL=F", "Export",
+     "PGMs (platinum, palladium, rhodium) are among SA's largest merchandise export earners.",
+     "PGM group \u2248 12-18% of merchandise exports (indicative, SARS composition)",
+     "improves the trade surplus and tends to support the rand"),
+    ("Gold", "GC=F", "Export",
+     "A major export; SA is a significant producer and gold rallies lift export receipts.",
+     "Gold \u2248 12-16% of merchandise exports (indicative)",
+     "raises export receipts, supporting the current account and the rand"),
+    ("Coal", "MTF=F", "Export",
+     "Key bulk export shipped mainly via Richards Bay Coal Terminal.",
+     "Coal \u2248 4-7% of merchandise exports (indicative)",
+     "lifts bulk export revenue, a modest current-account positive"),
+    ("Iron Ore", "TIO=F", "Export",
+     "Significant bulk export; earnings are highly sensitive to Chinese steel demand.",
+     "Iron ore \u2248 4-6% of merchandise exports (indicative)",
+     "increases export revenue; a China-demand-driven price fall does the reverse"),
+    ("Copper", "HG=F", "Export",
+     "Smaller direct SA export, but a bellwether for the broader resource basket and risk appetite.",
+     "Small direct share; read as a resource-sector signal",
+     "signals resource-sector strength; limited direct BoP effect on its own"),
+    ("Brent Crude Oil", "BZ=F", "Import",
+     "SA imports nearly all of its crude oil, so oil is the dominant commodity IMPORT.",
+     "Crude + refined petroleum among the largest single import lines (indicative)",
+     "widens the import bill, pressuring the trade balance and the current account"),
 ]
 
 

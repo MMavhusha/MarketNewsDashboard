@@ -73,24 +73,68 @@ def page_commodities():
     _detail_panel(q, units.get(pick, ""), key="cmd_chart")
 
     ui.section("Impact on South Africa's Balance of Payments",
-               "Structural trade exposure × latest price moves")
-    st.caption("Exposure mapping reflects the well-documented composition of SA trade "
-               "(PGMs, gold, coal and iron ore as key exports; crude oil as the "
-               "dominant commodity import). Net BoP effect in a given period depends "
-               "on volumes and the rand.")
+               "Structural trade exposure × price move over the chosen window")
+    st.caption("How to read this: each commodity is an export earner or an "
+               "import cost for SA. A price move changes the trade balance in "
+               "the direction shown \u2014 the arrow tells you whether the "
+               "latest move is currently helping or hurting the external "
+               "position. Share figures are indicative structural magnitudes "
+               "from published SARS/SARB trade composition (no free "
+               "per-commodity series exists); the price moves are live.")
+
+    win = st.pills("Price-move window", ["1D", "1M", "3M", "12M"],
+                   default="1M", key="bop_win", label_visibility="collapsed") or "1M"
+    _win_days = {"1D": 1, "1M": 30, "3M": 91, "12M": 365}[win]
+
     live = {x.name: x for x in quotes}
     alias = {"Iron Ore": "Iron Ore (CME TSI)", "Coal": "Coal (Newcastle proxy)"}
-    for name, tk, side, note in macro.SA_BOP_EXPOSURES:
+    tickers = [tk for _n, tk, *_ in macro.SA_BOP_EXPOSURES]
+    hist = markets.get_history_batch(tickers, "2y")
+
+    for name, tk, side, role, share, _effect in macro.SA_BOP_EXPOSURES:
         x = live.get(name) or live.get(alias.get(name, ""))
-        chg = (f'<span class="num {ui.chg_cls(x.change_pct)}">{x.change_pct:+.2f}%</span>'
-               if x and x.ok and x.change_pct is not None
-               else '<span style="color:#909288;">n/a</span>')
+        s = hist.get(tk)
+        # period-aware move
+        if win == "1D":
+            mv = x.change_pct if (x and x.ok) else None
+        else:
+            mv = _pct_back(s, _win_days) if s is not None else None
+        # direction-aware plain-language read of what the move means NOW
+        if mv is None:
+            move_html = '<span style="color:#909288;">n/a</span>'
+            read = "price move unavailable for this window."
+        else:
+            move_html = f'<span class="num {ui.chg_cls(mv)}">{mv:+.2f}%</span>'
+            up = mv > 0
+            arrow = "\u25b2" if up else "\u25bc" if mv < 0 else "\u25ac"
+            if abs(mv) < 0.05:
+                read = "broadly flat over this window \u2014 little BoP impact."
+            elif side == "Export":
+                # export price up = good for BoP; down = bad
+                effect = ("supports the trade surplus and the rand" if up
+                          else "weighs on export receipts and the rand")
+                read = (f"{arrow} as an export, a {'higher' if up else 'lower'} "
+                        f"price {effect}.")
+            else:  # Import
+                # import price up = bad for BoP; down = good
+                effect = ("widens the import bill, pressuring the current account"
+                          if up else
+                          "eases the import bill, a current-account positive")
+                read = (f"{arrow} as an import, a {'higher' if up else 'lower'} "
+                        f"price {effect}.")
         kind = "green" if side == "Export" else "red"
         st.markdown(
-            f'<div class="cal-row"><span class="cty">{ui.esc(name)}</span>'
-            f'<span class="ev">{ui.badge(side, kind)} {ui.esc(note)}</span>'
-            f'<span class="cal-val">{chg}</span></div>',
-            unsafe_allow_html=True)
+            f'<div class="bop-card">'
+            f'<div class="bop-top"><span class="bop-name">{ui.esc(name)}</span>'
+            f'{ui.badge(side, kind)}<span class="bop-move">{move_html} '
+            f'<span class="bop-win">{win}</span></span></div>'
+            f'<div class="bop-role">{ui.esc(role)}</div>'
+            f'<div class="bop-read">{ui.esc(read)}</div>'
+            f'<div class="bop-share">{ui.esc(share)}</div>'
+            f'</div>', unsafe_allow_html=True)
+    ui.legend("Direction of BoP effect is structural (export vs import); the "
+              "magnitude of any actual current-account impact also depends on "
+              "traded volumes and the USD/ZAR rate, which are not modelled here.")
 
 
 _FX_WINDOWS = ["1D", "1W", "1M", "6M", "YTD"]
