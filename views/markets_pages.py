@@ -407,17 +407,6 @@ def _region_rows(region, matrix):
         "{:,.4f}", "yfinance (daily close)", fx_rel, s, release=fx_rel,
         metric="FX (vs USD)")
 
-    # Signature commodity (3Y history, free proxy) — chart lives in the panel
-    cname, ctk, cunit, cmult = macro.REGION_COMMODITY[region]
-    ch = markets.get_history(ctk, "3y")
-    cs = (ch * cmult if cmult != 1.0 else ch) if len(ch) > 2 else None
-    add(f"Commodity — {cname}",
-        float(cs.iloc[-1]) if cs is not None else None,
-        "{:,.2f}", f"yfinance · {cunit}",
-        cs.index[-1].strftime("%d %b %Y") if cs is not None else "—", cs,
-        release=cs.index[-1].strftime("%d %b %Y") if cs is not None else "—",
-        metric="Commodity (signature)")
-
     # PMI (no free source — proprietary press releases)
     add("Manufacturing PMI", None, "{:,.1f}", _PENDING["Manufacturing PMI"], "—")
     return rows, promoted
@@ -581,7 +570,6 @@ def page_regional_macro():
         "Unemployment Rate (%)": "Unemployment",
         "10Y Government Yield (%)": "10Y Yield",
         "FX (vs USD)": "FX",
-        "Commodity (signature)": "Commodity",
         "Manufacturing PMI": "PMI",
     }
     short_labels = [label_map.get(m, m) for m in metric_order]

@@ -695,7 +695,7 @@ def _admin_secrets_and_cache():
             st.rerun()
     with c2:
         st.caption("Cache TTLs \u2014 markets 5 min \u00b7 news 15 min \u00b7 "
-                   "announcements 30 min \u00b7 calendar 60 min \u00b7 macro 24 h.")
+                   "calendar 60 min \u00b7 macro 24 h.")
 
 
 def page_settings():

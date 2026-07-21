@@ -35,8 +35,6 @@ PAGES = {
                  "Scheduled economic releases and market holidays"),
     "Market News": ("newspaper", core.page_market_news,
                     "Wire coverage with sentiment and importance · This-week view"),
-    "Announcements": ("megaphone", core.page_announcements,
-                              "Dividends · leadership · earnings · M&A · capital actions"),
     "Currencies": ("currency-exchange", markets_pages.page_currencies,
                    "Majors vs USD · select a pair for its full panel"),
     "Commodities": ("minecart-loaded", markets_pages.page_commodities,
@@ -100,7 +98,7 @@ def sidebar() -> str:
     return choice
 
 
-PAGE_TITLES = {"Announcements": "Company Announcements"}
+PAGE_TITLES = {}
 
 
 def topbar(page: str):

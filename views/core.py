@@ -1,5 +1,4 @@
-"""Core pages: Executive Summary, Market News, Shock Alerts,
-Company Announcements, Economic Calendar."""
+"""Core pages: Executive Summary, Market News, Alerts, Economic Calendar."""
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
@@ -362,70 +361,6 @@ def _wire_sentiment(asset_class: str) -> str:
     return (f'Wire sentiment for {asset_class} stories: '
             f'{counts["Negative"]} negative · {counts["Positive"]} positive · '
             f'{counts["Neutral"]} neutral (observed coverage, not a forecast)')
-
-
-# ------------------------------------------------------------ announcements
-
-def page_announcements():
-    ann = news.get_announcements()
-    if not ann:
-        ui.empty_state("Announcement feeds unreachable. A SENS/Bloomberg corporate "
-                       "actions wire can replace this source in future.")
-        return
-    cats = sorted({a["category"] for a in ann})
-    cc1, cc2 = st.columns([2.4, 1])
-    with cc1:
-        pick = st.pills("Category", ["All"] + cats, default="All", key="ann_cat",
-                        label_visibility="collapsed") or "All"
-    company = cc2.text_input("Company", key="ann_co",
-                             placeholder="Search company or keyword",
-                             label_visibility="collapsed")
-    view = ann if pick == "All" else [a for a in ann if a["category"] == pick]
-    if company:
-        view = [a for a in view
-                if news.fuzzy_match(company,
-                                    a["title"] + " " + (a.get("source") or ""))]
-    now = datetime.now(timezone.utc)
-    view = sorted(view, key=lambda a: a["published"] or now - timedelta(days=30),
-                  reverse=True)
-
-    def row(a):
-        st.markdown(
-            f'''<div class="ann-row">{ui.badge(a["category"], "blue")}
-            <span class="a-t"><a href="{ui.esc(a["link"])}" target="_blank"
-            title="{ui.esc(a["title"])}">{ui.esc(a["title"])}</a></span>
-            <span class="a-m">{ui.esc(a.get("source") or "Wire")} ·
-            {ui.esc(news.fmt_time(a["published"]))}</span></div>''',
-            unsafe_allow_html=True)
-
-    from itertools import groupby
-    sast = ZoneInfo("Africa/Johannesburg")
-
-    def day_of(a):
-        return a["published"].astimezone(sast).date() if a["published"] else None
-
-    dated = [a for a in view if a["published"]]
-    undated = [a for a in view if not a["published"]]
-    groups = [(d, list(g)) for d, g in groupby(dated, key=day_of)]
-    visible, archived = groups[:3], groups[3:]
-    for d, items_g in visible:
-        ui.cal_day_header(d.strftime("%A %d %B") +
-                          (" · today" if d == datetime.now(sast).date() else ""))
-        for a in items_g[:15]:
-            row(a)
-    if archived:
-        lo = archived[-1][0].strftime("%d %b")
-        hi = archived[0][0].strftime("%d %b")
-        n = sum(len(g) for _, g in archived)
-        with st.expander(f"{lo} – {hi} · {n} announcements"):
-            for d, items_g in archived:
-                ui.cal_day_header(d.strftime("%A %d %B"))
-                for a in items_g[:15]:
-                    row(a)
-    if undated:
-        with st.expander(f"Undated wire items · {len(undated)}"):
-            for a in undated[:15]:
-                row(a)
 
 
 # ------------------------------------------------------------ calendar

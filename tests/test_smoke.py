@@ -104,7 +104,6 @@ def run():
     pages = [
         ("Executive Summary", core.page_executive_summary),
         ("Market News", core.page_market_news),
-        ("Announcements", core.page_announcements),
         ("Alerts", core.page_alerts),
         ("Calendar", core.page_calendar),
         ("Currencies", markets_pages.page_currencies),
