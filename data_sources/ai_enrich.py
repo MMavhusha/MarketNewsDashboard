@@ -105,7 +105,13 @@ def _prompt(headlines, hero: bool, themes: str = "") -> str:
         "— the market RISK TONE of what is described, not a forecast; ACTUAL "
         "military conflict, attacks, escalation or sanctions are Negative "
         "unless the story is clearly about de-escalation succeeding — but a "
-        "metaphorical 'war'/'battle'/'attack' is not conflict), importance "
+        "metaphorical 'war'/'battle'/'attack' is not conflict. For monetary "
+        "policy, use the conventional market read: a RATE CUT, cooling/easing/"
+        "muted inflation, or dovish signals are Positive (supportive of risk "
+        "assets and bonds); a rate HIKE, hot/accelerating inflation, or "
+        "hawkish surprises are Negative. Only mark an easing story Negative if "
+        "it explicitly frames the cut as a response to a sharply deteriorating "
+        "economy), importance "
         "(High = central bank decisions or surprises, major macro data for "
         "large economies, armed conflict or sanctions affecting energy or "
         "supply chains, systemic credit events, corporate events of $10bn+ "
@@ -137,24 +143,47 @@ def _prompt(headlines, hero: bool, themes: str = "") -> str:
         (", and why (story 0 only)" if hero else "") + ".\n\n" + lines)
 
 
+def _post_with_retry(do_request, tries: int = 3):
+    """Call do_request(); on a 429/503 (rate limit / transient) back off and
+    retry a couple of times before giving up on this provider. Rate limits are
+    usually momentary, so a short retry recovers many batches that would
+    otherwise fall through the chain to the cruder rules engine.
+    """
+    import time as _t
+    last = None
+    for attempt in range(tries):
+        try:
+            r = do_request()
+            r.raise_for_status()
+            return r
+        except requests.HTTPError as e:
+            code = getattr(e.response, "status_code", None)
+            last = e
+            if code in (429, 503) and attempt < tries - 1:
+                # exponential-ish backoff: 0.8s, 1.6s (+ jitter via attempt)
+                _t.sleep(0.8 * (2 ** attempt))
+                continue
+            raise
+    if last:
+        raise last
+
+
 def _call(p: dict, prompt: str) -> str:
     if p["kind"] == "anthropic":
-        r = requests.post(
+        r = _post_with_retry(lambda: requests.post(
             _ANTHROPIC_URL, timeout=25,
             headers={"x-api-key": p["key"],
                      "anthropic-version": "2023-06-01",
                      "content-type": "application/json"},
             json={"model": _ANTHROPIC_MODEL, "max_tokens": 3000,
-                  "messages": [{"role": "user", "content": prompt}]})
-        r.raise_for_status()
+                  "messages": [{"role": "user", "content": prompt}]}))
         return "".join(b.get("text", "") for b in r.json().get("content", []))
-    r = requests.post(
+    r = _post_with_retry(lambda: requests.post(
         f"{p['base']}/chat/completions", timeout=25,
         headers={"Authorization": f"Bearer {p['key']}",
                  "content-type": "application/json"},
         json={"model": p["model"], "max_tokens": 3000,
-              "messages": [{"role": "user", "content": prompt}]})
-    r.raise_for_status()
+              "messages": [{"role": "user", "content": prompt}]}))
     return (r.json().get("choices") or [{}])[0].get(
         "message", {}).get("content", "") or ""
 

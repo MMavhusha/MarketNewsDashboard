@@ -233,6 +233,15 @@ def test_fred_freshness_guard():
         fred.latest = _orig
 
 
+def test_monetary_easing_sentiment():
+    """Rate cuts and cooling inflation read Positive; hikes and hot inflation
+    Negative (conventional market-impact convention)."""
+    from data_sources.news import _classify
+    assert _classify("Hungary Set for Another Rate Cut as Inflation Stays Muted", "", "")["sentiment"] == "Positive"
+    assert _classify("Fed cuts rates as inflation cools", "", "")["sentiment"] == "Positive"
+    assert _classify("SARB hikes rates as inflation surges", "", "")["sentiment"] == "Negative"
+
+
 if __name__ == "__main__":
     fns = [v for k, v in list(globals().items()) if k.startswith("test_")]
     for fn in fns:
