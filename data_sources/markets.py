@@ -43,7 +43,7 @@ COMMODITIES = [
     ("WTI Crude Oil", "CL=F", "$/bbl", 1.0),
     ("Copper (COMEX conv., $/t)", "HG=F", "$/tonne", 2204.62),
     ("Gold Spot (COMEX proxy)", "GC=F", "$/oz", 1.0),
-    ("Iron Ore 62% Fe CFR (SGX proxy)", "TIO=F", "$/tonne", 1.0),
+    ("Iron Ore 62% Fe CFR (CME TSI)", "TIO=F", "$/tonne", 1.0),
     ("Platinum", "PL=F", "$/oz", 1.0),
     ("Coal (Newcastle proxy)", "MTF=F", "$/tonne", 1.0),
 ]

@@ -108,7 +108,7 @@ REGION_COMMODITY = {
     "United Kingdom": ("Brent Crude Oil", "BZ=F", "$/bbl", 1.0),
     "China": ("Copper (COMEX conv., $/t)", "HG=F", "$/tonne", 2204.62),
     "India": ("Gold Spot (COMEX proxy)", "GC=F", "$/oz", 1.0),
-    "Japan": ("Iron Ore 62% Fe CFR (SGX proxy)", "TIO=F", "$/tonne", 1.0),
+    "Japan": ("Iron Ore 62% Fe CFR (CME TSI)", "TIO=F", "$/tonne", 1.0),
 }
 
 # 10Y government bond per region, as in the pack's yields tab. Only series

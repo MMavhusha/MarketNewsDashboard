@@ -79,7 +79,7 @@ def page_commodities():
                "dominant commodity import). Net BoP effect in a given period depends "
                "on volumes and the rand.")
     live = {x.name: x for x in quotes}
-    alias = {"Iron Ore": "Iron Ore (SGX proxy)", "Coal": "Coal (Newcastle proxy)"}
+    alias = {"Iron Ore": "Iron Ore (CME TSI)", "Coal": "Coal (Newcastle proxy)"}
     for name, tk, side, note in macro.SA_BOP_EXPOSURES:
         x = live.get(name) or live.get(alias.get(name, ""))
         chg = (f'<span class="num {ui.chg_cls(x.change_pct)}">{x.change_pct:+.2f}%</span>'
