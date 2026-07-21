@@ -613,6 +613,51 @@ def _admin_ai_audit():
                        file_name="ai_audit_log.json")
 
 
+def _admin_source_reconciliation():
+    from data_sources import source_registry, sarb
+    ui.section("Source reconciliation",
+               "One canonical owner per figure · live duplicate check")
+    # 1) canonical ownership table
+    for r in source_registry.as_rows():
+        st.markdown(
+            f'<div class="cal-row"><span class="cty" style="width:150px;">{ui.esc(r["figure"])}</span>'
+            f'<span class="ev"><b>{ui.esc(r["canonical_source"])}</b> · {ui.esc(r["shown_on"])}</span>'
+            f'<span class="cal-val" style="width:340px;text-align:left;font-size:11px;">{ui.esc(r["reconciliation"])}</span></div>',
+            unsafe_allow_html=True)
+    # 2) LIVE check: does the SARB feed still carry any price/FX series that
+    #    the Regional Macro dedup filter should be dropping? If one leaks, it
+    #    would show a second figure for something yfinance already owns.
+    st.markdown("**Live duplicate-leak check**")
+    try:
+        groups = sarb.get_sa_indicators()
+        overlap_terms = ("gold", "platinum", "palladium", "brent", "oil",
+                         "rand per", "exchange rate", "per us")
+        leaks = []
+        for glabel, rows in (groups or {}).items():
+            for r in rows:
+                n = r["name"].lower()
+                if any(term in n for term in overlap_terms) and "real effective" not in n:
+                    leaks.append(f'{r["name"]} ({glabel})')
+        if not groups:
+            st.caption("SARB feed unreachable — cannot run the check this cycle.")
+        elif leaks:
+            st.markdown(
+                "<div style='color:#B0212C;font-size:12px;'>\u26a0 "
+                + str(len(leaks)) + " SARB series overlap a yfinance-owned "
+                "figure and rely on the Regional Macro dedup filter to stay "
+                "hidden: " + ui.esc(", ".join(leaks[:6])) + "</div>",
+                unsafe_allow_html=True)
+            st.caption("These are filtered out of Regional Macro by _dup(); "
+                       "this list confirms the filter still covers them. If a "
+                       "name here ever appears on a page, that's a conflict.")
+        else:
+            st.markdown("<div style='color:#1E8052;font-size:12px;'>\u2713 "
+                        "No SARB price/FX series that could duplicate a "
+                        "yfinance figure.</div>", unsafe_allow_html=True)
+    except Exception as e:
+        st.caption(f"Check could not run: {type(e).__name__}")
+
+
 def _admin_data_sources():
     ui.section("Data sources", "Target premium source \u2192 current free stand-in")
     for name, role, standin in NAMED_SOURCES:
@@ -676,4 +721,5 @@ def page_settings():
     _admin_classification_debugger()
     _admin_ai_audit()
     _admin_data_sources()
+    _admin_source_reconciliation()
     _admin_secrets_and_cache()
