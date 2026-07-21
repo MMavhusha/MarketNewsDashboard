@@ -25,6 +25,20 @@ SERIES = {
     "ea_hicp_index": ("CP0000EZ19M086NEST", "EA HICP index · Eurostat via FRED"),
 }
 
+# OECD "Main Economic Indicators" international 10Y government bond yields
+# (monthly). Some OECD-sourced FRED series were discontinued in 2024, so these
+# are accessed ONLY through latest_fresh()/history() with a staleness guard:
+# if the newest observation is older than the freshness window, we return None
+# (honest blank) rather than a stale value. Verify live before trusting.
+SERIES_INTL_10Y = {
+    "cn_10y": ("IRLTLT01CNM156N", "China 10Y govt bond · OECD MEI via FRED"),
+    "uk_10y": ("IRLTLT01GBM156N", "UK 10Y govt bond · OECD MEI via FRED"),
+    "jp_10y": ("IRLTLT01JPM156N", "Japan 10Y govt bond · OECD MEI via FRED"),
+    "in_10y": ("IRLTLT01INM156N", "India 10Y govt bond · OECD MEI via FRED"),
+    "za_10y": ("IRLTLT01ZAM156N", "South Africa 10Y govt bond · OECD MEI via FRED"),
+}
+_ALL_SERIES = {**SERIES, **SERIES_INTL_10Y}
+
 
 def _key() -> str:
     try:
@@ -43,9 +57,9 @@ def enabled() -> bool:
 @st.cache_data(ttl=6 * 3600, show_spinner=False)
 def latest(series_key: str) -> dict | None:
     """{'value': str, 'date': str, 'label': str} or None."""
-    if not enabled() or series_key not in SERIES:
+    if not enabled() or series_key not in _ALL_SERIES:
         return None
-    sid, label = SERIES[series_key]
+    sid, label = _ALL_SERIES[series_key]
     from data_sources import obs as _obs
     try:
         with _obs.track(f"FRED · {label}"):
@@ -63,6 +77,27 @@ def latest(series_key: str) -> dict | None:
     except Exception:
         return None
     return None
+
+
+def latest_fresh(series_key: str, max_age_days: int = 120) -> dict | None:
+    """Like latest(), but returns None if the newest observation is older than
+    max_age_days. This is the ONLY safe way to read the OECD international
+    series: several were discontinued on FRED in 2024, and a discontinued
+    series still returns its last (stale) value — worse than an honest blank.
+    Monthly series lag ~6-8 weeks, so 120 days tolerates a normal publication
+    gap while still catching a series that has genuinely stopped updating.
+    """
+    row = latest(series_key)
+    if not row or not row.get("date"):
+        return None
+    try:
+        import datetime as _dt
+        obs_date = _dt.date.fromisoformat(row["date"])
+        if (_dt.date.today() - obs_date).days > max_age_days:
+            return None  # stale → treat as unavailable
+    except Exception:
+        return None
+    return row
 
 
 @st.cache_data(ttl=6 * 3600, show_spinner=False)

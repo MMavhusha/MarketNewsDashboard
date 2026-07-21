@@ -220,6 +220,16 @@ _PENDING = {
     "10Y Government Yield (%)": "Trading Economics / Bloomberg (key)",
 }
 
+# Regions whose 10Y yield can be filled from OECD monthly series on FRED
+# (freshness-guarded in _region_rows). US uses its own daily DGS10 above;
+# SA prefers the live SARB R2035 bond and only falls here if that's absent.
+_FRED_10Y_REGION = {
+    "United Kingdom": "uk_10y",
+    "Japan": "jp_10y",
+    "India": "in_10y",
+    "China": "cn_10y",
+}
+
 
 def _hist_deltas(s, days=(30, 91, 365)):
     """1M/3M/12M change in the series' own units — pure arithmetic on
@@ -363,6 +373,17 @@ def _region_rows(region, matrix):
             fred.SERIES["us_10y"][1] if s is not None else "FRED unreachable",
             _period_month(s), s,
             release=s.index[-1].strftime("%b %Y") if s is not None else "—")
+    elif region in _FRED_10Y_REGION and fred.enabled():
+        # OECD monthly 10Y via FRED, freshness-guarded: a discontinued series
+        # returns None here rather than a stale value, so the cell stays an
+        # honest "pending" instead of showing an out-of-date number.
+        row = fred.latest_fresh(_FRED_10Y_REGION[region])
+        if row:
+            add("10Y Government Yield (%)", ui.num_or_none(row["value"]),
+                "{:,.2f}", row["label"], row["date"], release=row["date"])
+        else:
+            add("10Y Government Yield (%)", None, "{:,.2f}",
+                _PENDING["10Y Government Yield (%)"], "—")
     else:
         add("10Y Government Yield (%)", None, "{:,.2f}",
             _PENDING["10Y Government Yield (%)"], "—")

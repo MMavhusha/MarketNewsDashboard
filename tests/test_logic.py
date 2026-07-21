@@ -213,6 +213,26 @@ def test_watchlist_scope_helpers():
     st.session_state.clear()
 
 
+def test_fred_freshness_guard():
+    """latest_fresh must block stale (discontinued) series to avoid showing
+    out-of-date values as if current."""
+    import datetime as dt
+    from data_sources import fred
+    today = dt.date.today()
+    fresh = (today - dt.timedelta(days=45)).isoformat()
+    stale = (today - dt.timedelta(days=500)).isoformat()
+    _orig = fred.latest
+    try:
+        fred.latest = lambda sk: {"value": "1.73", "date": fresh, "label": "x"}
+        assert fred.latest_fresh("cn_10y") is not None
+        fred.latest = lambda sk: {"value": "2.80", "date": stale, "label": "x"}
+        assert fred.latest_fresh("cn_10y") is None
+        fred.latest = lambda sk: None
+        assert fred.latest_fresh("cn_10y") is None
+    finally:
+        fred.latest = _orig
+
+
 if __name__ == "__main__":
     fns = [v for k, v in list(globals().items()) if k.startswith("test_")]
     for fn in fns:
