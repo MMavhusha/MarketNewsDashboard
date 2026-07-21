@@ -2,7 +2,8 @@
  "watchlist": [
   "Copper (COMEX conv., $/t)",
   "Gold Spot (COMEX proxy)",
-  "WTI Crude Oil"
+  "WTI Crude Oil",
+  "Iron Ore 62% Fe CFR (CME TSI)"
  ],
  "alert_thresholds": null,
  "saved_articles": [],
