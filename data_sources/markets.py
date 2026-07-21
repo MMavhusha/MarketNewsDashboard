@@ -30,7 +30,6 @@ SUMMARY_STRIP = [
     ("EUR/USD", "EURUSD=X", "fx", "{:,.4f}"),
     ("Gold", "GC=F", "commodity", "{:,.2f}"),
     ("Brent Crude", "BZ=F", "commodity", "{:,.2f}"),
-    ("Bitcoin", "BTC-USD", "crypto", "{:,.0f}"),
 ]
 
 # Spec list only: Brent, Iron ore, Gold, Platinum, Coal, Copper
@@ -60,7 +59,7 @@ FX_MAJORS = [
 CORE_MOVERS = [
     ("S&P 500", "^GSPC"), ("NASDAQ", "^IXIC"), ("FTSE 100", "^FTSE"),
     ("JSE ALSI", "^J203.JO"), ("USD/ZAR", "USDZAR=X"), ("EUR/USD", "EURUSD=X"),
-    ("Gold", "GC=F"), ("Brent Crude", "BZ=F"), ("Bitcoin", "BTC-USD"),
+    ("Gold", "GC=F"), ("Brent Crude", "BZ=F"),
     ("Iron Ore", "TIO=F"), ("Platinum", "PL=F"), ("Coal", "MTF=F"),
     ("Copper", "HG=F"),
 ]
@@ -186,7 +185,7 @@ SUMMARY_SUBTITLES = {
     "S&P 500": "US large cap", "NASDAQ": "US tech", "FTSE 100": "UK large cap",
     "JSE ALSI": "FTSE/JSE All Share", "USD/ZAR": "Rand per US Dollar",
     "EUR/USD": "Euro vs Dollar", "Gold": "USD per ounce",
-    "Brent Crude": "USD per barrel", "Bitcoin": "USD",
+    "Brent Crude": "USD per barrel",
 }
 
 
@@ -241,7 +240,7 @@ def get_weekly_movers(top_n: int = 6) -> tuple[list[Quote], list[Quote]]:
 # Derived, factual display of observed moves — thresholds only, no forecasting.
 DEFAULT_THRESHOLDS = {
     "index": (2.0, 3.5), "fx": (1.5, 3.0),
-    "commodity": (3.0, 6.0), "crypto": (5.0, 10.0),
+    "commodity": (3.0, 6.0),
 }
 
 

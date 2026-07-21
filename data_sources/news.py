@@ -63,7 +63,6 @@ _ASSETS = {
     "Rates & Bonds": ["bond", "yield", "treasury", "rate", "rates", "fomc", "central bank", "ecb", "sarb", "boe", "boj", "inflation", "cpi"],
     "FX": ["dollar", "euro", "rand", "yen", "yuan", "currency", "forex", "fx", "sterling", "rupee"],
     "Commodities": ["oil", "brent", "crude", "gold", "copper", "platinum", "iron ore", "coal", "opec", "commodity"],
-    "Crypto": ["bitcoin", "crypto", "ethereum"],
 }
 
 # Instrument-level tagging: the single most-affected traded instrument,
@@ -79,7 +78,6 @@ _INSTRUMENTS = {
     "USD/ZAR": ["rand", "usdzar", "zar"],
     "EUR/USD": ["eurusd"],
     "USD/JPY": ["usdjpy"],
-    "Bitcoin": ["bitcoin", "btc"],
     "S&P 500": ["s&p 500", "s&p"],
     "NASDAQ": ["nasdaq"],
     "FTSE 100": ["ftse"],
@@ -196,7 +194,7 @@ _FINANCE_ANCHORS = [
     "earnings", "revenue", "profit", "ipo", "merger", "acquisition", "central bank",
     "fed", "ecb", "sarb", "currency", "dollar", "euro", "rand", "oil", "gold",
     "economy", "economic", "trade", "tariff", "sanction", "recession", "bank",
-    "investor", "fund", "index", "commodity", "crypto", "bitcoin", "debt",
+    "investor", "fund", "index", "commodity", "debt",
 ]
 
 

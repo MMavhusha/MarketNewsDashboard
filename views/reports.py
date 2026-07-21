@@ -434,9 +434,8 @@ def _team_alert_thresholds():
     st.caption("A move beyond the warning level raises a Warning alert; beyond "
                "the critical level, a Critical alert. Percent of prior close.")
     cur = dict(markets.get_thresholds())
-    labels = {"index": "Indices", "fx": "FX", "commodity": "Commodities",
-              "crypto": "Crypto"}
-    cols = st.columns(4)
+    labels = {"index": "Indices", "fx": "FX", "commodity": "Commodities"}
+    cols = st.columns(3)
     new_t = {}
     for col, (k, lab) in zip(cols, labels.items()):
         with col:
@@ -473,9 +472,10 @@ def _feed_status_panel():
     ui.section("Feed status", "Live diagnostics per data source")
     from data_sources import calendar_data as _cal, news as _news, sarb as _sarb
     rows = []
-    strip_ok = sum(1 for q in markets.get_summary_strip() if q.ok)
+    strip = markets.get_summary_strip()
+    strip_ok = sum(1 for q in strip if q.ok)
     rows.append({"name": "yfinance markets", "ok": strip_ok > 0,
-                 "detail": f"{strip_ok}/9 strip instruments returning data"})
+                 "detail": f"{strip_ok}/{len(strip)} strip instruments returning data"})
     rows += _news.get_feed_status()
     rows.append(_cal.feed_status())
     rows.append(_sarb.feed_status())

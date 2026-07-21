@@ -26,12 +26,9 @@ _SENT = {"Positive", "Negative", "Neutral"}
 _IMP = {"High", "Medium", "Low"}
 _REG = {"South Africa", "United States", "Euro Area", "United Kingdom",
         "China", "India", "Japan", "Global"}
-_AST = {"Equities", "Rates & Bonds", "FX", "Commodities", "Crypto", "Macro"}
+_AST = {"Equities", "Rates & Bonds", "FX", "Commodities", "Macro"}
 _INSTR = {"Oil", "Gold", "Copper", "Platinum", "Iron Ore", "Coal",
-          "USD/ZAR", "EUR/USD", "USD/JPY", "Bitcoin", "S&P 500", "NASDAQ",
-          "FTSE 100", "JSE ALSI"}
-_INSTR = {"Oil", "Gold", "Copper", "Platinum", "Iron Ore", "Coal",
-          "USD/ZAR", "EUR/USD", "USD/JPY", "Bitcoin", "S&P 500",
+          "USD/ZAR", "EUR/USD", "USD/JPY", "S&P 500",
           "NASDAQ", "FTSE 100", "JSE ALSI"}
 
 
@@ -116,11 +113,11 @@ def _prompt(headlines, hero: bool, themes: str = "") -> str:
         "country developments with market impact; Low = minor items, "
         "opinion pieces, advice content), region (South Africa/United "
         "States/Euro Area/United Kingdom/China/India/Japan/Global), asset "
-        "(Equities/Rates & Bonds/FX/Commodities/Crypto/Macro), instruments "
+        "(Equities/Rates & Bonds/FX/Commodities/Macro), instruments "
         "(a list, possibly empty, of the tracked instruments this story is "
         "MATERIALLY about — judge from context, not word presence; a story "
         "can be about several. Choose only from: Oil, Gold, Copper, "
-        "Platinum, Iron Ore, Coal, USD/ZAR, EUR/USD, USD/JPY, Bitcoin, "
+        "Platinum, Iron Ore, Coal, USD/ZAR, EUR/USD, USD/JPY, "
         "S&P 500, NASDAQ, FTSE 100, JSE ALSI), tags (0-2 SHORT lowercase "
         "topic labels capturing what the story is really about for a PM — "
         "e.g. 'rate decision', 'earnings', 'sanctions', 'election', "

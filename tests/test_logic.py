@@ -50,7 +50,7 @@ def test_fuzzy_typos():
     assert fuzzy_match("tarrif", "US tariff decision")
     assert fuzzy_match("oli", "oil prices climb")
     assert fuzzy_match("invlation", "Inflation surges")
-    assert not fuzzy_match("bitcoin", "SARB holds repo rate")
+    assert not fuzzy_match("ethereum", "SARB holds repo rate")
 
 
 def test_word_diff_marks_changes():

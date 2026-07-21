@@ -348,8 +348,7 @@ def page_market_news():
 
 
 # ------------------------------------------------------------ shock alerts
-_ALERT_ASSET = {"index": "Equities", "fx": "FX", "commodity": "Commodities",
-                "crypto": "Crypto"}
+_ALERT_ASSET = {"index": "Equities", "fx": "FX", "commodity": "Commodities"}
 
 
 def _wire_sentiment(asset_class: str) -> str:
@@ -514,8 +513,7 @@ def page_alerts():
             ui.empty_state("All active alerts dismissed for this session.")
     st.caption(f"Active thresholds (warning/critical) — indices "
                f"{t['index'][0]}%/{t['index'][1]}% · FX {t['fx'][0]}%/{t['fx'][1]}% · "
-               f"commodities {t['commodity'][0]}%/{t['commodity'][1]}% · "
-               f"crypto {t['crypto'][0]}%/{t['crypto'][1]}%. Adjust under "
+               f"commodities {t['commodity'][0]}%/{t['commodity'][1]}%. Adjust under "
                "Settings → Alert thresholds.")
     if st.button("Open economic calendar →", key="alerts_goto_cal"):
         st.session_state["nav_to"] = "Calendar"
