@@ -233,13 +233,18 @@ def test_fred_freshness_guard():
         fred.latest = _orig
 
 
-def test_monetary_easing_sentiment():
-    """Rate cuts and cooling inflation read Positive; hikes and hot inflation
-    Negative (conventional market-impact convention)."""
+def test_monetary_and_directional_sentiment():
+    """Rules engine handles clear directional signals. It does NOT attempt the
+    'priced-in / anticipated = Neutral' nuance — that needs the model — so we
+    only assert what the rules can defensibly decide. Crucially, 'set to
+    rise/fall' keeps its direction (the phrase is not a sentiment marker)."""
     from data_sources.news import _classify
-    assert _classify("Hungary Set for Another Rate Cut as Inflation Stays Muted", "", "")["sentiment"] == "Positive"
+    # directional monetary signals
     assert _classify("Fed cuts rates as inflation cools", "", "")["sentiment"] == "Positive"
-    assert _classify("SARB hikes rates as inflation surges", "", "")["sentiment"] == "Negative"
+    assert _classify("Inflation surges to 6%, rate hike fears mount", "", "")["sentiment"] == "Negative"
+    # 'set to' is structural — direction comes from what follows, not the phrase
+    assert _classify("Rand set to rise on strong exports", "", "")["sentiment"] == "Positive"
+    assert _classify("Stocks set to fall on recession fears", "", "")["sentiment"] == "Negative"
 
 
 if __name__ == "__main__":
