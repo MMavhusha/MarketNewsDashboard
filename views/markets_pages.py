@@ -674,20 +674,6 @@ def page_regional_macro():
         if region == "South Africa":
             with st.expander(f"{region} \u2014 {cb_name} live releases"):
                 _sa_specific_detail(promoted_sa)
-                ind_pick = st.pills("World Bank history (10y)",
-                                    list(macro.WB_INDICATORS.keys()),
-                                    default="GDP Growth (YoY %)", key="rm_wb_hist")
-                if ind_pick:
-                    series = macro.wb_series(macro.REGIONS["South Africa"],
-                                             macro.WB_INDICATORS[ind_pick])
-                    if series:
-                        st.plotly_chart(
-                            charts.bar_years(series, f"South Africa \u2014 {ind_pick}",
-                                             y_title="%"),
-                            use_container_width=True,
-                            config={"displayModeBar": False})
-                    else:
-                        ui.empty_state("World Bank API unreachable for this series.")
         else:
             st.markdown(
                 f'<div class="cb-row"><span class="cb-name">{ui.esc(region)} '
