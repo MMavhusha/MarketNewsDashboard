@@ -101,8 +101,9 @@ def page_commodities():
               "paid; the trade balance (goods) is the largest component.")
 
     # ---- Commodity drivers (supporting context, NOT the BoP itself) ----
+    # ============ STATEMENT 1: Commodity export movement (chronological) ============
     ui.section("Commodity export movement",
-               "The commodities we track \u00b7 value, share and movement by period")
+               "The commodities we track \u00b7 export value by period (rand)")
     mv = sars_trade.get_commodity_movement()
     _MON = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep",
             "Oct", "Nov", "Dec"]
@@ -120,19 +121,15 @@ def page_commodities():
     this_lbl = _mlabel(mv.get("latest_month"))
     last_lbl = _mlabel(mv.get("prev_month"))
     sm_lbl = _mlabel(f"{py}-{mv.get('through_month','')}")
-    # Monthly block (3 period cols + MoM change) | YTD block (2 cols + YoY).
-    month_periods = [("this_month", this_lbl), ("last_month", last_lbl),
-                     ("same_month_ly", sm_lbl)]
+    # Chronological, oldest -> newest: same-month-last-year, last month, this
+    # month, then MoM; divider; YTD prior, YTD current, then YoY.
+    month_cols = [("same_month_ly", sm_lbl), ("last_month", last_lbl),
+                  ("this_month", this_lbl)]
 
-    def cell(val_r, tot_r):
+    def vcell(val_r, cls=""):
         if val_r is None:
-            return '<div class="cm-cell"><span class="bops-na">n/a</span></div>'
-        v = val_r / scale
-        if tot_r:
-            sh = val_r / tot_r * 100
-            return (f'<div class="cm-cell"><span class="cm-val">R{v:,.1f}bn</span>'
-                    f'<span class="cm-pct">{sh:.1f}% of exports</span></div>')
-        return f'<div class="cm-cell"><span class="cm-val">R{v:,.1f}bn</span></div>'
+            return f'<div class="cm-cell {cls}"><span class="bops-na">n/a</span></div>'
+        return f'<div class="cm-cell {cls}"><span class="cm-val">R{val_r/scale:,.1f}bn</span></div>'
 
     def chg(cur, prev):
         if cur is None or prev in (None, 0):
@@ -140,72 +137,117 @@ def page_commodities():
         pct = (cur - prev) / prev * 100
         return f'<div class="cm-cell"><span class="num {ui.chg_cls(pct)}">{pct:+.1f}%</span></div>'
 
-    # header — two labelled groups with a divider between them
-    head = ('<div class="cm-row cm-head"><div class="cm-name">Commodity</div>'
-            f'<div class="cm-cell cm-h">{ui.esc(this_lbl)}</div>'
-            f'<div class="cm-cell cm-h">{ui.esc(last_lbl)}</div>'
+    head = ('<div class="cm-row cm-head"><div class="cm-name">Commodity (SARS HS chapter)</div>'
             f'<div class="cm-cell cm-h">{ui.esc(sm_lbl)}</div>'
+            f'<div class="cm-cell cm-h">{ui.esc(last_lbl)}</div>'
+            f'<div class="cm-cell cm-h">{ui.esc(this_lbl)}</div>'
             '<div class="cm-cell cm-h cm-chg">MoM \u0394</div>'
-            f'<div class="cm-cell cm-h cm-div">YTD {cy}</div>'
-            f'<div class="cm-cell cm-h">YTD {py}</div>'
-            '<div class="cm-cell cm-h cm-chg">YoY \u0394 (YTD)</div></div>')
+            f'<div class="cm-cell cm-h cm-div">YTD {py}</div>'
+            f'<div class="cm-cell cm-h">YTD {cy}</div>'
+            '<div class="cm-cell cm-h cm-chg">YoY \u0394</div></div>')
     body = f'<div class="cm">{head}'
 
-    def data_row(label, getter, cls="", show_chg=True):
+    def mv_row(label, getter, cls=""):
         h = f'<div class="cm-row {cls}"><div class="cm-name">{ui.esc(label)}</div>'
-        for key, _lbl in month_periods:
-            h += cell(getter(key), totals.get(key))
-        h += (chg(getter("this_month"), getter("last_month")) if show_chg
-              else '<div class="cm-cell"></div>')
-        # YTD block (first cell carries the divider styling via wrapper class)
-        h += '<div class="cm-cell cm-div">' + (
-            (lambda v, t: (f'<span class="cm-val">R{v/scale:,.1f}bn</span>'
-                           f'<span class="cm-pct">{v/t*100:.1f}% of exports</span>')
-             if (v is not None and t) else
-             (f'<span class="cm-val">R{v/scale:,.1f}bn</span>' if v is not None
-              else '<span class="bops-na">n/a</span>'))(getter("ytd"), totals.get("ytd"))
-        ) + '</div>'
-        h += cell(getter("ytd_prev"), totals.get("ytd_prev"))
-        h += (chg(getter("ytd"), getter("ytd_prev")) if show_chg
-              else '<div class="cm-cell"></div>')
+        for key, _lbl in month_cols:
+            h += vcell(getter(key))
+        h += chg(getter("this_month"), getter("last_month"))
+        h += vcell(getter("ytd_prev"), cls="cm-div")
+        h += vcell(getter("ytd"))
+        h += chg(getter("ytd"), getter("ytd_prev"))
         h += '</div>'
         return h
 
-    # per-commodity rows
     for r in rows:
-        body += data_row(r["label"], lambda k, r=r: r.get(k))
-    # tracked subtotal
-    body += data_row("Tracked commodities",
-                     lambda k: sum(r.get(k, 0) or 0 for r in rows), cls="cm-total")
-    # reconciling residual: all other exports = total - tracked (foots to 100%)
-    if totals:
-        body += data_row(
-            "All other exports",
-            lambda k: (totals.get(k) - sum(r.get(k, 0) or 0 for r in rows))
-            if totals.get(k) is not None else None,
-            cls="cm-resid", show_chg=False)
-        # total row
-        body += data_row("Total SA exports", lambda k: totals.get(k),
-                         cls="cm-total", show_chg=False)
+        body += mv_row(r["label"], lambda k, r=r: r.get(k))
+    body += mv_row("Tracked commodities total",
+                   lambda k: sum(r.get(k, 0) or 0 for r in rows), cls="cm-total")
     body += '</div>'
     st.markdown(body, unsafe_allow_html=True)
     src = mv.get("source_url", "")
     st.caption(
-        "How to read: each cell shows the commodity's export value (rand) and "
-        "its share of total SA merchandise exports in that period. The monthly "
-        f"block ({this_lbl}, {last_lbl}, {sm_lbl}) with month-on-month change "
-        f"sits left; the year-to-date block ({cy} vs {py}) with the like-for-"
-        "like YoY change sits right of the divider. Shares foot down each "
-        "column: the four tracked commodities + all other exports = 100% of "
-        "total exports. 'Tracked commodities' = the four SARS HS chapters we "
-        "follow: 26 ores (iron ore, manganese, chrome), 27 coal/crude/"
-        "petroleum, 71 gold/platinum/precious metals, 74 copper. Source: SARS "
-        f"customs ({src_label})" + (f" \u00b7 [portal]({src})" if src else "")
-        + ". Figures are preliminary and SARS-revisable. These exports are the "
-        "largest goods component of the trade balance and current account "
-        "shown above; commodity figures are SARS monthly/YTD while the BoP is "
-        "SARB quarterly, so this is their share of exports, not an exact sum "
-        "into the balance.")
+        "Export value of the commodities we track, by period, oldest to newest. "
+        f"Monthly block ({sm_lbl} \u2192 {last_lbl} \u2192 {this_lbl}) with month-"
+        f"on-month change, then the year-to-date block (YTD {py} \u2192 YTD {cy}) "
+        "with the like-for-like year-on-year change. Source: SARS customs "
+        f"({src_label})" + (f" \u00b7 [portal]({src})" if src else "")
+        + ". Figures preliminary and SARS-revisable.")
+
+    # ============ STATEMENT 2: Commodity contribution to exports (recon) ============
+    ui.section("Commodity contribution to total exports",
+               f"Each tracked commodity as a share of total SA exports \u00b7 YTD {cy}")
+    ex_body = ('<div class="cm recon"><div class="cm-row cm-head">'
+               '<div class="cm-name">Line item</div>'
+               '<div class="cm-cell cm-h">Value</div>'
+               '<div class="cm-cell cm-h">% of total exports</div></div>')
+    total_ex = totals.get("ytd")
+    tracked_sum = sum(r.get("ytd", 0) or 0 for r in rows)
+    for r in rows:
+        v = r.get("ytd")
+        pct = (v / total_ex * 100) if (v is not None and total_ex) else None
+        ex_body += ('<div class="cm-row"><div class="cm-name">'
+                    f'{ui.esc(r["label"])}</div>'
+                    f'<div class="cm-cell"><span class="cm-val">R{(v or 0)/scale:,.1f}bn</span></div>'
+                    f'<div class="cm-cell"><span class="cm-val">{pct:.1f}%</span></div></div>'
+                    if pct is not None else
+                    f'<div class="cm-row"><div class="cm-name">{ui.esc(r["label"])}</div>'
+                    '<div class="cm-cell"><span class="bops-na">n/a</span></div>'
+                    '<div class="cm-cell"><span class="bops-na">n/a</span></div></div>')
+    # subtotal
+    if total_ex:
+        ex_body += ('<div class="cm-row cm-subtotal"><div class="cm-name">Tracked commodities subtotal</div>'
+                    f'<div class="cm-cell"><span class="cm-val">R{tracked_sum/scale:,.1f}bn</span></div>'
+                    f'<div class="cm-cell"><span class="cm-val">{tracked_sum/total_ex*100:.1f}%</span></div></div>')
+        other = total_ex - tracked_sum
+        ex_body += ('<div class="cm-row cm-resid"><div class="cm-name">All other exports</div>'
+                    f'<div class="cm-cell"><span class="cm-val">R{other/scale:,.1f}bn</span></div>'
+                    f'<div class="cm-cell"><span class="cm-val">{other/total_ex*100:.1f}%</span></div></div>')
+        ex_body += ('<div class="cm-row cm-total"><div class="cm-name">Total SA merchandise exports</div>'
+                    f'<div class="cm-cell"><span class="cm-val">R{total_ex/scale:,.1f}bn</span></div>'
+                    '<div class="cm-cell"><span class="cm-val">100.0%</span></div></div>')
+    ex_body += '</div>'
+    st.markdown(ex_body, unsafe_allow_html=True)
+    st.caption(
+        f"Reconciliation of the tracked commodities to total SA exports, YTD {cy}. "
+        "Each commodity is shown in isolation with its value and share; the four "
+        "sum to the tracked subtotal, and with all other exports reconcile to "
+        "100% of total merchandise exports. Tracked = SARS HS chapters 26 ores, "
+        "27 coal/crude/petroleum, 71 gold/platinum/precious metals, 74 copper.")
+
+    # ============ STATEMENT 3: How exports fit the balance of payments ============
+    ui.section("How exports fit the balance of payments",
+               "Exports \u2192 trade balance \u2192 current account \u00b7 quarterly (SARB)")
+    rec = sarb.get_bop_reconciliation()
+    u = rec["unit"]
+    def rrow(label, val, cls="", paren=False):
+        disp = f"({abs(val):,.1f})" if (paren and val < 0) else f"{val:,.1f}"
+        if paren and val >= 0:
+            disp = f"{val:,.1f}"
+        return (f'<div class="cm-row {cls}"><div class="cm-name">{ui.esc(label)}</div>'
+                f'<div class="cm-cell wide"><span class="cm-val">{disp}</span></div></div>')
+    rb = (f'<div class="cm recon2"><div class="cm-row cm-head">'
+          f'<div class="cm-name">Balance of payments \u00b7 {rec["period"]}</div>'
+          f'<div class="cm-cell cm-h wide">{u}</div></div>')
+    rb += rrow("Merchandise exports", rec["exports"])
+    rb += rrow("Less: merchandise imports", -rec["imports"], paren=True)
+    rb += rrow("Trade balance", rec["trade_balance"], cls="cm-subtotal")
+    rb += rrow("Net services, income & transfers",
+               rec["services_income_transfers"], paren=True)
+    rb += rrow("Current account balance", rec["current_account"], cls="cm-total")
+    rb += '</div>'
+    st.markdown(rb, unsafe_allow_html=True)
+    rsrc = rec.get("source_url", "")
+    st.caption(
+        f"Where the export figure fits: for {rec['period']}, merchandise exports "
+        "less imports give the trade balance, and adding net services, income and "
+        "transfers gives the current account "
+        f"(R{rec['current_account']:,.1f}bn surplus, {rec['ca_pct_gdp']}% of GDP). "
+        "This statement foots. It is quarterly because SARB reports the balance "
+        "of payments quarterly \u2014 the basis on which exports, the trade balance "
+        "and the current account all align. The commodity exports above (SARS "
+        "monthly/YTD) are the largest single driver of the merchandise-exports "
+        "line here. Source: SARB Quarterly Bulletin"
+        + (f" \u00b7 [release]({rsrc})" if rsrc else "") + ".")
 
 
 

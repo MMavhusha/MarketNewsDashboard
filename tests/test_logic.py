@@ -285,6 +285,19 @@ def test_sars_trade_parser():
     assert packed["latest_month"] == "2026-04" and packed["prev_month"] == "2026-03"
 
 
+def test_bop_reconciliation_foots():
+    import sys, types
+    st = types.ModuleType("streamlit"); st.cache_data = lambda **k: (lambda f: f)
+    sys.modules["streamlit"] = st
+    from data_sources import sarb
+    r = sarb.get_bop_reconciliation()
+    # exports - imports = trade balance
+    assert abs((r["exports"] - r["imports"]) - r["trade_balance"]) < 0.1
+    # trade balance + net services/income/transfers = current account
+    assert abs((r["trade_balance"] + r["services_income_transfers"])
+               - r["current_account"]) < 0.1
+
+
 if __name__ == "__main__":
     fns = [v for k, v in list(globals().items()) if k.startswith("test_")]
     for fn in fns:

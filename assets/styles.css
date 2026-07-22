@@ -622,3 +622,11 @@ div[data-testid="stPills"] button:focus-visible {
 .cm-total { border-top:1px solid rgba(0,0,0,0.12); border-bottom:none; }
 .cm-total .cm-name, .cm-total .cm-val { color:#003B71; font-weight:500; }
 .cm-resid .cm-name, .cm-resid .cm-val { color:#5F5E5A; font-style:italic; }
+
+/* Recon statement 2: line item | value | % (3 cols) */
+.cm.recon .cm-row { grid-template-columns:2fr 1fr 1fr; }
+/* Recon statement 3: label | value (2 cols, wide value) */
+.cm.recon2 .cm-row { grid-template-columns:3fr 1fr; }
+.cm-cell.wide { padding-right:2px; }
+.cm-subtotal { border-top:1px solid rgba(0,0,0,0.12); }
+.cm-subtotal .cm-name, .cm-subtotal .cm-val { font-weight:500; color:#003B71; }

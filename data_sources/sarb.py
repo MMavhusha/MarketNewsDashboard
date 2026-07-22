@@ -93,6 +93,33 @@ _BOP_FALLBACK = {
     "source_url": "https://www.resbank.co.za/en/home/publications/quarterly-bulletin1/current-account-release",
 }
 
+# BoP reconciliation on a SINGLE quarterly basis so it FOOTS as a true
+# statement: exports - imports = trade balance; trade balance + net services,
+# income & transfers = current account. Quarterly because SARB reports the BoP
+# quarterly — the only basis on which all lines align. Values ZAR bn, Q1 2026
+# (SARB QB). Net services/income/transfers is the balancing item
+# (= current account - trade balance = 190.7 - 437.9 = -247.2).
+_BOP_RECON_FALLBACK = {
+    "period": "Q1 2026",
+    "unit": "R bn",
+    "exports": 892.0,      # merchandise exports, Q1 2026 (SARB BoP basis)
+    "imports": 454.1,      # merchandise imports, Q1 2026
+    "trade_balance": 437.9,
+    "services_income_transfers": -247.2,
+    "current_account": 190.7,
+    "ca_pct_gdp": 2.4,
+    "source_url": "https://www.resbank.co.za/en/home/publications/quarterly-bulletin1/current-account-release",
+}
+
+
+def get_bop_reconciliation() -> dict:
+    """Quarterly BoP footing chain (live not yet wired; returns dated Q1 2026).
+    Foots: exports - imports = trade_balance; trade_balance +
+    services_income_transfers = current_account."""
+    d = dict(_BOP_RECON_FALLBACK)
+    d["live"] = False
+    return d
+
 
 @st.cache_data(ttl=6 * 3600, show_spinner=False)
 def get_balance_of_payments() -> dict:
