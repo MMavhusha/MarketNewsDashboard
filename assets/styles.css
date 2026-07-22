@@ -603,3 +603,5 @@ div[data-testid="stPills"] button:focus-visible {
 .cb-note a { color:#003B71; }
 .bops-share-inline { color:#FF671D; font-weight:700; font-size:12px; margin-left:6px; }
 .bops-note-plain { color:#6B6D64; font-style:italic; }
+.bops-bar { height:4px; background:rgba(0,0,0,0.06); border-radius:2px; margin-top:5px; max-width:260px; }
+.bops-bar-fill { height:100%; background:#FF671D; border-radius:2px; opacity:0.55; }

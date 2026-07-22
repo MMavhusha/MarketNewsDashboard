@@ -121,6 +121,7 @@ def page_commodities():
     # "all other exports" so the column sums to 100%.
     denom = total_ytd if total_ytd else tracked_ytd
     share_basis = "total exports" if total_ytd else "tracked subset"
+    max_share = max((r["ytd"] / denom * 100 for r in rows), default=1.0) or 1.0
     body = '<div class="bops">'
     body += (f'<div class="bops-row bops-head"><span class="bops-item">Category (HS chapter)</span>'
              f'<span class="bops-val">{cy} YTD</span>'
@@ -136,7 +137,12 @@ def page_commodities():
         yoy_html = (f'<span class="num {ui.chg_cls(yoy)}">{yoy:+.1f}%</span>'
                     if yoy is not None else '<span class="bops-na">n/a</span>')
         share_html = f'<span class="bops-share-inline">{share:.1f}%</span>'
-        body += (f'<div class="bops-row"><span class="bops-item">{ui.esc(r["label"])}</span>'
+        # proportion bar: width scaled so the largest tracked share fills most
+        # of the track (visual sense of relative size, not another number)
+        bar_w = min(share / max_share * 100, 100) if max_share else 0
+        bar = (f'<div class="bops-bar"><div class="bops-bar-fill" '
+               f'style="width:{bar_w:.0f}%"></div></div>')
+        body += (f'<div class="bops-row"><span class="bops-item">{ui.esc(r["label"])}{bar}</span>'
                  f'<span class="bops-val num">R{ytd:,.0f}bn {share_html}</span>'
                  f'<span class="bops-val num">R{prev:,.0f}bn</span>'
                  f'<span class="bops-move">{yoy_html}</span>'
@@ -165,6 +171,12 @@ def page_commodities():
                  f'<span class="bops-move"></span></div>')
     body += '</div>'
     st.markdown(body, unsafe_allow_html=True)
+    # explicit "how the shares build" arithmetic, when on the total-export basis
+    if total_ytd and rows:
+        parts = " + ".join(f"{r['ytd']/denom*100:.1f}" for r in rows)
+        tracked_pct = tracked_ytd / denom * 100
+        st.caption(f"How the tracked share builds: {parts} = {tracked_pct:.1f}% "
+                   f"of total SA exports.")
     src = mv.get("source_url", "")
     st.caption(f"Cumulative export value by HS chapter, {cy} year-to-date "
                f"(Jan\u2013{through}) vs the same months of {py}, so the YoY "
@@ -178,34 +190,6 @@ def page_commodities():
                "combines gold, platinum and other precious metals as SARS "
                "reports them.")
 
-    # Live commodity price context (spot moves) beneath the SARS values.
-    win = st.pills("Price-move window", ["1D", "1M", "3M", "12M"],
-                   default="1M", key="bop_win", label_visibility="collapsed") or "1M"
-    _win_days = {"1D": 1, "1M": 30, "3M": 91, "12M": 365}[win]
-    live = {x.name: x for x in quotes}
-    alias = {"Iron Ore": "Iron Ore (CME TSI)", "Coal": "Coal API2 Rotterdam (proxy)"}
-    tickers = [tk for _n, tk, *_ in macro.SA_BOP_EXPOSURES]
-    hist = markets.get_history_batch(tickers, "2y")
-    pbody = '<div class="bops">'
-    pbody += (f'<div class="bops-row bops-head"><span class="bops-item">Commodity spot price</span>'
-              f'<span class="bops-move">Move {win}</span></div>')
-    for name, tk, side, role, val_bn, val_note, band in macro.SA_BOP_EXPOSURES:
-        if side != "Export":
-            continue
-        x = live.get(name) or live.get(alias.get(name, ""))
-        s = hist.get(tk)
-        m = (x.change_pct if (x and x.ok) else None) if win == "1D" \
-            else (_pct_back(s, _win_days) if s is not None else None)
-        cell = (f'<span class="num {ui.chg_cls(m)}">{m:+.2f}%</span>'
-                if m is not None else '<span class="bops-na">n/a</span>')
-        pbody += (f'<div class="bops-row"><span class="bops-item">{ui.esc(name)}</span>'
-                  f'<span class="bops-move">{cell}</span></div>')
-    pbody += '</div>'
-    st.markdown(pbody, unsafe_allow_html=True)
-    st.caption("Spot price moves for the main commodities \u2014 a leading read on "
-               "where the export values above may head next. Crude oil is SA's "
-               "dominant commodity import; a higher oil price works against the "
-               "trade balance.")
 
 
 _FX_WINDOWS = ["1D", "1W", "1M", "6M", "YTD"]
