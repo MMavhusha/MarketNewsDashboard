@@ -127,24 +127,31 @@ def page_commodities():
             return '<span class="bops-na">n/a</span>'
         return f'<span class="num {ui.chg_cls(mv)}">{mv:+.2f}%</span>'
 
+    _exp_total = macro.SA_TRADE_TOTALS["exports"]
     dbody = '<div class="bops">'
     dbody += (f'<div class="bops-row bops-head"><span class="bops-item">Commodity</span>'
-              f'<span class="bops-val">Export value ({_yr})</span>'
+              f'<span class="bops-val">Export value ({_yr}) · % of total</span>'
               f'<span class="bops-move">Price {win}</span></div>')
     for name, tk, side, role, val_bn, val_note, band in macro.SA_BOP_EXPOSURES:
         if side != "Export":
             continue
-        val = (f'${val_bn:,.1f}bn' if val_bn is not None
-               else '<span class="bops-na">n/a</span>')
+        if val_bn is not None:
+            share = val_bn / _exp_total * 100
+            val = (f'${val_bn:,.1f}bn '
+                   f'<span class="bops-share-inline">{share:.1f}%</span>')
+        else:
+            val = '<span class="bops-na">n/a</span>'
         note = f'<span class="bops-note">{ui.esc(val_note)}</span>' if val_note else ""
         dbody += (f'<div class="bops-row"><span class="bops-item">{ui.esc(name)}{note}</span>'
                   f'<span class="bops-val num">{val}</span>'
                   f'<span class="bops-move">{_move_cell(name, tk, side)}</span></div>')
     dbody += '</div>'
     st.markdown(dbody, unsafe_allow_html=True)
-    st.caption("Crude oil is SA's dominant commodity import (the main fuel-"
-               "import line); a higher oil price widens the import bill and "
-               "works against the trade balance.")
+    st.caption(f"Export value shown as USD and as a share of SA's "
+               f"${_exp_total:,.0f}bn total {_yr} merchandise exports "
+               f"(same source and year, so the shares reconcile). Crude oil is "
+               f"SA's dominant commodity import; a higher oil price widens the "
+               f"import bill and works against the trade balance.")
 
 
 _FX_WINDOWS = ["1D", "1W", "1M", "6M", "YTD"]
