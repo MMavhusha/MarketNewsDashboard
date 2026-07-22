@@ -116,9 +116,6 @@ def page_commodities():
     cy, py = mv.get("cur_year", ""), mv.get("prev_year", "")
     mscale = 1e9 if mv["source"] in ("live", "csv") else 1.0
     nscale = 1e9 if nr["source"] in ("live", "csv") else 1.0
-    this_lbl = _mlabel(mv.get("latest_month"))
-    last_lbl = _mlabel(mv.get("prev_month"))
-    sm_lbl = _mlabel(f"{py}-{mv.get('through_month','')}")
     mtotals = mv.get("totals") or {}
     # merge the two sources by chapter: movement (exports, monthly+YTD) + recon
     # (YTD exports & imports). Anchor the "current" band on YTD, the period both
@@ -137,7 +134,12 @@ def page_commodities():
         return v / mscale if v is not None else None
 
     _vc = 'cm-current' if view == 'Current position' else 'cm-movement'
-    body = f'<div class="cm cmstmt {_vc}">'
+    _mcols = ""
+    if view != 'Current position':
+        _n = len(mv.get("month_labels", []))
+        # name + N months + MoM + YTD_py + YTD_cy + YoY
+        _mcols = f' style="--cm-cols:1.5fr repeat({_n + 4}, 1fr)"'
+    body = f'<div class="cm cmstmt {_vc}"{_mcols}>'
     if view == "Current position":
         # YTD exports | imports | net | % of trade balance | % of total exports
         body += (f'<div class="cm-row cm-head"><div class="cm-name">Commodity (YTD {cy})</div>'
@@ -173,34 +175,57 @@ def page_commodities():
                          total_exp_ytd - trk_e, total_imp_ytd - trk_i, cls="cm-resid")
             body += crow("Trade balance", total_exp_ytd, total_imp_ytd, cls="cm-total")
     else:
-        # Movement: chronological monthly + MoM, then YTD both years + YoY
+        # Movement: a run of consecutive recent months (calendar order) with
+        # MoM change on the newest, then the YTD block (year comparison lives
+        # only here). No stray prior-year month mixed into the monthly run.
+        mlabels = mv.get("month_labels", [])
+        m_hdr = "".join(f'<div class="cm-cell cm-h">{ui.esc(_mlabel(m))}</div>'
+                        for m in mlabels)
         body += (f'<div class="cm-row cm-head"><div class="cm-name">Commodity (exports, R bn)</div>'
-                 f'<div class="cm-cell cm-h">{ui.esc(sm_lbl)}</div>'
-                 f'<div class="cm-cell cm-h">{ui.esc(last_lbl)}</div>'
-                 f'<div class="cm-cell cm-h">{ui.esc(this_lbl)}</div>'
+                 f'{m_hdr}'
                  '<div class="cm-cell cm-h cm-chg">MoM \u0394</div>'
                  f'<div class="cm-cell cm-h cm-div">YTD {py}</div>'
                  f'<div class="cm-cell cm-h">YTD {cy}</div>'
                  '<div class="cm-cell cm-h cm-chg">YoY \u0394</div></div>')
+        n_months = len(mlabels)
+
         def vcell(v, cls=""):
             return (f'<div class="cm-cell {cls}"><span class="cm-val">{v:,.1f}</span></div>'
                     if v is not None else f'<div class="cm-cell {cls}"><span class="bops-na">n/a</span></div>')
+
         def chg(cur, prev):
             if cur is None or prev in (None, 0):
                 return '<div class="cm-cell"><span class="bops-na">n/a</span></div>'
             p = (cur - prev) / prev * 100
             return f'<div class="cm-cell"><span class="num {ui.chg_cls(p)}">{p:+.1f}%</span></div>'
-        def mrow(label, g, cls=""):
+
+        def mrow(label, months, ytd_v, ytd_p, cls=""):
             h = f'<div class="cm-row {cls}"><div class="cm-name">{ui.esc(label)}</div>'
-            h += vcell(g("same_month_ly")) + vcell(g("last_month")) + vcell(g("this_month"))
-            h += chg(g("this_month"), g("last_month"))
-            h += vcell(g("ytd_prev"), cls="cm-div") + vcell(g("ytd"))
-            h += chg(g("ytd"), g("ytd_prev"))
+            for mval_ in months:
+                h += vcell(mval_)
+            # MoM = newest month vs the month before it
+            mom_cur = months[-1] if months else None
+            mom_prev = months[-2] if len(months) > 1 else None
+            h += chg(mom_cur, mom_prev)
+            h += vcell(ytd_p, cls="cm-div") + vcell(ytd_v)
+            h += chg(ytd_v, ytd_p)
             return h + '</div>'
+
+        def scaled_months(r):
+            return [(m / mscale if m is not None else None)
+                    for m in (r.get("months") or [])]
+
         for r in mv["rows"]:
-            body += mrow(r["label"], lambda k, r=r: mval(r, k))
-        body += mrow("Tracked commodities total",
-                     lambda k: sum((mval(r, k) or 0) for r in mv["rows"]), cls="cm-total")
+            body += mrow(r["label"], scaled_months(r),
+                         mval(r, "ytd"), mval(r, "ytd_prev"))
+        # tracked total row (sum months element-wise)
+        tot_months = [sum((r.get("months") or [None] * n_months)[i] or 0
+                          for r in mv["rows"]) / mscale
+                      for i in range(n_months)]
+        body += mrow("Tracked commodities total", tot_months,
+                     sum((mval(r, "ytd") or 0) for r in mv["rows"]),
+                     sum((mval(r, "ytd_prev") or 0) for r in mv["rows"]),
+                     cls="cm-total")
     body += '</div>'
     st.markdown(body, unsafe_allow_html=True)
 
@@ -222,12 +247,16 @@ def page_commodities():
             "dividends, remittances) is a whole-economy figure, not attributable to "
             "any commodity.")
     else:
+        mlabels = mv.get("month_labels", [])
+        span = (f"{_mlabel(mlabels[0])} \u2192 {_mlabel(mlabels[-1])}"
+                if mlabels else "recent months")
         st.caption(
-            "Movement in export value, oldest to newest: monthly progression "
-            f"({sm_lbl} \u2192 {last_lbl} \u2192 {this_lbl}) with month-on-month "
-            f"change, then year-to-date ({py} \u2192 {cy}) with the like-for-like "
-            f"year-on-year change. Source: SARS ({src_label})"
-            + (f" \u00b7 [portal]({src})" if src else "")
+            "Movement in export value across consecutive months, oldest to "
+            f"newest ({span}). MoM \u0394 is the newest month versus the month "
+            "before it. Year-on-year comparison is kept to the year-to-date "
+            f"block on the right (YTD {py} vs YTD {cy}, like-for-like), so the "
+            "monthly run shows only the recent month-by-month trend. Source: "
+            f"SARS ({src_label})" + (f" \u00b7 [portal]({src})" if src else "")
             + ". Figures preliminary and SARS-revisable.")
 
 

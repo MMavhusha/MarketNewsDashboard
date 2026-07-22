@@ -636,4 +636,4 @@ div[data-testid="stPills"] button:focus-visible {
 
 /* Consolidated commodity statement: two column layouts by view */
 .cm.cmstmt.cm-current .cm-row { grid-template-columns:2fr 1fr 1fr 1fr 1fr 1fr; }
-.cm.cmstmt.cm-movement .cm-row { grid-template-columns:1.5fr repeat(7, 1fr); }
+.cm.cmstmt.cm-movement .cm-row { grid-template-columns:var(--cm-cols, 1.5fr repeat(7, 1fr)); }

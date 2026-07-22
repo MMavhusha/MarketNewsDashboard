@@ -148,6 +148,10 @@ def _cumulative_by_chapter(rows: list[dict], all_rows: list[dict] | None = None)
     latest_m = cur_months[-1]
     # previous month: the month before latest in the current year's data
     prev_m = cur_months[-2] if len(cur_months) > 1 else None
+    # consecutive recent months (up to 6) ending at the latest, in calendar
+    # order, spanning into the prior year if the current year has < 6 months yet
+    all_ym = sorted({(ym(r)[0], ym(r)[1]) for r in rows if ym(r)[0] and ym(r)[1]})
+    recent = all_ym[-6:]  # oldest -> newest
 
     def period_sum(chapter_rows, year, month):
         if not month:
@@ -184,42 +188,51 @@ def _cumulative_by_chapter(rows: list[dict], all_rows: list[dict] | None = None)
             continue
         yoy = ((vals["ytd"] - vals["ytd_prev"]) / vals["ytd_prev"] * 100
                if vals["ytd_prev"] else None)
+        # consecutive recent-month values (calendar order, oldest -> newest)
+        months_series = [period_sum(cr, y, m) for (y, m) in recent]
         out[ch] = {"chapter": ch, "label": CHAPTERS[ch], "yoy_pct": yoy,
                    "cur_year": cur_y, "prev_year": prev_y,
                    "latest_month": f"{cur_y}-{latest_m}",
                    "prev_month": f"{cur_y}-{prev_m}" if prev_m else None,
-                   "through_month": latest_m, **vals,
+                   "through_month": latest_m, "months": months_series, **vals,
                    # keep legacy keys used elsewhere
                    "latest_val": vals["this_month"]}
     if tot:
+        tot["months"] = [period_sum(all_rows, y, m) for (y, m) in recent] if all_rows else []
         out["__total__"] = tot
+    out["__months__"] = [f"{y}-{m}" for (y, m) in recent]
     return out
 
 
 # Dated fallback for the cumulative view (used if no live/CSV data). Values are
 # illustrative last-known ZAR bn; clearly stamped so staleness is visible.
 _DATED_MOVE = {
-    "as_of": "Apr 2026 vs Mar 2026 / Apr 2025 (SARS, dated)",
+    "as_of": "to Apr 2026 (SARS, dated)",
     "unit": "R bn", "cur_year": "2026", "prev_year": "2025",
     "through_month": "04", "latest_month": "2026-04", "prev_month": "2026-03",
-    # per-period TOTAL SA exports (denominators): this_month, last_month,
-    # same_month_ly, ytd, ytd_prev  (ZAR bn, illustrative)
+    # six consecutive months, calendar order Nov 2025 -> Apr 2026
+    "month_labels": ["2025-11", "2025-12", "2026-01", "2026-02", "2026-03", "2026-04"],
     "totals": {"this_month": 182.0, "last_month": 187.0, "same_month_ly": 158.0,
-               "ytd": 726.0, "ytd_prev": 632.0},
+               "ytd": 726.0, "ytd_prev": 632.0,
+               "months": [171.0, 176.0, 168.0, 180.0, 187.0, 182.0]},
     "total_ytd": 726.0,
     "rows": [
         {"chapter": "71", "label": CHAPTERS["71"], "yoy_pct": 22.4,
          "this_month": 49.0, "last_month": 46.5, "same_month_ly": 33.0,
-         "ytd": 191.0, "ytd_prev": 156.0, "latest_val": 49.0},
+         "ytd": 191.0, "ytd_prev": 156.0, "latest_val": 49.0,
+         "months": [40.0, 42.5, 44.0, 45.0, 46.5, 49.0]},
         {"chapter": "26", "label": CHAPTERS["26"], "yoy_pct": 6.1,
          "this_month": 19.5, "last_month": 20.2, "same_month_ly": 18.2,
-         "ytd": 79.0, "ytd_prev": 74.5, "latest_val": 19.5},
+         "ytd": 79.0, "ytd_prev": 74.5, "latest_val": 19.5,
+         "months": [18.8, 19.2, 19.0, 19.9, 20.2, 19.5]},
         {"chapter": "27", "label": CHAPTERS["27"], "yoy_pct": -5.6,
          "this_month": 13.8, "last_month": 14.6, "same_month_ly": 15.1,
-         "ytd": 56.0, "ytd_prev": 59.3, "latest_val": 13.8},
+         "ytd": 56.0, "ytd_prev": 59.3, "latest_val": 13.8,
+         "months": [15.0, 14.8, 13.5, 14.1, 14.6, 13.8]},
         {"chapter": "74", "label": CHAPTERS["74"], "yoy_pct": 9.1,
          "this_month": 2.1, "last_month": 2.0, "same_month_ly": 1.9,
-         "ytd": 8.2, "ytd_prev": 7.5, "latest_val": 2.1},
+         "ytd": 8.2, "ytd_prev": 7.5, "latest_val": 2.1,
+         "months": [1.9, 2.0, 1.9, 2.1, 2.0, 2.1]},
     ],
     "source_url": _PORTAL,
 }
@@ -228,6 +241,7 @@ _DATED_MOVE = {
 def _pack_movement(source, cum, all_total_note=None):
     """Build the movement dict from a cumulative map, pulling out the totals."""
     totals = cum.pop("__total__", None)
+    month_labels = cum.pop("__months__", [])
     chapter_rows = [cum[c] for c in CHAPTERS if c in cum]
     if not chapter_rows:
         return None
@@ -238,6 +252,7 @@ def _pack_movement(source, cum, all_total_note=None):
         "unit": "R", "cur_year": any_r["cur_year"], "prev_year": any_r["prev_year"],
         "through_month": any_r["through_month"],
         "latest_month": any_r["latest_month"], "prev_month": any_r.get("prev_month"),
+        "month_labels": month_labels,
         "rows": chapter_rows,
         "totals": totals,  # per-period total exports (denominators)
         "total_ytd": totals["ytd"] if totals else None,  # legacy
