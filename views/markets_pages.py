@@ -114,8 +114,10 @@ def page_commodities():
         y, m = ym.split("-")[:2]
         return f"{_MON[int(m)]} {y}"
     cy, py = mv.get("cur_year", ""), mv.get("prev_year", "")
-    mscale = 1e9 if mv["source"] in ("live", "csv") else 1.0
-    nscale = 1e9 if nr["source"] in ("live", "csv") else 1.0
+    mscale = 1e9 if mv["source"] in ("live", "csv", "comtrade") else 1.0
+    nscale = 1e9 if nr["source"] in ("live", "csv", "comtrade") else 1.0
+    # currency: Comtrade is USD ($), SARS live/CSV/dated are ZAR (R)
+    cur = "$" if mv["source"] == "comtrade" else "R"
     mtotals = mv.get("totals") or {}
     # merge the two sources by chapter: movement (exports, monthly+YTD) + recon
     # (YTD exports & imports). Anchor the "current" band on YTD, the period both
@@ -142,7 +144,7 @@ def page_commodities():
     body = f'<div class="cm cmstmt {_vc}"{_mcols}>'
     if view == "Current position":
         # YTD exports | imports | net | % of trade balance | % of total exports
-        body += (f'<div class="cm-row cm-head"><div class="cm-name">Commodity (YTD {cy})</div>'
+        body += (f'<div class="cm-row cm-head"><div class="cm-name">Commodity (YTD {cy}, {cur}bn)</div>'
                  '<div class="cm-cell cm-h">Exports</div>'
                  '<div class="cm-cell cm-h">Imports</div>'
                  '<div class="cm-cell cm-h">Net</div>'
@@ -181,7 +183,7 @@ def page_commodities():
         mlabels = mv.get("month_labels", [])
         m_hdr = "".join(f'<div class="cm-cell cm-h">{ui.esc(_mlabel(m))}</div>'
                         for m in mlabels)
-        body += (f'<div class="cm-row cm-head"><div class="cm-name">Commodity (exports, R bn)</div>'
+        body += (f'<div class="cm-row cm-head"><div class="cm-name">Commodity (exports, {cur}bn)</div>'
                  f'{m_hdr}'
                  '<div class="cm-cell cm-h cm-chg">MoM \u0394</div>'
                  f'<div class="cm-cell cm-h cm-div">YTD {py}</div>'
@@ -230,8 +232,14 @@ def page_commodities():
     st.markdown(body, unsafe_allow_html=True)
 
     src = mv.get("source_url", "")
+    _COMTRADE_PORTAL = "https://comtradeplus.un.org/"
     src_label = {"live": "live from SARS portal", "csv": "from uploaded SARS CSV",
+                 "comtrade": "UN Comtrade (SA reporter, monthly, USD)",
                  "dated": f"dated: {mv.get('as_of','')}"}.get(mv["source"], "")
+    src_link = _COMTRADE_PORTAL if mv["source"] == "comtrade" else src
+    ccy_note = (" Values are in US dollars (UN Comtrade standard), so the trade "
+                "balance here is a USD figure."
+                if mv["source"] == "comtrade" else "")
     if view == "Current position":
         st.caption(
             f"Current position, {cy} year-to-date. Each tracked commodity: exports "
@@ -240,9 +248,10 @@ def page_commodities():
             "different questions \u2014 how much it moves the balance vs how big it is "
             "in the export basket). A net importer (coal/crude/petroleum) shows "
             "negative. The four commodities + all other trade reconcile to the trade "
-            f"balance. Source: SARS ({src_label})"
-            + (f" \u00b7 [portal]({src})" if src else "")
-            + ". This statement stops at the trade balance; the further leg to the "
+            f"balance. Source: {src_label}"
+            + (f" \u00b7 [source]({src_link})" if src_link else "")
+            + "." + ccy_note
+            + " This statement stops at the trade balance; the further leg to the "
             "current account (net services, income & transfers \u2014 tourism, "
             "dividends, remittances) is a whole-economy figure, not attributable to "
             "any commodity.")
@@ -256,8 +265,8 @@ def page_commodities():
             "before it. Year-on-year comparison is kept to the year-to-date "
             f"block on the right (YTD {py} vs YTD {cy}, like-for-like), so the "
             "monthly run shows only the recent month-by-month trend. Source: "
-            f"SARS ({src_label})" + (f" \u00b7 [portal]({src})" if src else "")
-            + ". Figures preliminary and SARS-revisable.")
+            f"{src_label}" + (f" \u00b7 [source]({src_link})" if src_link else "")
+            + "." + ccy_note)
 
 
 

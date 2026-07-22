@@ -316,6 +316,33 @@ def test_net_trade_recon_foots():
     assert abs((trk_e - trk_i) + other - tb) < 1e6
 
 
+def test_net_recon_uses_all_commodity_totals():
+    # Comtrade-shaped rows: tracked chapters + explicit __ALL__ totals. The
+    # recon must use __ALL__ for the total (not sum the tracked chapters) so it
+    # foots to the real trade balance.
+    import sys, types
+    st = types.ModuleType("streamlit"); st.cache_data = lambda **k: (lambda f: f)
+    sys.modules["streamlit"] = st
+    from data_sources import sars_trade as S
+    rows = [
+        {"chapter": "71", "label": "x", "value": 100e9, "period": "2026-01", "trade": "export"},
+        {"chapter": "71", "label": "x", "value": 4e9, "period": "2026-01", "trade": "import"},
+        {"chapter": "27", "label": "x", "value": 20e9, "period": "2026-01", "trade": "export"},
+        {"chapter": "27", "label": "x", "value": 60e9, "period": "2026-01", "trade": "import"},
+        {"chapter": "__ALL__", "label": "All", "value": 300e9, "period": "2026-01", "trade": "export"},
+        {"chapter": "__ALL__", "label": "All", "value": 250e9, "period": "2026-01", "trade": "import"},
+    ]
+    rec = S._net_recon_from_rows(rows)
+    assert abs(rec["total_exports"] - 300e9) < 1e6  # from __ALL__, not 120
+    assert abs(rec["total_imports"] - 250e9) < 1e6
+    assert "__ALL__" not in {r["chapter"] for r in rec["rows"]}
+    trk_e = sum(r["exports"] for r in rec["rows"])
+    trk_i = sum(r["imports"] for r in rec["rows"])
+    tb = rec["total_exports"] - rec["total_imports"]
+    other = (rec["total_exports"] - trk_e) - (rec["total_imports"] - trk_i)
+    assert abs((trk_e - trk_i) + other - tb) < 1e6
+
+
 def test_bop_reconciliation_foots():
     import sys, types
     st = types.ModuleType("streamlit"); st.cache_data = lambda **k: (lambda f: f)

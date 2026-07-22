@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import csv
 import io
+import os
 from pathlib import Path
 
 import requests
@@ -35,6 +36,14 @@ import streamlit as st
 _PORTAL = "https://tools.sars.gov.za/tradestatsportal/data_download.aspx"
 _CSV_PATH = Path(__file__).resolve().parents[1] / "data" / "sars_trade.csv"
 
+# UN Comtrade — the proper programmatic source (free JSON API). SA reporter code
+# 710; partner 0 = World (the all-destinations aggregate the SARS portal won't
+# give). Values are USD. Register a free key at comtradedeveloper.un.org (pick
+# the free "comtrade - v1" product) and add it to app secrets as COMTRADE_API_KEY.
+_COMTRADE_URL = "https://comtradeapi.un.org/data/v1/get/C/M/HS"
+_COMTRADE_REPORTER = "710"   # South Africa
+_COMTRADE_WORLD = "0"        # World (all partners aggregated)
+
 # HS chapters we surface, with the friendly label used in the panel.
 CHAPTERS = {
     "26": "Ores (iron ore, manganese, chrome)",
@@ -42,6 +51,121 @@ CHAPTERS = {
     "71": "Gold, platinum & precious metals",
     "74": "Copper",
 }
+
+
+def _comtrade_key() -> str:
+    """Free UN Comtrade API subscription key, from Streamlit secrets or env."""
+    try:
+        v = st.secrets.get("COMTRADE_API_KEY")
+        if v:
+            return v
+    except FileNotFoundError:
+        pass
+    return os.environ.get("COMTRADE_API_KEY", "")
+
+
+def _recent_periods(n: int = 8) -> str:
+    """Comma-separated 'YYYYMM' for the n most recent complete months, newest
+    last. Comtrade releases with a lag, so we ask for a window and let the
+    parser use whatever months came back."""
+    import datetime as _dt
+    today = _dt.date.today().replace(day=1)
+    months = []
+    for i in range(1, n + 1):
+        d = today
+        for _ in range(i):
+            d = (d - _dt.timedelta(days=1)).replace(day=1)
+        months.append(d.strftime("%Y%m"))
+    return ",".join(sorted(months))
+
+
+def _comtrade_rows(periods: str | None = None) -> list[dict] | None:
+    """Fetch SA (reporter 710) monthly HS-chapter trade vs World (partner 0),
+    BOTH flows, from UN Comtrade. Returns rows in the parser's shape
+    ({chapter,label,value(USD),period 'YYYY-MM',trade export|import}) or None.
+    Values are USD (Comtrade standard). Requires a free API key."""
+    key = _comtrade_key()
+    if not key:
+        return None
+    params = {
+        "reporterCode": _COMTRADE_REPORTER,
+        "partnerCode": _COMTRADE_WORLD,
+        "period": periods or _recent_periods(),
+        "cmdCode": ",".join(CHAPTERS),   # 26,27,71,74
+        "flowCode": "M,X",               # imports and exports
+        "partner2Code": "0",
+        "customsCode": "C00",
+        "motCode": "0",
+    }
+    try:
+        r = requests.get(_COMTRADE_URL, params=params,
+                         headers={"Ocp-Apim-Subscription-Key": key}, timeout=25)
+        r.raise_for_status()
+        payload = r.json()
+    except (requests.RequestException, ValueError):
+        return None
+    data = payload.get("data") if isinstance(payload, dict) else None
+    if not data:
+        return None
+    rows = []
+    for rec in data:
+        chap = str(rec.get("cmdCode", "")).strip()
+        if chap not in CHAPTERS:
+            continue
+        flow = str(rec.get("flowCode", "")).upper()   # 'X' export, 'M' import
+        trade = "export" if flow == "X" else "import" if flow == "M" else None
+        if trade is None:
+            continue
+        val = rec.get("primaryValue")
+        if val in (None, ""):
+            continue
+        per = str(rec.get("period", "")).strip()       # 'YYYYMM'
+        per = f"{per[:4]}-{per[4:6]}" if len(per) == 6 and per.isdigit() else per
+        try:
+            fval = float(val)
+        except (ValueError, TypeError):
+            continue
+        rows.append({"chapter": chap, "label": CHAPTERS[chap],
+                     "value": fval, "period": per, "trade": trade})
+    return rows or None
+
+
+def _comtrade_all_totals(periods: str | None = None) -> list[dict] | None:
+    """Fetch SA total trade (all commodities, cmdCode 'TOTAL') by month & flow
+    vs World, so the movement/recon can express shares of TOTAL exports and
+    foot to the trade balance. Returns rows with chapter '__ALL__'."""
+    key = _comtrade_key()
+    if not key:
+        return None
+    params = {
+        "reporterCode": _COMTRADE_REPORTER, "partnerCode": _COMTRADE_WORLD,
+        "period": periods or _recent_periods(), "cmdCode": "TOTAL",
+        "flowCode": "M,X", "partner2Code": "0", "customsCode": "C00", "motCode": "0",
+    }
+    try:
+        r = requests.get(_COMTRADE_URL, params=params,
+                         headers={"Ocp-Apim-Subscription-Key": key}, timeout=25)
+        r.raise_for_status()
+        data = r.json().get("data")
+    except (requests.RequestException, ValueError, AttributeError):
+        return None
+    if not data:
+        return None
+    out = []
+    for rec in data:
+        flow = str(rec.get("flowCode", "")).upper()
+        trade = "export" if flow == "X" else "import" if flow == "M" else None
+        val = rec.get("primaryValue")
+        if trade is None or val in (None, ""):
+            continue
+        per = str(rec.get("period", "")).strip()
+        per = f"{per[:4]}-{per[4:6]}" if len(per) == 6 and per.isdigit() else per
+        try:
+            out.append({"chapter": "__ALL__", "label": "All commodities",
+                        "value": float(val), "period": per, "trade": trade})
+        except (ValueError, TypeError):
+            continue
+    return out or None
 
 # Dated fallback — last recorded SARS annual chapter values (ZAR bn, 2025).
 # Update when refreshing; the panel shows this stamp so staleness is visible.
@@ -269,9 +393,24 @@ def get_commodity_movement() -> dict:
     expressed against total exports and reconciled — not just the tracked
     subset. None when the source doesn't provide all-chapter data.
 
-    Tries live scrape, then user CSV, then dated fallback. YTD is like-for-like
-    (same months this year vs last), so the YoY % is a fair comparison."""
-    # tier 1: live
+    Tries UN Comtrade (free API key), then user CSV, then dated fallback. YTD
+    is like-for-like (same months this year vs last), so the YoY % is fair.
+    Values are USD when sourced from Comtrade, ZAR from a SARS CSV."""
+    # tier 0: UN Comtrade (proper programmatic source, USD)
+    ct = _comtrade_rows()
+    if ct:
+        exp = [r for r in ct if r["trade"] == "export"]
+        all_tot = _comtrade_all_totals()
+        # denominator rows = all-commodity export totals (per period) if we have
+        # them, else fall back to the tracked-chapter exports themselves
+        all_exp = ([r for r in all_tot if r["trade"] == "export"]
+                   if all_tot else exp)
+        cum = _cumulative_by_chapter(exp, all_exp)
+        packed = _pack_movement("comtrade", cum)
+        if packed:
+            packed["unit"] = "$"
+            return packed
+    # tier 1: live SARS scrape (ZAR)
     live_rows = _try_live_rows()
     if live_rows:
         exp_rows = [r for r in live_rows if r.get("trade", "export") == "export"]
@@ -340,7 +479,19 @@ def _net_recon_from_rows(rows_all) -> dict | None:
         return sum(r["value"] for r in rows_all
                    if r.get("trade") == trade and ym(r)[0] == cur_y
                    and ym(r)[1] and ym(r)[1] <= last_m
+                   and r.get("chapter") != "__ALL__"
                    and (chapter is None or r["chapter"] == chapter))
+
+    def ytd_all(trade):
+        """Total across ALL commodities. Uses explicit '__ALL__' total rows if
+        present (Comtrade TOTAL), else sums every chapter row (SARS keep_all)."""
+        all_rows = [r for r in rows_all if r.get("chapter") == "__ALL__"]
+        if all_rows:
+            return sum(r["value"] for r in all_rows
+                       if r.get("trade") == trade and ym(r)[0] == cur_y
+                       and ym(r)[1] and ym(r)[1] <= last_m)
+        return ytd(None, trade)
+
     rows = []
     for ch in CHAPTERS:
         e, i = ytd(ch, "export"), ytd(ch, "import")
@@ -349,9 +500,9 @@ def _net_recon_from_rows(rows_all) -> dict | None:
                          "exports": e, "imports": i})
     if not rows:
         return None
-    return {"as_of": f"YTD {cur_y} (SARS)", "unit": "R", "period": f"YTD {cur_y}",
-            "rows": rows, "total_exports": ytd(None, "export"),
-            "total_imports": ytd(None, "import"), "source_url": _PORTAL}
+    return {"as_of": f"YTD {cur_y}", "unit": "R", "period": f"YTD {cur_y}",
+            "rows": rows, "total_exports": ytd_all("export"),
+            "total_imports": ytd_all("import"), "source_url": _PORTAL}
 
 
 def get_net_trade_recon() -> dict:
@@ -359,7 +510,16 @@ def get_net_trade_recon() -> dict:
     {source, as_of, unit, period, rows:[{chapter,label,exports,imports}],
     total_exports, total_imports, source_url}. Net = exports - imports; foots:
     sum(tracked net) + all-other net = total exports - total imports = trade
-    balance. Tries live, then CSV (needs BOTH trade types), then dated."""
+    balance. Tries UN Comtrade (USD), then CSV (needs BOTH trade types), then
+    dated."""
+    # tier 0: UN Comtrade — tracked-chapter rows + all-commodity totals (USD)
+    ct = _comtrade_rows()
+    if ct and any(r["trade"] == "import" for r in ct):
+        totals = _comtrade_all_totals() or []
+        rec = _net_recon_from_rows(ct + totals)
+        if rec:
+            rec["unit"] = "$"
+            return {"source": "comtrade", **rec}
     live = _try_live_rows()
     if live and any(r.get("trade") == "import" for r in live):
         rec = _net_recon_from_rows(live)
