@@ -258,11 +258,16 @@ def test_sars_trade_parser():
         'Exports,71,"71 - Gold, Platinum, Diamonds",2026-02,31000000000\n'
         'Exports,26,"26 - Ores",2026-01,20000000000\n'
         'Imports,71,"71 - Gold",2026-01,5000000000\n')
-    agg = S._aggregate(S._parse_csv_text(csv_text))
+    parsed = S._parse_csv_text(csv_text)
+    # parser now keeps both trade types; export path filters to exports
+    exp = [r for r in parsed if r.get("trade") == "export"]
+    agg = S._aggregate(exp)
     by = {a["chapter"]: a["value"] for a in agg}
     assert by["71"] == 63000000000, "Ch71 should sum Jan+Feb exports only"
     assert by["26"] == 20000000000
     assert "71" in by and len(agg) == 2  # imports excluded, 2 export chapters
+    # import row was captured with trade='import'
+    assert any(r.get("trade") == "import" for r in parsed)
     # dated fallback shape (network + csv absent in test)
     res = S.get_commodity_exports()
     assert res["source"] in ("dated", "csv", "live") and res["rows"]
@@ -283,6 +288,32 @@ def test_sars_trade_parser():
     assert abs(r71["this_month"] - 49e9) < 1e6
     assert abs(r71["same_month_ly"] - 33e9) < 1e6  # Apr 2025
     assert packed["latest_month"] == "2026-04" and packed["prev_month"] == "2026-03"
+
+
+def test_net_trade_recon_foots():
+    import sys, types
+    st = types.ModuleType("streamlit"); st.cache_data = lambda **k: (lambda f: f)
+    sys.modules["streamlit"] = st
+    from data_sources import sars_trade as S
+    csv = ('TradeType,Chapter,YearMonth,CustomsValue\n'
+           'Exports,71,2026-01,100000000000\n'
+           'Imports,71,2026-01,5000000000\n'
+           'Exports,27,2026-01,20000000000\n'
+           'Imports,27,2026-01,60000000000\n'
+           'Exports,87,2026-01,40000000000\n'
+           'Imports,87,2026-01,30000000000\n')
+    rec = S._net_recon_from_rows(S._parse_csv_text(csv, keep_all=True))
+    assert abs(rec["total_exports"] - 160e9) < 1e6
+    assert abs(rec["total_imports"] - 95e9) < 1e6
+    # ch27 is a net importer (imports > exports)
+    c27 = [r for r in rec["rows"] if r["chapter"] == "27"][0]
+    assert c27["exports"] - c27["imports"] == -40e9
+    # foots: tracked net + other net = total exports - total imports (trade bal)
+    trk_e = sum(r["exports"] for r in rec["rows"])
+    trk_i = sum(r["imports"] for r in rec["rows"])
+    tb = rec["total_exports"] - rec["total_imports"]
+    other = (rec["total_exports"] - trk_e) - (rec["total_imports"] - trk_i)
+    assert abs((trk_e - trk_i) + other - tb) < 1e6
 
 
 def test_bop_reconciliation_foots():

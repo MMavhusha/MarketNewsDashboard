@@ -630,3 +630,6 @@ div[data-testid="stPills"] button:focus-visible {
 .cm-cell.wide { padding-right:2px; }
 .cm-subtotal { border-top:1px solid rgba(0,0,0,0.12); }
 .cm-subtotal .cm-name, .cm-subtotal .cm-val { font-weight:500; color:#003B71; }
+
+/* Net-trade recon: line item | exports | imports | net | % (5 cols) */
+.cm.netrec .cm-row { grid-template-columns:2.2fr 1fr 1fr 1fr 1fr; }

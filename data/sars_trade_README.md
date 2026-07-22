@@ -11,9 +11,12 @@ https://tools.sars.gov.za/tradestatsportal/data_download.aspx
 
 Set the form exactly as follows to reproduce the table's data:
 
-1. **Trade Type = Exports.**
-   We track the export side only (these are SA's foreign earnings / the goods
-   that build the trade surplus). Imports are excluded by the parser even if present.
+1. **Trade Type = Exports AND Imports.** Pull BOTH. The movement and
+   contribution statements use exports; the per-commodity net-trade
+   reconciliation needs imports too (net = exports minus imports), so the
+   coal/crude chapter correctly shows as a net importer. Do two downloads
+   (one Exports, one Imports) and concatenate into one CSV, or select both
+   trade types if the portal allows. The parser reads the TradeType column.
 
 2. **Focus Area = Tariffs** (i.e. break the data down by HS tariff chapter),
    NOT "Countries." We want what is exported, by commodity, not by destination.

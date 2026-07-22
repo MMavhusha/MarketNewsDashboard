@@ -214,40 +214,61 @@ def page_commodities():
         "100% of total merchandise exports. Tracked = SARS HS chapters 26 ores, "
         "27 coal/crude/petroleum, 71 gold/platinum/precious metals, 74 copper.")
 
-    # ============ STATEMENT 3: How exports fit the balance of payments ============
-    ui.section("How exports fit the balance of payments",
-               "Exports \u2192 trade balance \u2192 current account \u00b7 quarterly (SARB)")
-    rec = sarb.get_bop_reconciliation()
-    u = rec["unit"]
-    def rrow(label, val, cls="", paren=False):
-        disp = f"({abs(val):,.1f})" if (paren and val < 0) else f"{val:,.1f}"
-        if paren and val >= 0:
-            disp = f"{val:,.1f}"
+    # ====== STATEMENT 3: Per-commodity net contribution to the trade balance ======
+    ui.section("Commodity contribution to the trade balance",
+               "Each tracked commodity, exports \u2212 imports = net \u00b7 SARS")
+    nr = sars_trade.get_net_trade_recon()
+    nscale = 1e9 if nr["source"] in ("live", "csv") else 1.0
+    nsrc_label = {"live": "live from SARS portal", "csv": "from uploaded SARS CSV",
+                  "dated": f"dated: {nr.get('as_of','')}"}.get(nr["source"], "")
+    tb = nr["total_exports"] - nr["total_imports"]  # trade balance (denominator for %)
+    trk_e = sum(r["exports"] for r in nr["rows"])
+    trk_i = sum(r["imports"] for r in nr["rows"])
+
+    def nrow(label, exp, imp, cls="", pct_base=None):
+        net = exp - imp
+        net_cls = ui.chg_cls(net)
+        pct = (net / pct_base * 100) if pct_base else None
+        pct_html = (f'<span class="num {ui.chg_cls(pct)}">{pct:+.1f}%</span>'
+                    if pct is not None else "")
+        imp_disp = f'({imp/nscale:,.1f})' if imp else f'{imp/nscale:,.1f}'
         return (f'<div class="cm-row {cls}"><div class="cm-name">{ui.esc(label)}</div>'
-                f'<div class="cm-cell wide"><span class="cm-val">{disp}</span></div></div>')
-    rb = (f'<div class="cm recon2"><div class="cm-row cm-head">'
-          f'<div class="cm-name">Balance of payments \u00b7 {rec["period"]}</div>'
-          f'<div class="cm-cell cm-h wide">{u}</div></div>')
-    rb += rrow("Merchandise exports", rec["exports"])
-    rb += rrow("Less: merchandise imports", -rec["imports"], paren=True)
-    rb += rrow("Trade balance", rec["trade_balance"], cls="cm-subtotal")
-    rb += rrow("Net services, income & transfers",
-               rec["services_income_transfers"], paren=True)
-    rb += rrow("Current account balance", rec["current_account"], cls="cm-total")
-    rb += '</div>'
-    st.markdown(rb, unsafe_allow_html=True)
-    rsrc = rec.get("source_url", "")
+                f'<div class="cm-cell"><span class="cm-val">{exp/nscale:,.1f}</span></div>'
+                f'<div class="cm-cell"><span class="cm-val">{imp_disp}</span></div>'
+                f'<div class="cm-cell"><span class="num {net_cls}">{net/nscale:+,.1f}</span></div>'
+                f'<div class="cm-cell">{pct_html}</div></div>')
+
+    nb = ('<div class="cm netrec"><div class="cm-row cm-head">'
+          f'<div class="cm-name">Line item ({nr["period"]})</div>'
+          f'<div class="cm-cell cm-h">Exports</div>'
+          f'<div class="cm-cell cm-h">Imports</div>'
+          f'<div class="cm-cell cm-h">Net</div>'
+          f'<div class="cm-cell cm-h">% of trade bal.</div></div>')
+    for r in nr["rows"]:
+        nb += nrow(r["label"], r["exports"], r["imports"], pct_base=tb)
+    # tracked subtotal
+    nb += nrow("Tracked commodities, net", trk_e, trk_i, cls="cm-subtotal", pct_base=tb)
+    # all other trade (reconciling)
+    nb += nrow("All other trade, net",
+               nr["total_exports"] - trk_e, nr["total_imports"] - trk_i,
+               cls="cm-resid", pct_base=tb)
+    # trade balance total
+    nb += nrow("Trade balance", nr["total_exports"], nr["total_imports"],
+               cls="cm-total", pct_base=tb)
+    nb += '</div>'
+    st.markdown(nb, unsafe_allow_html=True)
+    nsrc = nr.get("source_url", "")
     st.caption(
-        f"Where the export figure fits: for {rec['period']}, merchandise exports "
-        "less imports give the trade balance, and adding net services, income and "
-        "transfers gives the current account "
-        f"(R{rec['current_account']:,.1f}bn surplus, {rec['ca_pct_gdp']}% of GDP). "
-        "This statement foots. It is quarterly because SARB reports the balance "
-        "of payments quarterly \u2014 the basis on which exports, the trade balance "
-        "and the current account all align. The commodity exports above (SARS "
-        "monthly/YTD) are the largest single driver of the merchandise-exports "
-        "line here. Source: SARB Quarterly Bulletin"
-        + (f" \u00b7 [release]({rsrc})" if rsrc else "") + ".")
+        "Each tracked commodity as its own line: exports less imports gives its "
+        "net contribution to SA's trade balance, and the four plus all other "
+        "trade reconcile to the trade balance itself. A net importer (e.g. coal/"
+        "crude/petroleum, where SA imports crude) shows negative. Both sides are "
+        f"SARS customs data, same basis, {nr['period']}. Source: SARS "
+        f"({nsrc_label})" + (f" \u00b7 [portal]({nsrc})" if nsrc else "")
+        + ". The further step to the current account adds net services, income "
+        "and transfers \u2014 a whole-economy figure (tourism, dividends, "
+        "remittances) that is not attributable to any commodity, so this "
+        "statement stops, honestly, at the trade balance.")
 
 
 

@@ -83,9 +83,11 @@ def _parse_csv_text(text: str, keep_all: bool = False) -> list[dict]:
     if not (c_val and (c_chap or c_chap_desc)):
         return rows
     for r in reader:
-        # exports only, if a trade-type column exists
-        if c_type and "export" not in str(r.get(c_type, "")).lower():
-            continue
+        # record trade type (export/import) rather than dropping imports, so a
+        # net-trade reconciliation can use both sides. Default to export when
+        # no trade-type column is present (legacy export-only extracts).
+        ttype = str(r.get(c_type, "")).lower() if c_type else "export"
+        ttype = "import" if "import" in ttype else "export"
         # prefer the bare Chapter column; else take leading digits of the
         # combined description (robust even if unquoted commas shifted fields)
         if c_chap and str(r.get(c_chap, "")).strip():
@@ -103,7 +105,7 @@ def _parse_csv_text(text: str, keep_all: bool = False) -> list[dict]:
             continue
         rows.append({"chapter": chap,
                      "label": CHAPTERS.get(chap, f"Chapter {chap}"), "value": val,
-                     "period": str(r.get(c_per, "")).strip()})
+                     "period": str(r.get(c_per, "")).strip(), "trade": ttype})
     return rows
 
 
@@ -257,9 +259,10 @@ def get_commodity_movement() -> dict:
     # tier 1: live
     live_rows = _try_live_rows()
     if live_rows:
-        all_rows = live_rows  # live parse keeps all chapters if keep_all used
+        exp_rows = [r for r in live_rows if r.get("trade", "export") == "export"]
+        all_rows = [r for r in exp_rows]  # exports, all chapters
         cum = _cumulative_by_chapter(
-            [r for r in live_rows if r["chapter"] in CHAPTERS], all_rows)
+            [r for r in exp_rows if r["chapter"] in CHAPTERS], all_rows)
         packed = _pack_movement("live", cum)
         if packed:
             return packed
@@ -267,9 +270,11 @@ def get_commodity_movement() -> dict:
     try:
         if _CSV_PATH.exists():
             text = _CSV_PATH.read_text(encoding="utf-8")
-            tracked = _parse_csv_text(text)
-            all_rows = _parse_csv_text(text, keep_all=True)
-            cum = _cumulative_by_chapter(tracked, all_rows)
+            exp = [r for r in _parse_csv_text(text)
+                   if r.get("trade", "export") == "export"]
+            all_exp = [r for r in _parse_csv_text(text, keep_all=True)
+                       if r.get("trade", "export") == "export"]
+            cum = _cumulative_by_chapter(exp, all_exp)
             packed = _pack_movement("csv", cum)
             if packed:
                 return packed
@@ -277,6 +282,85 @@ def get_commodity_movement() -> dict:
         pass
     # tier 3: dated
     return {"source": "dated", **_DATED_MOVE}
+
+
+# Dated fallback for the per-commodity NET trade reconciliation (YTD, ZAR bn).
+# exports/imports per tracked chapter; foots to the trade balance. Clearly
+# stamped. Replace when a full SARS CSV (both trade types) is dropped in.
+_NET_RECON_FALLBACK = {
+    "as_of": "YTD 2026 (SARS, dated)", "unit": "R bn", "period": "YTD 2026",
+    "rows": [
+        {"chapter": "71", "label": CHAPTERS["71"], "exports": 191.0, "imports": 4.0},
+        {"chapter": "26", "label": CHAPTERS["26"], "exports": 79.0, "imports": 1.5},
+        {"chapter": "27", "label": CHAPTERS["27"], "exports": 56.0, "imports": 118.0},
+        {"chapter": "74", "label": CHAPTERS["74"], "exports": 8.2, "imports": 3.0},
+    ],
+    "total_exports": 726.0, "total_imports": 535.0,  # trade balance = 191.0
+    "source_url": _PORTAL,
+}
+
+
+def _net_recon_from_rows(rows_all) -> dict | None:
+    """Build the per-commodity net-trade recon from parsed rows carrying both
+    trade types. Sums latest-year YTD exports & imports per tracked chapter and
+    the all-chapters totals, so it foots: sum(tracked net) + other net =
+    total exports - total imports = trade balance."""
+    def ym(r):
+        p = r.get("period", "").replace("/", "-")
+        if len(p) == 6 and p.isdigit():
+            return p[:4], p[4:6]
+        if "-" in p and len(p) >= 7:
+            return p[:4], p[5:7]
+        return None, None
+    years = sorted({ym(r)[0] for r in rows_all if ym(r)[0]})
+    if not years:
+        return None
+    cur_y = years[-1]
+    months = sorted({ym(r)[1] for r in rows_all if ym(r)[0] == cur_y and ym(r)[1]})
+    if not months:
+        return None
+    last_m = months[-1]
+
+    def ytd(chapter, trade):
+        return sum(r["value"] for r in rows_all
+                   if r.get("trade") == trade and ym(r)[0] == cur_y
+                   and ym(r)[1] and ym(r)[1] <= last_m
+                   and (chapter is None or r["chapter"] == chapter))
+    rows = []
+    for ch in CHAPTERS:
+        e, i = ytd(ch, "export"), ytd(ch, "import")
+        if e or i:
+            rows.append({"chapter": ch, "label": CHAPTERS[ch],
+                         "exports": e, "imports": i})
+    if not rows:
+        return None
+    return {"as_of": f"YTD {cur_y} (SARS)", "unit": "R", "period": f"YTD {cur_y}",
+            "rows": rows, "total_exports": ytd(None, "export"),
+            "total_imports": ytd(None, "import"), "source_url": _PORTAL}
+
+
+def get_net_trade_recon() -> dict:
+    """Per-commodity net trade reconciliation to the trade balance.
+    {source, as_of, unit, period, rows:[{chapter,label,exports,imports}],
+    total_exports, total_imports, source_url}. Net = exports - imports; foots:
+    sum(tracked net) + all-other net = total exports - total imports = trade
+    balance. Tries live, then CSV (needs BOTH trade types), then dated."""
+    live = _try_live_rows()
+    if live and any(r.get("trade") == "import" for r in live):
+        rec = _net_recon_from_rows(live)
+        if rec:
+            return {"source": "live", **rec}
+    try:
+        if _CSV_PATH.exists():
+            allrows = _parse_csv_text(_CSV_PATH.read_text(encoding="utf-8"),
+                                      keep_all=True)
+            if any(r.get("trade") == "import" for r in allrows):
+                rec = _net_recon_from_rows(allrows)
+                if rec:
+                    return {"source": "csv", **rec}
+    except Exception:
+        pass
+    return {"source": "dated", **_NET_RECON_FALLBACK}
 
 
 @st.cache_data(ttl=6 * 3600, show_spinner=False)
