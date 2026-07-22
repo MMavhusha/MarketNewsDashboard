@@ -2,32 +2,25 @@
 
 The commodity trade statement is sourced in three tiers, automatically, best first:
 
-1. **UN Comtrade** (primary) — the UN's official global trade database, free, with
-   a real JSON API. Does South Africa, monthly, per HS chapter, exports AND imports,
-   vs the World aggregate. This is the proper programmatic source and needs no manual
-   downloads. Values are in **USD**.
+1. **UN Comtrade** (primary) — the UN's official global trade database. Uses the
+   **public preview endpoint, which needs NO key or registration at all.** It's
+   capped at 500 records per call, which comfortably covers what this dashboard
+   asks for (4 chapters x a few recent months x 2 flows). Values are in **USD**.
 2. **SARS CSV** (manual fallback) — drop a file at `data/sars_trade.csv` if you want
    to override with SARS's own ZAR figures. Details below.
 3. **Dated fallback** — built-in illustrative figures, clearly stamped, if neither
    of the above is available.
 
-## Setting up UN Comtrade (do this once)
+## UN Comtrade — nothing to set up
 
-1. Go to https://comtradedeveloper.un.org/ and register (free).
-2. Follow their sign-up steps, and when asked to pick a product, choose the free
-   one: **"comtrade - v1"**.
-3. Once registered, your profile shows a **subscription key** (a "primary key").
-   Copy it.
-4. Put it in the app's secrets as **`COMTRADE_API_KEY`**:
-   - On Streamlit Community Cloud: app -> Settings -> Secrets, add a line
-     `COMTRADE_API_KEY = "your-key-here"`
-   - Locally: add the same line to `.streamlit/secrets.toml`, or set an environment
-     variable `COMTRADE_API_KEY`.
-5. Save and let the app restart. The commodity statement's source label will read
-   "UN Comtrade" and the figures will be live.
+Because this dashboard's needs are small, it uses Comtrade's free, keyless
+**public preview** endpoint (`comtradeapi.un.org/public/v1/preview/...`). There is
+**no registration, no key, nothing to paste into secrets.** It should just work.
 
-Free tier limits are 500 API calls/day and 100,000 rows/call — far more than this
-dashboard needs (it makes two small calls per refresh, cached for six hours).
+If you ever want higher limits (e.g. for a much bigger pull elsewhere), you can
+optionally register a free key at https://comtradedeveloper.un.org/ (pick the
+"comtrade - v1" product) and add it as `COMTRADE_API_KEY` in the app's secrets —
+the app will send it if present, but it isn't required for this dashboard.
 
 ### What the app pulls from Comtrade
 - Reporter: South Africa (code 710)

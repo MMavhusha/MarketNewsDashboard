@@ -40,9 +40,14 @@ _CSV_PATH = Path(__file__).resolve().parents[1] / "data" / "sars_trade.csv"
 # 710; partner 0 = World (the all-destinations aggregate the SARS portal won't
 # give). Values are USD. Register a free key at comtradedeveloper.un.org (pick
 # the free "comtrade - v1" product) and add it to app secrets as COMTRADE_API_KEY.
-_COMTRADE_URL = "https://comtradeapi.un.org/data/v1/get/C/M/HS"
+_COMTRADE_URL = "https://comtradeapi.un.org/public/v1/preview/C/M/HS"
 _COMTRADE_REPORTER = "710"   # South Africa
 _COMTRADE_WORLD = "0"        # World (all partners aggregated)
+# The public "preview" endpoint needs NO subscription key — capped at 500
+# records/call, which comfortably covers our 4 chapters x a few months x 2
+# flows. If a key is later added (COMTRADE_API_KEY), we pass it as a header,
+# which the preview endpoint accepts optionally for higher limits; without
+# one it still works.
 
 # HS chapters we surface, with the friendly label used in the panel.
 CHAPTERS = {
@@ -81,12 +86,12 @@ def _recent_periods(n: int = 8) -> str:
 
 def _comtrade_rows(periods: str | None = None) -> list[dict] | None:
     """Fetch SA (reporter 710) monthly HS-chapter trade vs World (partner 0),
-    BOTH flows, from UN Comtrade. Returns rows in the parser's shape
-    ({chapter,label,value(USD),period 'YYYY-MM',trade export|import}) or None.
-    Values are USD (Comtrade standard). Requires a free API key."""
+    BOTH flows, from UN Comtrade's public preview endpoint (no key required,
+    capped at 500 records/call \u2014 ample for 4 chapters x a few months x 2
+    flows). Returns rows in the parser's shape ({chapter,label,value(USD),
+    period 'YYYY-MM',trade export|import}) or None. Values are USD. A key
+    (COMTRADE_API_KEY), if set, is sent for higher limits but isn't required."""
     key = _comtrade_key()
-    if not key:
-        return None
     params = {
         "reporterCode": _COMTRADE_REPORTER,
         "partnerCode": _COMTRADE_WORLD,
@@ -98,8 +103,8 @@ def _comtrade_rows(periods: str | None = None) -> list[dict] | None:
         "motCode": "0",
     }
     try:
-        r = requests.get(_COMTRADE_URL, params=params,
-                         headers={"Ocp-Apim-Subscription-Key": key}, timeout=25)
+        headers = {"Ocp-Apim-Subscription-Key": key} if key else {}
+        r = requests.get(_COMTRADE_URL, params=params, headers=headers, timeout=25)
         r.raise_for_status()
         payload = r.json()
     except (requests.RequestException, ValueError):
@@ -133,18 +138,17 @@ def _comtrade_rows(periods: str | None = None) -> list[dict] | None:
 def _comtrade_all_totals(periods: str | None = None) -> list[dict] | None:
     """Fetch SA total trade (all commodities, cmdCode 'TOTAL') by month & flow
     vs World, so the movement/recon can express shares of TOTAL exports and
-    foot to the trade balance. Returns rows with chapter '__ALL__'."""
+    foot to the trade balance. Returns rows with chapter '__ALL__'. Uses the
+    public preview endpoint \u2014 no key required."""
     key = _comtrade_key()
-    if not key:
-        return None
     params = {
         "reporterCode": _COMTRADE_REPORTER, "partnerCode": _COMTRADE_WORLD,
         "period": periods or _recent_periods(), "cmdCode": "TOTAL",
         "flowCode": "M,X", "partner2Code": "0", "customsCode": "C00", "motCode": "0",
     }
     try:
-        r = requests.get(_COMTRADE_URL, params=params,
-                         headers={"Ocp-Apim-Subscription-Key": key}, timeout=25)
+        headers = {"Ocp-Apim-Subscription-Key": key} if key else {}
+        r = requests.get(_COMTRADE_URL, params=params, headers=headers, timeout=25)
         r.raise_for_status()
         data = r.json().get("data")
     except (requests.RequestException, ValueError, AttributeError):
