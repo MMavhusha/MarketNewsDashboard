@@ -633,3 +633,7 @@ div[data-testid="stPills"] button:focus-visible {
 
 /* Net-trade recon: line item | exports | imports | net | % (5 cols) */
 .cm.netrec .cm-row { grid-template-columns:2.2fr 1fr 1fr 1fr 1fr; }
+
+/* Consolidated commodity statement: two column layouts by view */
+.cm.cmstmt.cm-current .cm-row { grid-template-columns:2fr 1fr 1fr 1fr 1fr 1fr; }
+.cm.cmstmt.cm-movement .cm-row { grid-template-columns:1.5fr repeat(7, 1fr); }

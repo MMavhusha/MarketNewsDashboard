@@ -101,10 +101,11 @@ def page_commodities():
               "paid; the trade balance (goods) is the largest component.")
 
     # ---- Commodity drivers (supporting context, NOT the BoP itself) ----
-    # ============ STATEMENT 1: Commodity export movement (chronological) ============
-    ui.section("Commodity export movement",
-               "The commodities we track \u00b7 export value by period (rand)")
+    # ============ Consolidated commodity statement (one table, toggled band) ============
+    ui.section("Commodity trade statement",
+               "The commodities we track \u00b7 current position and movement")
     mv = sars_trade.get_commodity_movement()
+    nr = sars_trade.get_net_trade_recon()
     _MON = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep",
             "Oct", "Nov", "Dec"]
     def _mlabel(ym):
@@ -113,162 +114,121 @@ def page_commodities():
         y, m = ym.split("-")[:2]
         return f"{_MON[int(m)]} {y}"
     cy, py = mv.get("cur_year", ""), mv.get("prev_year", "")
-    src_label = {"live": "live from SARS portal", "csv": "from uploaded SARS CSV",
-                 "dated": f"dated: {mv.get('as_of','')}"}.get(mv["source"], "")
-    scale = 1e9 if mv["source"] in ("live", "csv") else 1.0
-    rows = mv.get("rows", [])
-    totals = mv.get("totals") or {}
+    mscale = 1e9 if mv["source"] in ("live", "csv") else 1.0
+    nscale = 1e9 if nr["source"] in ("live", "csv") else 1.0
     this_lbl = _mlabel(mv.get("latest_month"))
     last_lbl = _mlabel(mv.get("prev_month"))
     sm_lbl = _mlabel(f"{py}-{mv.get('through_month','')}")
-    # Chronological, oldest -> newest: same-month-last-year, last month, this
-    # month, then MoM; divider; YTD prior, YTD current, then YoY.
-    month_cols = [("same_month_ly", sm_lbl), ("last_month", last_lbl),
-                  ("this_month", this_lbl)]
+    mtotals = mv.get("totals") or {}
+    # merge the two sources by chapter: movement (exports, monthly+YTD) + recon
+    # (YTD exports & imports). Anchor the "current" band on YTD, the period both
+    # share. imports come from the recon (YTD).
+    imp = {r["chapter"]: r["imports"] / nscale for r in nr["rows"]}
+    total_exp_ytd = (mtotals.get("ytd") / mscale) if mtotals.get("ytd") else None
+    total_imp_ytd = nr["total_imports"] / nscale if nr.get("total_imports") else None
+    trade_bal = ((total_exp_ytd - total_imp_ytd)
+                 if (total_exp_ytd and total_imp_ytd is not None) else None)
 
-    def vcell(val_r, cls=""):
-        if val_r is None:
-            return f'<div class="cm-cell {cls}"><span class="bops-na">n/a</span></div>'
-        return f'<div class="cm-cell {cls}"><span class="cm-val">R{val_r/scale:,.1f}bn</span></div>'
+    view = st.pills("View", ["Current position", "Movement"], default="Current position",
+                    key="cm_view", label_visibility="collapsed") or "Current position"
 
-    def chg(cur, prev):
-        if cur is None or prev in (None, 0):
-            return '<div class="cm-cell"><span class="bops-na">n/a</span></div>'
-        pct = (cur - prev) / prev * 100
-        return f'<div class="cm-cell"><span class="num {ui.chg_cls(pct)}">{pct:+.1f}%</span></div>'
+    def mval(r, key):
+        v = r.get(key)
+        return v / mscale if v is not None else None
 
-    head = ('<div class="cm-row cm-head"><div class="cm-name">Commodity (SARS HS chapter)</div>'
-            f'<div class="cm-cell cm-h">{ui.esc(sm_lbl)}</div>'
-            f'<div class="cm-cell cm-h">{ui.esc(last_lbl)}</div>'
-            f'<div class="cm-cell cm-h">{ui.esc(this_lbl)}</div>'
-            '<div class="cm-cell cm-h cm-chg">MoM \u0394</div>'
-            f'<div class="cm-cell cm-h cm-div">YTD {py}</div>'
-            f'<div class="cm-cell cm-h">YTD {cy}</div>'
-            '<div class="cm-cell cm-h cm-chg">YoY \u0394</div></div>')
-    body = f'<div class="cm">{head}'
-
-    def mv_row(label, getter, cls=""):
-        h = f'<div class="cm-row {cls}"><div class="cm-name">{ui.esc(label)}</div>'
-        for key, _lbl in month_cols:
-            h += vcell(getter(key))
-        h += chg(getter("this_month"), getter("last_month"))
-        h += vcell(getter("ytd_prev"), cls="cm-div")
-        h += vcell(getter("ytd"))
-        h += chg(getter("ytd"), getter("ytd_prev"))
-        h += '</div>'
-        return h
-
-    for r in rows:
-        body += mv_row(r["label"], lambda k, r=r: r.get(k))
-    body += mv_row("Tracked commodities total",
-                   lambda k: sum(r.get(k, 0) or 0 for r in rows), cls="cm-total")
+    _vc = 'cm-current' if view == 'Current position' else 'cm-movement'
+    body = f'<div class="cm cmstmt {_vc}">'
+    if view == "Current position":
+        # YTD exports | imports | net | % of trade balance | % of total exports
+        body += (f'<div class="cm-row cm-head"><div class="cm-name">Commodity (YTD {cy})</div>'
+                 '<div class="cm-cell cm-h">Exports</div>'
+                 '<div class="cm-cell cm-h">Imports</div>'
+                 '<div class="cm-cell cm-h">Net</div>'
+                 '<div class="cm-cell cm-h">% trade bal.</div>'
+                 '<div class="cm-cell cm-h">% exports</div></div>')
+        def crow(label, exp, im, cls=""):
+            net = (exp - im) if (exp is not None and im is not None) else None
+            im_disp = (f'({im:,.1f})' if im else f'{im:,.1f}') if im is not None else "n/a"
+            net_html = (f'<span class="num {ui.chg_cls(net)}">{net:+,.1f}</span>'
+                        if net is not None else '<span class="bops-na">n/a</span>')
+            ptb = (f'{net/trade_bal*100:,.1f}%' if (net is not None and trade_bal) else "\u2014")
+            pex = (f'{exp/total_exp_ytd*100:,.1f}%' if (exp is not None and total_exp_ytd) else "\u2014")
+            return (f'<div class="cm-row {cls}"><div class="cm-name">{ui.esc(label)}</div>'
+                    f'<div class="cm-cell"><span class="cm-val">{exp:,.1f}</span></div>'
+                    f'<div class="cm-cell"><span class="cm-val">{im_disp}</span></div>'
+                    f'<div class="cm-cell">{net_html}</div>'
+                    f'<div class="cm-cell"><span class="cm-val">{ptb}</span></div>'
+                    f'<div class="cm-cell"><span class="cm-pct">{pex}</span></div></div>')
+        trk_e = trk_i = 0.0
+        for r in mv["rows"]:
+            e = mval(r, "ytd"); im = imp.get(r["chapter"])
+            if e is not None:
+                trk_e += e
+            if im is not None:
+                trk_i += im
+            body += crow(r["label"], e, im)
+        body += crow("Tracked commodities, net", trk_e, trk_i, cls="cm-subtotal")
+        if total_exp_ytd and total_imp_ytd is not None:
+            body += crow("All other trade, net",
+                         total_exp_ytd - trk_e, total_imp_ytd - trk_i, cls="cm-resid")
+            body += crow("Trade balance", total_exp_ytd, total_imp_ytd, cls="cm-total")
+    else:
+        # Movement: chronological monthly + MoM, then YTD both years + YoY
+        body += (f'<div class="cm-row cm-head"><div class="cm-name">Commodity (exports, R bn)</div>'
+                 f'<div class="cm-cell cm-h">{ui.esc(sm_lbl)}</div>'
+                 f'<div class="cm-cell cm-h">{ui.esc(last_lbl)}</div>'
+                 f'<div class="cm-cell cm-h">{ui.esc(this_lbl)}</div>'
+                 '<div class="cm-cell cm-h cm-chg">MoM \u0394</div>'
+                 f'<div class="cm-cell cm-h cm-div">YTD {py}</div>'
+                 f'<div class="cm-cell cm-h">YTD {cy}</div>'
+                 '<div class="cm-cell cm-h cm-chg">YoY \u0394</div></div>')
+        def vcell(v, cls=""):
+            return (f'<div class="cm-cell {cls}"><span class="cm-val">{v:,.1f}</span></div>'
+                    if v is not None else f'<div class="cm-cell {cls}"><span class="bops-na">n/a</span></div>')
+        def chg(cur, prev):
+            if cur is None or prev in (None, 0):
+                return '<div class="cm-cell"><span class="bops-na">n/a</span></div>'
+            p = (cur - prev) / prev * 100
+            return f'<div class="cm-cell"><span class="num {ui.chg_cls(p)}">{p:+.1f}%</span></div>'
+        def mrow(label, g, cls=""):
+            h = f'<div class="cm-row {cls}"><div class="cm-name">{ui.esc(label)}</div>'
+            h += vcell(g("same_month_ly")) + vcell(g("last_month")) + vcell(g("this_month"))
+            h += chg(g("this_month"), g("last_month"))
+            h += vcell(g("ytd_prev"), cls="cm-div") + vcell(g("ytd"))
+            h += chg(g("ytd"), g("ytd_prev"))
+            return h + '</div>'
+        for r in mv["rows"]:
+            body += mrow(r["label"], lambda k, r=r: mval(r, k))
+        body += mrow("Tracked commodities total",
+                     lambda k: sum((mval(r, k) or 0) for r in mv["rows"]), cls="cm-total")
     body += '</div>'
     st.markdown(body, unsafe_allow_html=True)
+
     src = mv.get("source_url", "")
-    st.caption(
-        "Export value of the commodities we track, by period, oldest to newest. "
-        f"Monthly block ({sm_lbl} \u2192 {last_lbl} \u2192 {this_lbl}) with month-"
-        f"on-month change, then the year-to-date block (YTD {py} \u2192 YTD {cy}) "
-        "with the like-for-like year-on-year change. Source: SARS customs "
-        f"({src_label})" + (f" \u00b7 [portal]({src})" if src else "")
-        + ". Figures preliminary and SARS-revisable.")
-
-    # ============ STATEMENT 2: Commodity contribution to exports (recon) ============
-    ui.section("Commodity contribution to total exports",
-               f"Each tracked commodity as a share of total SA exports \u00b7 YTD {cy}")
-    ex_body = ('<div class="cm recon"><div class="cm-row cm-head">'
-               '<div class="cm-name">Line item</div>'
-               '<div class="cm-cell cm-h">Value</div>'
-               '<div class="cm-cell cm-h">% of total exports</div></div>')
-    total_ex = totals.get("ytd")
-    tracked_sum = sum(r.get("ytd", 0) or 0 for r in rows)
-    for r in rows:
-        v = r.get("ytd")
-        pct = (v / total_ex * 100) if (v is not None and total_ex) else None
-        ex_body += ('<div class="cm-row"><div class="cm-name">'
-                    f'{ui.esc(r["label"])}</div>'
-                    f'<div class="cm-cell"><span class="cm-val">R{(v or 0)/scale:,.1f}bn</span></div>'
-                    f'<div class="cm-cell"><span class="cm-val">{pct:.1f}%</span></div></div>'
-                    if pct is not None else
-                    f'<div class="cm-row"><div class="cm-name">{ui.esc(r["label"])}</div>'
-                    '<div class="cm-cell"><span class="bops-na">n/a</span></div>'
-                    '<div class="cm-cell"><span class="bops-na">n/a</span></div></div>')
-    # subtotal
-    if total_ex:
-        ex_body += ('<div class="cm-row cm-subtotal"><div class="cm-name">Tracked commodities subtotal</div>'
-                    f'<div class="cm-cell"><span class="cm-val">R{tracked_sum/scale:,.1f}bn</span></div>'
-                    f'<div class="cm-cell"><span class="cm-val">{tracked_sum/total_ex*100:.1f}%</span></div></div>')
-        other = total_ex - tracked_sum
-        ex_body += ('<div class="cm-row cm-resid"><div class="cm-name">All other exports</div>'
-                    f'<div class="cm-cell"><span class="cm-val">R{other/scale:,.1f}bn</span></div>'
-                    f'<div class="cm-cell"><span class="cm-val">{other/total_ex*100:.1f}%</span></div></div>')
-        ex_body += ('<div class="cm-row cm-total"><div class="cm-name">Total SA merchandise exports</div>'
-                    f'<div class="cm-cell"><span class="cm-val">R{total_ex/scale:,.1f}bn</span></div>'
-                    '<div class="cm-cell"><span class="cm-val">100.0%</span></div></div>')
-    ex_body += '</div>'
-    st.markdown(ex_body, unsafe_allow_html=True)
-    st.caption(
-        f"Reconciliation of the tracked commodities to total SA exports, YTD {cy}. "
-        "Each commodity is shown in isolation with its value and share; the four "
-        "sum to the tracked subtotal, and with all other exports reconcile to "
-        "100% of total merchandise exports. Tracked = SARS HS chapters 26 ores, "
-        "27 coal/crude/petroleum, 71 gold/platinum/precious metals, 74 copper.")
-
-    # ====== STATEMENT 3: Per-commodity net contribution to the trade balance ======
-    ui.section("Commodity contribution to the trade balance",
-               "Each tracked commodity, exports \u2212 imports = net \u00b7 SARS")
-    nr = sars_trade.get_net_trade_recon()
-    nscale = 1e9 if nr["source"] in ("live", "csv") else 1.0
-    nsrc_label = {"live": "live from SARS portal", "csv": "from uploaded SARS CSV",
-                  "dated": f"dated: {nr.get('as_of','')}"}.get(nr["source"], "")
-    tb = nr["total_exports"] - nr["total_imports"]  # trade balance (denominator for %)
-    trk_e = sum(r["exports"] for r in nr["rows"])
-    trk_i = sum(r["imports"] for r in nr["rows"])
-
-    def nrow(label, exp, imp, cls="", pct_base=None):
-        net = exp - imp
-        net_cls = ui.chg_cls(net)
-        pct = (net / pct_base * 100) if pct_base else None
-        pct_html = (f'<span class="num {ui.chg_cls(pct)}">{pct:+.1f}%</span>'
-                    if pct is not None else "")
-        imp_disp = f'({imp/nscale:,.1f})' if imp else f'{imp/nscale:,.1f}'
-        return (f'<div class="cm-row {cls}"><div class="cm-name">{ui.esc(label)}</div>'
-                f'<div class="cm-cell"><span class="cm-val">{exp/nscale:,.1f}</span></div>'
-                f'<div class="cm-cell"><span class="cm-val">{imp_disp}</span></div>'
-                f'<div class="cm-cell"><span class="num {net_cls}">{net/nscale:+,.1f}</span></div>'
-                f'<div class="cm-cell">{pct_html}</div></div>')
-
-    nb = ('<div class="cm netrec"><div class="cm-row cm-head">'
-          f'<div class="cm-name">Line item ({nr["period"]})</div>'
-          f'<div class="cm-cell cm-h">Exports</div>'
-          f'<div class="cm-cell cm-h">Imports</div>'
-          f'<div class="cm-cell cm-h">Net</div>'
-          f'<div class="cm-cell cm-h">% of trade bal.</div></div>')
-    for r in nr["rows"]:
-        nb += nrow(r["label"], r["exports"], r["imports"], pct_base=tb)
-    # tracked subtotal
-    nb += nrow("Tracked commodities, net", trk_e, trk_i, cls="cm-subtotal", pct_base=tb)
-    # all other trade (reconciling)
-    nb += nrow("All other trade, net",
-               nr["total_exports"] - trk_e, nr["total_imports"] - trk_i,
-               cls="cm-resid", pct_base=tb)
-    # trade balance total
-    nb += nrow("Trade balance", nr["total_exports"], nr["total_imports"],
-               cls="cm-total", pct_base=tb)
-    nb += '</div>'
-    st.markdown(nb, unsafe_allow_html=True)
-    nsrc = nr.get("source_url", "")
-    st.caption(
-        "Each tracked commodity as its own line: exports less imports gives its "
-        "net contribution to SA's trade balance, and the four plus all other "
-        "trade reconcile to the trade balance itself. A net importer (e.g. coal/"
-        "crude/petroleum, where SA imports crude) shows negative. Both sides are "
-        f"SARS customs data, same basis, {nr['period']}. Source: SARS "
-        f"({nsrc_label})" + (f" \u00b7 [portal]({nsrc})" if nsrc else "")
-        + ". The further step to the current account adds net services, income "
-        "and transfers \u2014 a whole-economy figure (tourism, dividends, "
-        "remittances) that is not attributable to any commodity, so this "
-        "statement stops, honestly, at the trade balance.")
+    src_label = {"live": "live from SARS portal", "csv": "from uploaded SARS CSV",
+                 "dated": f"dated: {mv.get('as_of','')}"}.get(mv["source"], "")
+    if view == "Current position":
+        st.caption(
+            f"Current position, {cy} year-to-date. Each tracked commodity: exports "
+            "less imports = net contribution to the trade balance, shown as a share "
+            "of the trade balance and, separately, as a share of total exports (two "
+            "different questions \u2014 how much it moves the balance vs how big it is "
+            "in the export basket). A net importer (coal/crude/petroleum) shows "
+            "negative. The four commodities + all other trade reconcile to the trade "
+            f"balance. Source: SARS ({src_label})"
+            + (f" \u00b7 [portal]({src})" if src else "")
+            + ". This statement stops at the trade balance; the further leg to the "
+            "current account (net services, income & transfers \u2014 tourism, "
+            "dividends, remittances) is a whole-economy figure, not attributable to "
+            "any commodity.")
+    else:
+        st.caption(
+            "Movement in export value, oldest to newest: monthly progression "
+            f"({sm_lbl} \u2192 {last_lbl} \u2192 {this_lbl}) with month-on-month "
+            f"change, then year-to-date ({py} \u2192 {cy}) with the like-for-like "
+            f"year-on-year change. Source: SARS ({src_label})"
+            + (f" \u00b7 [portal]({src})" if src else "")
+            + ". Figures preliminary and SARS-revisable.")
 
 
 
