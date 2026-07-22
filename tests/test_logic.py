@@ -247,6 +247,27 @@ def test_monetary_and_directional_sentiment():
     assert _classify("Stocks set to fall on recession fears", "", "")["sentiment"] == "Negative"
 
 
+def test_sars_trade_parser():
+    import sys, types
+    st = types.ModuleType("streamlit"); st.cache_data = lambda **k: (lambda f: f)
+    sys.modules["streamlit"] = st
+    from data_sources import sars_trade as S
+    csv_text = (
+        'TradeType,Chapter,ChapterAndDescription,YearMonth,CustomsValue\n'
+        'Exports,71,"71 - Gold, Platinum, Diamonds",2026-01,32000000000\n'
+        'Exports,71,"71 - Gold, Platinum, Diamonds",2026-02,31000000000\n'
+        'Exports,26,"26 - Ores",2026-01,20000000000\n'
+        'Imports,71,"71 - Gold",2026-01,5000000000\n')
+    agg = S._aggregate(S._parse_csv_text(csv_text))
+    by = {a["chapter"]: a["value"] for a in agg}
+    assert by["71"] == 63000000000, "Ch71 should sum Jan+Feb exports only"
+    assert by["26"] == 20000000000
+    assert "71" in by and len(agg) == 2  # imports excluded, 2 export chapters
+    # dated fallback shape (network + csv absent in test)
+    res = S.get_commodity_exports()
+    assert res["source"] in ("dated", "csv", "live") and res["rows"]
+
+
 if __name__ == "__main__":
     fns = [v for k, v in list(globals().items()) if k.startswith("test_")]
     for fn in fns:
