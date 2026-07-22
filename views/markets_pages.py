@@ -101,94 +101,89 @@ def page_commodities():
               "paid; the trade balance (goods) is the largest component.")
 
     # ---- Commodity drivers (supporting context, NOT the BoP itself) ----
-    ui.section("Commodity export drivers",
-               "SARS cumulative exports by category \u00b7 year-to-date vs prior year")
+    ui.section("Commodity export movement",
+               "The commodities we track \u00b7 value, share and movement by period")
     mv = sars_trade.get_commodity_movement()
     _MON = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep",
             "Oct", "Nov", "Dec"]
-    through = _MON[int(mv.get("through_month", "12"))]
+    def _mlabel(ym):
+        if not ym or "-" not in ym:
+            return ym or ""
+        y, m = ym.split("-")[:2]
+        return f"{_MON[int(m)]} {y}"
     cy, py = mv.get("cur_year", ""), mv.get("prev_year", "")
     src_label = {"live": "live from SARS portal", "csv": "from uploaded SARS CSV",
                  "dated": f"dated: {mv.get('as_of','')}"}.get(mv["source"], "")
-    # values are ZAR; live/csv come as raw rand, dated as R bn — normalise to bn
     scale = 1e9 if mv["source"] in ("live", "csv") else 1.0
     rows = mv.get("rows", [])
-    tracked_ytd = sum(r["ytd"] for r in rows)
-    total_ytd = mv.get("total_ytd")  # all SA exports YTD (may be None)
-    # denominator for shares: total exports if we have it (honest), else the
-    # tracked subset (clearly labelled). An accountant's reconciliation: each
-    # category as a share of TOTAL exports, tracked subtotal, then the residual
-    # "all other exports" so the column sums to 100%.
-    denom = total_ytd if total_ytd else tracked_ytd
-    share_basis = "total exports" if total_ytd else "tracked subset"
-    max_share = max((r["ytd"] / denom * 100 for r in rows), default=1.0) or 1.0
-    body = '<div class="bops">'
-    body += (f'<div class="bops-row bops-head"><span class="bops-item">Category (HS chapter)</span>'
-             f'<span class="bops-val">{cy} YTD</span>'
-             f'<span class="bops-val">{py} YTD</span>'
-             f'<span class="bops-move">YoY</span>'
-             f'<span class="bops-move">{through} {cy}</span></div>')
+    totals = mv.get("totals") or {}
+    this_lbl = _mlabel(mv.get("latest_month"))
+    last_lbl = _mlabel(mv.get("prev_month"))
+    sm_lbl = _mlabel(f"{py}-{mv.get('through_month','')}")
+    # five reported periods, each with its own total-exports denominator
+    periods = [
+        ("this_month", this_lbl),
+        ("last_month", last_lbl),
+        ("same_month_ly", sm_lbl),
+        ("ytd", f"YTD {cy}"),
+        ("ytd_prev", f"YTD {py}"),
+    ]
+
+    def cell(val_r, tot_r):
+        if val_r is None:
+            return '<div class="cm-cell"><span class="bops-na">n/a</span></div>'
+        v = val_r / scale
+        if tot_r:
+            sh = val_r / tot_r * 100
+            return (f'<div class="cm-cell"><span class="cm-val">R{v:,.1f}bn</span>'
+                    f'<span class="cm-pct">{sh:.1f}%</span></div>')
+        return f'<div class="cm-cell"><span class="cm-val">R{v:,.1f}bn</span></div>'
+
+    # header
+    head = '<div class="cm-row cm-head"><div class="cm-name">Commodity</div>'
+    for _key, lbl in periods:
+        head += f'<div class="cm-cell cm-h">{ui.esc(lbl)}</div>'
+    head += '<div class="cm-cell cm-h">YoY</div></div>'
+    body = f'<div class="cm">{head}'
+    # per-commodity rows
     for r in rows:
-        ytd = r["ytd"] / scale
-        prev = r["ytd_prev"] / scale
-        latest = r["latest_val"] / scale
-        share = r["ytd"] / denom * 100
+        body += f'<div class="cm-row"><div class="cm-name">{ui.esc(r["label"])}</div>'
+        for key, _lbl in periods:
+            body += cell(r.get(key), totals.get(key))
         yoy = r.get("yoy_pct")
         yoy_html = (f'<span class="num {ui.chg_cls(yoy)}">{yoy:+.1f}%</span>'
                     if yoy is not None else '<span class="bops-na">n/a</span>')
-        share_html = f'<span class="bops-share-inline">{share:.1f}%</span>'
-        # proportion bar: width scaled so the largest tracked share fills most
-        # of the track (visual sense of relative size, not another number)
-        bar_w = min(share / max_share * 100, 100) if max_share else 0
-        bar = (f'<div class="bops-bar"><div class="bops-bar-fill" '
-               f'style="width:{bar_w:.0f}%"></div></div>')
-        body += (f'<div class="bops-row"><span class="bops-item">{ui.esc(r["label"])}{bar}</span>'
-                 f'<span class="bops-val num">R{ytd:,.0f}bn {share_html}</span>'
-                 f'<span class="bops-val num">R{prev:,.0f}bn</span>'
-                 f'<span class="bops-move">{yoy_html}</span>'
-                 f'<span class="bops-move num">R{latest:,.1f}bn</span></div>')
-    # tracked subtotal, with its share of the denominator
-    tracked_share = tracked_ytd / denom * 100
-    body += (f'<div class="bops-row bops-total"><span class="bops-item">Tracked commodities subtotal</span>'
-             f'<span class="bops-val num">R{tracked_ytd/scale:,.0f}bn '
-             f'<span class="bops-share-inline">{tracked_share:.1f}%</span></span>'
-             f'<span class="bops-val"></span><span class="bops-move"></span>'
-             f'<span class="bops-move"></span></div>')
-    # reconciliation: only when we know total exports
-    if total_ytd:
-        other = total_ytd - tracked_ytd
-        other_share = other / total_ytd * 100
-        body += (f'<div class="bops-row"><span class="bops-item">'
-                 f'<span class="bops-note-plain">All other exports (reconciling)</span></span>'
-                 f'<span class="bops-val num">R{other/scale:,.0f}bn '
-                 f'<span class="bops-share-inline">{other_share:.1f}%</span></span>'
-                 f'<span class="bops-val"></span><span class="bops-move"></span>'
-                 f'<span class="bops-move"></span></div>')
-        body += (f'<div class="bops-row bops-total"><span class="bops-item">Total SA merchandise exports</span>'
-                 f'<span class="bops-val num">R{total_ytd/scale:,.0f}bn '
-                 f'<span class="bops-share-inline">100.0%</span></span>'
-                 f'<span class="bops-val"></span><span class="bops-move"></span>'
-                 f'<span class="bops-move"></span></div>')
+        body += f'<div class="cm-cell">{yoy_html}</div></div>'
+    # tracked subtotal row
+    body += '<div class="cm-row cm-total"><div class="cm-name">Tracked commodities</div>'
+    for key, _lbl in periods:
+        sub = sum(r.get(key, 0) or 0 for r in rows)
+        body += cell(sub, totals.get(key))
+    body += '<div class="cm-cell"></div></div>'
+    # total exports row (context: the whole the commodities move within)
+    if totals:
+        body += '<div class="cm-row cm-total"><div class="cm-name">Total SA exports</div>'
+        for key, _lbl in periods:
+            t = totals.get(key)
+            body += (f'<div class="cm-cell"><span class="cm-val">R{t/scale:,.0f}bn</span>'
+                     f'<span class="cm-pct">100%</span></div>' if t
+                     else '<div class="cm-cell"><span class="bops-na">n/a</span></div>')
+        body += '<div class="cm-cell"></div></div>'
     body += '</div>'
     st.markdown(body, unsafe_allow_html=True)
-    # explicit "how the shares build" arithmetic, when on the total-export basis
-    if total_ytd and rows:
-        parts = " + ".join(f"{r['ytd']/denom*100:.1f}" for r in rows)
-        tracked_pct = tracked_ytd / denom * 100
-        st.caption(f"How the tracked share builds: {parts} = {tracked_pct:.1f}% "
-                   f"of total SA exports.")
     src = mv.get("source_url", "")
-    st.caption(f"Cumulative export value by HS chapter, {cy} year-to-date "
-               f"(Jan\u2013{through}) vs the same months of {py}, so the YoY "
-               "change is like-for-like. The orange % is each category's share "
-               f"of {share_basis}"
-               + ("; the tracked commodities subtotal, all-other-exports "
-                  "residual and total reconcile to 100%." if total_ytd
-                  else " (total-export basis pending a full SARS extract).")
-               + f" Source: SARS ({src_label})"
-               + (f" \u00b7 [portal]({src})" if src else "") + ". Chapter 71 "
-               "combines gold, platinum and other precious metals as SARS "
-               "reports them.")
+    st.caption(f"Each cell: the commodity's export value and its share of total "
+               f"SA exports for that period, so you can read movement across "
+               f"the columns \u2014 {this_lbl} vs {last_lbl} vs {sm_lbl}, and "
+               f"{cy} vs {py} year-to-date. YoY compares like-for-like YTD. "
+               f"Source: SARS ({src_label})"
+               + (f" \u00b7 [portal]({src})" if src else "")
+               + ". Chapter 71 combines gold, platinum and other precious "
+               "metals as SARS reports them. These exports are the largest "
+               "goods component of the trade balance and current account shown "
+               "above (commodities are SARS-period; the BoP is SARB-quarterly, "
+               "so this shows their share of exports, not an exact sum into the "
+               "balance).")
 
 
 

@@ -266,6 +266,23 @@ def test_sars_trade_parser():
     # dated fallback shape (network + csv absent in test)
     res = S.get_commodity_exports()
     assert res["source"] in ("dated", "csv", "live") and res["rows"]
+    # five-period movement structure + per-period totals for share
+    mvcsv = ('TradeType,Chapter,YearMonth,CustomsValue\n'
+             'Exports,71,2025-04,33000000000\n'
+             'Exports,71,2026-03,46500000000\n'
+             'Exports,71,2026-04,49000000000\n'
+             'Exports,26,2026-04,19500000000\n'
+             'Exports,87,2026-04,48000000000\n'
+             'Exports,99,2026-04,65500000000\n')
+    cum = S._cumulative_by_chapter(S._parse_csv_text(mvcsv),
+                                   S._parse_csv_text(mvcsv, keep_all=True))
+    packed = S._pack_movement("csv", cum)
+    t = packed["totals"]
+    assert abs(t["this_month"] - 182e9) < 1e6  # 49+19.5+48+65.5
+    r71 = [x for x in packed["rows"] if x["chapter"] == "71"][0]
+    assert abs(r71["this_month"] - 49e9) < 1e6
+    assert abs(r71["same_month_ly"] - 33e9) < 1e6  # Apr 2025
+    assert packed["latest_month"] == "2026-04" and packed["prev_month"] == "2026-03"
 
 
 if __name__ == "__main__":

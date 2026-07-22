@@ -120,86 +120,112 @@ def _aggregate(rows: list[dict]) -> list[dict]:
 
 
 def _cumulative_by_chapter(rows: list[dict], all_rows: list[dict] | None = None) -> dict:
-    """From monthly rows (period 'YYYY-MM'), build the SARS cumulative view:
-    per chapter → {ytd, ytd_prev, yoy_pct, latest_val, latest_month, months}.
-    YTD = Jan..latest-month of the newest year; prior YTD = same months a year
-    earlier (like-for-like, so the YoY % is honest).
-
-    all_rows (optional): every chapter's rows (unfiltered), used to compute the
-    TOTAL SA export YTD so shares can be expressed against total exports and
-    reconciled — not just against the tracked subset."""
-    # discover months present
+    """From monthly rows (period 'YYYY-MM'), build a period-comparison view per
+    chapter with five periods, each as {val, total} so a share can be computed
+    against total exports FOR THAT PERIOD (not a single YTD denominator):
+      this_month, last_month, same_month_ly (same month last year),
+      ytd (Jan..latest this year), ytd_prev (same months last year).
+    Plus yoy_pct on YTD (like-for-like). Movement is then observable across the
+    period columns. all_rows (unfiltered) gives the per-period total exports."""
     def ym(r):
-        p = r.get("period", "")
-        # accept 'YYYY-MM' or 'YYYYMM'
-        p = p.replace("/", "-")
+        p = r.get("period", "").replace("/", "-")
         if len(p) == 6 and p.isdigit():
             return p[:4], p[4:6]
         if "-" in p and len(p) >= 7:
-            y, m = p[:4], p[5:7]
-            return y, m
+            return p[:4], p[5:7]
         return None, None
+
     years = sorted({ym(r)[0] for r in rows if ym(r)[0]})
     if not years:
         return {}
     cur_y = years[-1]
     prev_y = str(int(cur_y) - 1)
-    # latest month present in current year
-    cur_months = sorted({ym(r)[1] for r in rows
-                         if ym(r)[0] == cur_y and ym(r)[1]})
+    cur_months = sorted({ym(r)[1] for r in rows if ym(r)[0] == cur_y and ym(r)[1]})
     if not cur_months:
         return {}
     latest_m = cur_months[-1]
+    # previous month: the month before latest in the current year's data
+    prev_m = cur_months[-2] if len(cur_months) > 1 else None
+
+    def period_sum(chapter_rows, year, month):
+        if not month:
+            return 0.0
+        return sum(r["value"] for r in chapter_rows
+                   if ym(r)[0] == year and ym(r)[1] == month)
+
+    def ytd_sum(chapter_rows, year):
+        return sum(r["value"] for r in chapter_rows
+                   if ym(r)[0] == year and ym(r)[1] and ym(r)[1] <= latest_m)
+
+    # per-period totals across ALL chapters (denominators for share)
+    tot = {}
+    if all_rows:
+        tot = {
+            "this_month": period_sum(all_rows, cur_y, latest_m),
+            "last_month": period_sum(all_rows, cur_y, prev_m),
+            "same_month_ly": period_sum(all_rows, prev_y, latest_m),
+            "ytd": ytd_sum(all_rows, cur_y),
+            "ytd_prev": ytd_sum(all_rows, prev_y),
+        }
+
     out: dict[str, dict] = {}
     for ch in CHAPTERS:
         cr = [r for r in rows if r["chapter"] == ch]
-        ytd = sum(r["value"] for r in cr
-                  if ym(r)[0] == cur_y and ym(r)[1] and ym(r)[1] <= latest_m)
-        ytd_prev = sum(r["value"] for r in cr
-                       if ym(r)[0] == prev_y and ym(r)[1] and ym(r)[1] <= latest_m)
-        latest_val = sum(r["value"] for r in cr
-                         if ym(r)[0] == cur_y and ym(r)[1] == latest_m)
-        if ytd == 0 and ytd_prev == 0 and latest_val == 0:
+        vals = {
+            "this_month": period_sum(cr, cur_y, latest_m),
+            "last_month": period_sum(cr, cur_y, prev_m),
+            "same_month_ly": period_sum(cr, prev_y, latest_m),
+            "ytd": ytd_sum(cr, cur_y),
+            "ytd_prev": ytd_sum(cr, prev_y),
+        }
+        if not any(vals.values()):
             continue
-        yoy = ((ytd - ytd_prev) / ytd_prev * 100) if ytd_prev else None
-        out[ch] = {"chapter": ch, "label": CHAPTERS[ch], "ytd": ytd,
-                   "ytd_prev": ytd_prev, "yoy_pct": yoy,
-                   "latest_val": latest_val, "latest_month": f"{cur_y}-{latest_m}",
+        yoy = ((vals["ytd"] - vals["ytd_prev"]) / vals["ytd_prev"] * 100
+               if vals["ytd_prev"] else None)
+        out[ch] = {"chapter": ch, "label": CHAPTERS[ch], "yoy_pct": yoy,
                    "cur_year": cur_y, "prev_year": prev_y,
-                   "through_month": latest_m}
-    # total SA exports YTD (all chapters), for honest share reconciliation
-    if all_rows:
-        tot = sum(r["value"] for r in all_rows
-                  if ym(r)[0] == cur_y and ym(r)[1] and ym(r)[1] <= latest_m)
-        if tot > 0:
-            out["__total__"] = {"ytd": tot}
+                   "latest_month": f"{cur_y}-{latest_m}",
+                   "prev_month": f"{cur_y}-{prev_m}" if prev_m else None,
+                   "through_month": latest_m, **vals,
+                   # keep legacy keys used elsewhere
+                   "latest_val": vals["this_month"]}
+    if tot:
+        out["__total__"] = tot
     return out
 
 
 # Dated fallback for the cumulative view (used if no live/CSV data). Values are
 # illustrative last-known ZAR bn; clearly stamped so staleness is visible.
 _DATED_MOVE = {
-    "as_of": "2025 full-year vs 2024 (SARS, dated)",
-    "unit": "R bn", "cur_year": "2025", "prev_year": "2024",
-    "through_month": "12", "latest_month": "2025-12",
-    "total_ytd": 2200.0,  # approx SA total merchandise exports 2025 (ZAR bn)
+    "as_of": "Apr 2026 vs Mar 2026 / Apr 2025 (SARS, dated)",
+    "unit": "R bn", "cur_year": "2026", "prev_year": "2025",
+    "through_month": "04", "latest_month": "2026-04", "prev_month": "2026-03",
+    # per-period TOTAL SA exports (denominators): this_month, last_month,
+    # same_month_ly, ytd, ytd_prev  (ZAR bn, illustrative)
+    "totals": {"this_month": 182.0, "last_month": 187.0, "same_month_ly": 158.0,
+               "ytd": 726.0, "ytd_prev": 632.0},
+    "total_ytd": 726.0,
     "rows": [
-        {"chapter": "71", "label": CHAPTERS["71"], "ytd": 383.0,
-         "ytd_prev": 332.0, "yoy_pct": 15.4, "latest_val": 34.0},
-        {"chapter": "26", "label": CHAPTERS["26"], "ytd": 236.0,
-         "ytd_prev": 224.0, "yoy_pct": 5.4, "latest_val": 19.5},
-        {"chapter": "27", "label": CHAPTERS["27"], "ytd": 168.0,
-         "ytd_prev": 178.0, "yoy_pct": -5.6, "latest_val": 13.8},
-        {"chapter": "74", "label": CHAPTERS["74"], "ytd": 24.0,
-         "ytd_prev": 22.0, "yoy_pct": 9.1, "latest_val": 2.1},
+        {"chapter": "71", "label": CHAPTERS["71"], "yoy_pct": 22.4,
+         "this_month": 49.0, "last_month": 46.5, "same_month_ly": 33.0,
+         "ytd": 191.0, "ytd_prev": 156.0, "latest_val": 49.0},
+        {"chapter": "26", "label": CHAPTERS["26"], "yoy_pct": 6.1,
+         "this_month": 19.5, "last_month": 20.2, "same_month_ly": 18.2,
+         "ytd": 79.0, "ytd_prev": 74.5, "latest_val": 19.5},
+        {"chapter": "27", "label": CHAPTERS["27"], "yoy_pct": -5.6,
+         "this_month": 13.8, "last_month": 14.6, "same_month_ly": 15.1,
+         "ytd": 56.0, "ytd_prev": 59.3, "latest_val": 13.8},
+        {"chapter": "74", "label": CHAPTERS["74"], "yoy_pct": 9.1,
+         "this_month": 2.1, "last_month": 2.0, "same_month_ly": 1.9,
+         "ytd": 8.2, "ytd_prev": 7.5, "latest_val": 2.1},
     ],
     "source_url": _PORTAL,
 }
 
 
 def _pack_movement(source, cum, all_total_note=None):
-    """Build the movement dict from a cumulative map, pulling out the total."""
-    total = cum.pop("__total__", None)
+    """Build the movement dict from a cumulative map, pulling out the totals."""
+    totals = cum.pop("__total__", None)
     chapter_rows = [cum[c] for c in CHAPTERS if c in cum]
     if not chapter_rows:
         return None
@@ -208,8 +234,11 @@ def _pack_movement(source, cum, all_total_note=None):
         "source": source,
         "as_of": {"live": "latest SARS release", "csv": "from uploaded SARS CSV"}.get(source, ""),
         "unit": "R", "cur_year": any_r["cur_year"], "prev_year": any_r["prev_year"],
-        "through_month": any_r["through_month"], "rows": chapter_rows,
-        "total_ytd": total["ytd"] if total else None,
+        "through_month": any_r["through_month"],
+        "latest_month": any_r["latest_month"], "prev_month": any_r.get("prev_month"),
+        "rows": chapter_rows,
+        "totals": totals,  # per-period total exports (denominators)
+        "total_ytd": totals["ytd"] if totals else None,  # legacy
         "source_url": _PORTAL,
     }
 
