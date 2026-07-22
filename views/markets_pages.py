@@ -86,7 +86,7 @@ def page_commodities():
     _win_days = {"1D": 1, "1M": 30, "3M": 91, "12M": 365}[win]
 
     live = {x.name: x for x in quotes}
-    alias = {"Iron Ore": "Iron Ore (CME TSI)", "Coal": "Coal (Newcastle proxy)"}
+    alias = {"Iron Ore": "Iron Ore (CME TSI)", "Coal": "Coal API2 Rotterdam (proxy)"}
     tickers = [tk for _n, tk, *_ in macro.SA_BOP_EXPOSURES]
     hist = markets.get_history_batch(tickers, "2y")
     totals = macro.SA_TRADE_TOTALS_2024
@@ -674,6 +674,30 @@ def page_regional_macro():
         if region == "South Africa":
             with st.expander(f"{region} \u2014 {cb_name} live releases"):
                 _sa_specific_detail(promoted_sa)
+        elif region == "United States":
+            with st.expander(f"{region} \u2014 {cb_name} · Treasury yield curve"):
+                curve = fred.us_yield_curve()
+                if curve:
+                    st.plotly_chart(
+                        charts.yield_curve(
+                            curve, f"US Treasury par yield curve \u00b7 {curve[0]['date']}"),
+                        use_container_width=True,
+                        config={"displayModeBar": False})
+                    inv = curve[-1]["yield"] < curve[0]["yield"]
+                    tips = ("Short end above long end \u2014 the curve is "
+                            "inverted (often read as a recession signal)." if inv
+                            else "Upward-sloping \u2014 longer yields exceed "
+                            "short, the normal shape.")
+                    st.caption("Constant-maturity par yields, 1M\u201330Y, from "
+                               "FRED (Fed H.15, same figures Treasury publishes). "
+                               + tips + " Full releases: "
+                               f"[{cb_url}]({cb_url})")
+                else:
+                    st.markdown(
+                        "Headline series (policy rate, 10Y, CPI) are in the "
+                        "tabs above. Full releases: "
+                        f'<a href="{ui.esc(cb_url)}" target="_blank">{ui.esc(cb_url)}</a>',
+                        unsafe_allow_html=True)
         else:
             st.markdown(
                 f'<div class="cb-row"><span class="cb-name">{ui.esc(region)} '

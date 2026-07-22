@@ -39,6 +39,44 @@ SERIES_INTL_10Y = {
 }
 _ALL_SERIES = {**SERIES, **SERIES_INTL_10Y}
 
+# US Treasury constant-maturity (CMT) par yield curve, full tenor set, daily,
+# sourced by FRED from the Fed H.15 release (same figures Treasury publishes).
+# Ordered short → long so the curve plots left-to-right.
+US_CURVE = [
+    ("1M", "DGS1MO"), ("3M", "DGS3MO"), ("6M", "DGS6MO"),
+    ("1Y", "DGS1"), ("2Y", "DGS2"), ("3Y", "DGS3"), ("5Y", "DGS5"),
+    ("7Y", "DGS7"), ("10Y", "DGS10"), ("20Y", "DGS20"), ("30Y", "DGS30"),
+]
+
+
+@st.cache_data(ttl=6 * 3600, show_spinner=False)
+def us_yield_curve() -> list[dict] | None:
+    """Latest par yield per tenor: [{'tenor','years','yield','date'}], short→long.
+    One FRED call per tenor (cached 6h). Returns None if FRED is off; skips any
+    tenor that fails so a partial curve still renders."""
+    if not enabled():
+        return None
+    _TEN_YEARS = {"1M": 1/12, "3M": 0.25, "6M": 0.5, "1Y": 1, "2Y": 2,
+                  "3Y": 3, "5Y": 5, "7Y": 7, "10Y": 10, "20Y": 20, "30Y": 30}
+    out = []
+    for tenor, sid in US_CURVE:
+        try:
+            r = requests.get(
+                "https://api.stlouisfed.org/fred/series/observations",
+                params={"series_id": sid, "api_key": _key(),
+                        "file_type": "json", "sort_order": "desc", "limit": 5},
+                timeout=15)
+            r.raise_for_status()
+            for obs in r.json().get("observations", []):
+                if obs.get("value") not in (".", "", None):
+                    out.append({"tenor": tenor, "years": _TEN_YEARS[tenor],
+                                "yield": float(obs["value"]),
+                                "date": obs.get("date", "")})
+                    break
+        except Exception:
+            continue
+    return out or None
+
 
 def _key() -> str:
     try:

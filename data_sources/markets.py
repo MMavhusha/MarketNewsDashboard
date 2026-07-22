@@ -42,7 +42,7 @@ COMMODITIES = [
     ("Gold Spot (COMEX proxy)", "GC=F", "$/oz", 1.0),
     ("Iron Ore 62% Fe CFR (CME TSI)", "TIO=F", "$/tonne", 1.0),
     ("Platinum", "PL=F", "$/oz", 1.0),
-    ("Coal (Newcastle proxy)", "MTF=F", "$/tonne", 1.0),
+    ("Coal API2 Rotterdam (proxy)", "MTF=F", "$/tonne", 1.0),
 ]
 
 FX_MAJORS = [

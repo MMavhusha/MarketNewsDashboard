@@ -122,7 +122,8 @@ SA_BOP_EXPOSURES = [
      "SA's single largest export line by value; a major source of foreign receipts.",
      29.0, None, "Major"),
     ("Coal", "MTF=F", "Export",
-     "Key bulk export shipped mainly via Richards Bay Coal Terminal.",
+     "Key bulk export via Richards Bay; MTF=F tracks API2 (Rotterdam) as a "
+     "liquid free proxy — SA coal prices nearer API4/Richards Bay.",
      7.75, None, "Moderate"),
     ("Iron Ore", "TIO=F", "Export",
      "Significant bulk export; earnings highly sensitive to Chinese steel demand.",

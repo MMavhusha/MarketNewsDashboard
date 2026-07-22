@@ -122,6 +122,36 @@ def pack_history(series: pd.Series, title: str = "", height: int = 300,
     return fig
 
 
+def yield_curve(points: list[dict], title: str = "", height: int = 280) -> go.Figure:
+    """US Treasury par yield curve: yield (y) vs tenor (x), short→long. Points
+    are plotted at log-spaced tenor positions with tenor labels, so the short
+    end isn't crushed. Markers on each node; a subtle fill under the line."""
+    import math
+    xs = [math.log(p["years"]) for p in points]
+    ys = [p["yield"] for p in points]
+    labels = [p["tenor"] for p in points]
+    fig = go.Figure()
+    fig.add_scatter(
+        x=xs, y=ys, mode="lines+markers",
+        line=dict(width=2.5, color=NAVY),
+        marker=dict(size=7, color=NAVY),
+        fill="tozeroy", fillcolor="rgba(0,59,113,0.06)",
+        hovertext=[f"{l}: {v:.2f}%" for l, v in zip(labels, ys)],
+        hoverinfo="text", name="Par yield")
+    fig.update_layout(
+        title=dict(text=title, font=dict(size=13, color=TEXT, family="Lato"),
+                   x=0, xanchor="left"),
+        height=height, margin=dict(l=10, r=16, t=34 if title else 10, b=28),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="Lato", size=11, color=TEXT), showlegend=False,
+        xaxis=dict(tickmode="array", tickvals=xs, ticktext=labels,
+                   gridcolor=GRID, zeroline=False),
+        yaxis=dict(gridcolor=GRID, zeroline=False,
+                   title=dict(text="Yield %", font=dict(size=11))),
+    )
+    return fig
+
+
 def pack_multi_history(series_map: dict, title: str = "", height: int = 300,
                        y_title: str = "%") -> go.Figure:
     """Overlay one line per region for a shared metric. Distinct brand colours,
