@@ -98,42 +98,36 @@ def wb_latest_matrix() -> dict:
 
 # ---------------------------------------------------------- SA BoP context
 # Structural mapping of South Africa's main commodity trade exposures. Price
-# moves shown alongside are LIVE; the trade values here are REAL published
-# figures from the OEC 2024 SA trade profile (oec.world), cross-checked against
-# World Bank WITS commodity-chapter data. They are ANNUAL, VALUE-BASED (USD).
-# There is no free per-commodity, per-period API — customs data is monthly PDF
-# only — but shares change slowly, so an annual structural figure is the right
-# tool for "is this big enough to move the BoP".
-#
-# We store the commodity's trade value and the relevant total, and DERIVE the
-# percentage from them at render time, so the displayed share always reconciles
-# with the two values the user can see (value / total = %). This makes the
-# figure self-checking rather than a separate number that could drift.
-#
-# SA_TRADE_TOTALS_2024: denominators (USD bn, OEC 2024 / WITS).
-SA_TRADE_TOTALS_2024 = {"exports": 151.0, "imports": 107.0}
+# moves shown alongside are LIVE; the trade values are REAL 2025 full-year
+# figures from a SINGLE source (worldstopexports.com, 4-digit HTS level,
+# compiled from ITC Trade Map / UN Comtrade), so values and totals reconcile
+# (value / total = share). ANNUAL, VALUE-BASED (USD). No free per-commodity,
+# per-period API exists; shares change slowly so a full year is the right base.
 # Fields: (name, ticker, side, role_note, value_usd_bn, value_label, band)
-#   value_usd_bn = None where only a chapter-level figure exists (shown as text).
+#   value_usd_bn = None where the source gives only a net/aggregate figure.
+SA_TRADE_TOTALS = {"exports": 116.8, "imports": 104.9, "year": 2025}
 SA_BOP_EXPOSURES = [
     ("Platinum", "PL=F", "Export",
      "PGMs (platinum, palladium, rhodium) — SA supplies the majority of world PGM output.",
-     15.8, "platinum line; PGM group larger", "Major"),
+     11.855, "unwrought platinum line; PGM group larger", "Major"),
     ("Gold", "GC=F", "Export",
-     "SA's single largest export line by value; a major source of foreign receipts.",
-     29.0, None, "Major"),
+     "SA's largest single precious-metal export; a major source of foreign receipts.",
+     9.180, "unwrought gold line", "Major"),
     ("Coal", "MTF=F", "Export",
      "Key bulk export via Richards Bay; MTF=F tracks API2 (Rotterdam) as a "
      "liquid free proxy — SA coal prices nearer API4/Richards Bay.",
-     7.75, None, "Moderate"),
+     5.536, None, "Moderate"),
     ("Iron Ore", "TIO=F", "Export",
      "Significant bulk export; earnings highly sensitive to Chinese steel demand.",
-     6.69, None, "Moderate"),
+     6.136, None, "Moderate"),
     ("Copper", "HG=F", "Export",
-     "Not a top-10 SA export line; read as a resource-sector / risk-appetite bellwether.",
-     None, "not a top-10 export line (<$1.5bn)", "Minor"),
+     "Small SA export (copper ores + refined ≈ $0.8bn); read as a resource / "
+     "risk-appetite bellwether more than a direct BoP driver.",
+     None, "copper ores $0.21bn + refined $0.60bn — minor direct weight", "Minor"),
     ("Brent Crude Oil", "BZ=F", "Import",
-     "SA imports nearly all its crude oil; mineral fuels are the dominant import group.",
-     22.0, "mineral fuels chapter; crude the largest single line", "Major"),
+     "SA imports nearly all its crude oil; mineral fuels are the dominant import "
+     "group and SA's biggest trade-deficit category (net \u2212$9bn in 2025).",
+     None, "dominant fuel import; source gives fuels as net, not gross crude", "Major"),
 ]
 
 

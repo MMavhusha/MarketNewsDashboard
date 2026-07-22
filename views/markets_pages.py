@@ -72,15 +72,43 @@ def page_commodities():
     q = next(x for x in quotes if x.name == pick)
     _detail_panel(q, units.get(pick, ""), key="cmd_chart")
 
-    ui.section("Impact on South Africa's Balance of Payments",
-               "Presented as a trade statement \u00b7 price move over the chosen window")
-    st.caption("Read like a trade statement: each commodity's annual trade "
-               "value (USD bn) with its live price move, subtotalled by exports "
-               "and imports. Values are annual from the OEC 2024 SA trade "
-               "profile / World Bank WITS (no free per-commodity live series "
-               "exists); price moves are live. A move matters to the balance of "
-               "payments in proportion to the value shown.")
+    # ---- Real SARB Balance of Payments (official) ----
+    ui.section("South Africa's Balance of Payments",
+               "Official SARB figures \u00b7 current account and trade balance")
+    bop = sarb.get_balance_of_payments()
+    src = bop.get("source_url", "")
+    freshness = ("live from SARB Web API" if bop.get("live")
+                 else f"latest published: {bop.get('as_of','')}")
+    body = '<div class="bops">'
+    body += ('<div class="bops-row bops-head"><span class="bops-item">Measure</span>'
+             '<span class="bops-val">Value</span>'
+             '<span class="bops-move">Period</span></div>')
+    for r in bop.get("rows", []):
+        note = f'<span class="bops-note">{ui.esc(r.get("note",""))}</span>' if r.get("note") else ""
+        unit = r.get("unit", "")
+        val = f'{ui.esc(r["value"])} {ui.esc(unit)}'.strip()
+        body += (f'<div class="bops-row"><span class="bops-item">{ui.esc(r["name"])}{note}</span>'
+                 f'<span class="bops-val num">{val}</span>'
+                 f'<span class="bops-move">{ui.esc(r.get("period",""))}</span></div>')
+    body += '</div>'
+    st.markdown(body, unsafe_allow_html=True)
+    st.caption(f"Source: South African Reserve Bank ({freshness}). The current "
+               f"account is published quarterly; the trade balance monthly \u2014 "
+               f"each shows its own release period above. "
+               + (f"Verify / latest release: [SARB]({src})" if src else ""))
+    ui.legend("Current account = trade balance + net services, income and "
+              "transfers. A surplus means SA earned more from the world than it "
+              "paid; the trade balance (goods) is the largest component.")
 
+    # ---- Commodity drivers (supporting context, NOT the BoP itself) ----
+    ui.section("Commodity export drivers",
+               "Live price moves in SA's main traded commodities \u00b7 context")
+    _yr = macro.SA_TRADE_TOTALS["year"]
+    st.caption(f"Context for what pushes on the trade balance: SA's main "
+               f"commodities with their {_yr} export value (worldstopexports, "
+               f"ITC/UN Comtrade) and live price move. These are drivers of the "
+               f"BoP above, not the balance itself; actual impact also depends "
+               f"on volumes and the rand.")
     win = st.pills("Price-move window", ["1D", "1M", "3M", "12M"],
                    default="1M", key="bop_win", label_visibility="collapsed") or "1M"
     _win_days = {"1D": 1, "1M": 30, "3M": 91, "12M": 365}[win]
@@ -89,7 +117,6 @@ def page_commodities():
     alias = {"Iron Ore": "Iron Ore (CME TSI)", "Coal": "Coal API2 Rotterdam (proxy)"}
     tickers = [tk for _n, tk, *_ in macro.SA_BOP_EXPOSURES]
     hist = markets.get_history_batch(tickers, "2y")
-    totals = macro.SA_TRADE_TOTALS_2024
 
     def _move_cell(name, tk, side):
         x = live.get(name) or live.get(alias.get(name, ""))
@@ -97,58 +124,27 @@ def page_commodities():
         mv = (x.change_pct if (x and x.ok) else None) if win == "1D" \
             else (_pct_back(s, _win_days) if s is not None else None)
         if mv is None:
-            return '<span class="bops-na">n/a</span>', None
-        return f'<span class="num {ui.chg_cls(mv)}">{mv:+.2f}%</span>', mv
+            return '<span class="bops-na">n/a</span>'
+        return f'<span class="num {ui.chg_cls(mv)}">{mv:+.2f}%</span>'
 
-    def _stmt_row(name, note, val_bn, move_html):
+    dbody = '<div class="bops">'
+    dbody += (f'<div class="bops-row bops-head"><span class="bops-item">Commodity</span>'
+              f'<span class="bops-val">Export value ({_yr})</span>'
+              f'<span class="bops-move">Price {win}</span></div>')
+    for name, tk, side, role, val_bn, val_note, band in macro.SA_BOP_EXPOSURES:
+        if side != "Export":
+            continue
         val = (f'${val_bn:,.1f}bn' if val_bn is not None
                else '<span class="bops-na">n/a</span>')
-        sub = f'<span class="bops-note">{ui.esc(note)}</span>' if note else ""
-        return (f'<div class="bops-row"><span class="bops-item">{ui.esc(name)}{sub}</span>'
-                f'<span class="bops-val num">{val}</span>'
-                f'<span class="bops-move">{move_html}</span></div>')
-
-    def _stmt_total(label, total_bn):
-        return (f'<div class="bops-row bops-total"><span class="bops-item">{ui.esc(label)}</span>'
-                f'<span class="bops-val num">${total_bn:,.1f}bn</span>'
-                f'<span class="bops-move"></span></div>')
-
-    exports = [e for e in macro.SA_BOP_EXPOSURES if e[2] == "Export"]
-    imports = [e for e in macro.SA_BOP_EXPOSURES if e[2] == "Import"]
-
-    body = ('<div class="bops"><div class="bops-row bops-head">'
-            '<span class="bops-item">Commodity</span>'
-            '<span class="bops-val">Trade value (annual)</span>'
-            f'<span class="bops-move">Price {win}</span></div>')
-    # Exports section
-    body += '<div class="bops-sec">Exports</div>'
-    exp_tracked = 0.0
-    for name, tk, side, role, val_bn, val_note, band in exports:
-        mh, _ = _move_cell(name, tk, side)
-        body += _stmt_row(name, val_note, val_bn, mh)
-        if val_bn:
-            exp_tracked += val_bn
-    body += _stmt_total("Total tracked exports", exp_tracked)
-    body += (f'<div class="bops-memo">of ${totals["exports"]:,.0f}bn total SA '
-             f'merchandise exports (tracked here \u2248 '
-             f'{exp_tracked/totals["exports"]*100:.0f}%)</div>')
-    # Imports section
-    body += '<div class="bops-sec">Imports</div>'
-    imp_tracked = 0.0
-    for name, tk, side, role, val_bn, val_note, band in imports:
-        mh, _ = _move_cell(name, tk, side)
-        body += _stmt_row(name, val_note, val_bn, mh)
-        if val_bn:
-            imp_tracked += val_bn
-    body += _stmt_total("Total tracked imports", imp_tracked)
-    body += (f'<div class="bops-memo">of ${totals["imports"]:,.0f}bn total SA '
-             f'merchandise imports (tracked here \u2248 '
-             f'{imp_tracked/totals["imports"]*100:.0f}%)</div>')
-    body += '</div>'
-    st.markdown(body, unsafe_allow_html=True)
-    ui.legend("Exports lift the trade balance, imports subtract from it. The "
-              "actual current-account impact of any price move also depends on "
-              "traded volumes and the USD/ZAR rate, which are not modelled here.")
+        note = f'<span class="bops-note">{ui.esc(val_note)}</span>' if val_note else ""
+        dbody += (f'<div class="bops-row"><span class="bops-item">{ui.esc(name)}{note}</span>'
+                  f'<span class="bops-val num">{val}</span>'
+                  f'<span class="bops-move">{_move_cell(name, tk, side)}</span></div>')
+    dbody += '</div>'
+    st.markdown(dbody, unsafe_allow_html=True)
+    st.caption("Crude oil is SA's dominant commodity import (the main fuel-"
+               "import line); a higher oil price widens the import bill and "
+               "works against the trade balance.")
 
 
 _FX_WINDOWS = ["1D", "1W", "1M", "6M", "YTD"]

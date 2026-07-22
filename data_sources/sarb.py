@@ -66,3 +66,69 @@ def feed_status() -> dict:
     groups = get_sa_indicators()
     n = sum(len(v) for v in groups.values())
     return {"name": "SARB Web API", "ok": bool(n), "detail": f"{n} series"}
+
+
+# ---- Balance of payments (current account + trade balance) ----
+# SARB's "Release of Selected Data" exposes BoP indicators live via the Web API
+# (MonthlyIndicatorsAll). We query it, pick out current-account and trade-
+# balance lines, and show each at its native frequency (trade balance monthly,
+# current account quarterly). If the live feed can't be reached or the category
+# isn't found, we fall back to the latest officially published figures, clearly
+# dated, so the panel is never blank but also never silently stale.
+_BOP_ENDPOINT = "/WebIndicators/ReleaseOfSelectedData/MonthlyIndicatorsAll/CurrentData"
+_BOP_KEYWORDS = ("current account", "trade balance", "balance of payments",
+                 "current-account", "trade surplus", "trade deficit")
+
+# Fallback: latest official SARB release (verify/refresh at the linked source).
+_BOP_FALLBACK = {
+    "as_of": "Q1 2026 (published Jun 2026)",
+    "rows": [
+        {"name": "Current account balance", "value": "190.7",
+         "unit": "R bn", "period": "Q1 2026", "note": "surplus; 2.4% of GDP"},
+        {"name": "Trade balance", "value": "437.9",
+         "unit": "R bn", "period": "Q1 2026", "note": "surplus"},
+        {"name": "Current account (% of GDP)", "value": "2.4",
+         "unit": "%", "period": "Q1 2026", "note": "up from 0.6% in Q4 2025"},
+    ],
+    "source_url": "https://www.resbank.co.za/en/home/publications/quarterly-bulletin1/current-account-release",
+}
+
+
+@st.cache_data(ttl=6 * 3600, show_spinner=False)
+def get_balance_of_payments() -> dict:
+    """{'live': bool, 'as_of': str, 'rows': [...], 'source_url': str}.
+
+    Tries the live SARB Web API first; falls back to the dated official figures
+    if unavailable. rows carry name/value/unit/period so each line shows its
+    own release period (monthly trade vs quarterly current account)."""
+    from data_sources import obs
+    try:
+        with obs.track("SARB · balance of payments"):
+            r = requests.get(BASE + _BOP_ENDPOINT, timeout=15, headers=_HEADERS)
+            r.raise_for_status()
+            data = r.json()
+        rows = []
+        if isinstance(data, list):
+            for it in data:
+                if not isinstance(it, dict):
+                    continue
+                name = (it.get("MeasureName") or it.get("Description")
+                        or it.get("SubTitle") or "").strip()
+                if not name or not any(k in name.lower() for k in _BOP_KEYWORDS):
+                    continue
+                val = it.get("Value")
+                if val in (None, ""):
+                    continue
+                rows.append({
+                    "name": name, "value": str(val).strip(),
+                    "unit": (it.get("FormatNumber") or "").strip(),
+                    "period": (it.get("Period") or "").strip(),
+                    "note": (it.get("CategoryName") or "").strip(),
+                })
+        if rows:
+            return {"live": True, "as_of": "latest SARB release",
+                    "rows": rows[:6], "source_url": _BOP_FALLBACK["source_url"]}
+    except Exception:
+        pass
+    # graceful fallback — dated, never silently stale
+    return {"live": False, **_BOP_FALLBACK}
