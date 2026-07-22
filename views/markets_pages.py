@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from components import charts, ui
-from data_sources import fred, macro, markets, sarb
+from data_sources import fred, macro, markets, sarb, sars_trade
 
 
 # ---------------------------------------------------------------- helpers
@@ -102,56 +102,82 @@ def page_commodities():
 
     # ---- Commodity drivers (supporting context, NOT the BoP itself) ----
     ui.section("Commodity export drivers",
-               "Live price moves in SA's main traded commodities \u00b7 context")
-    _yr = macro.SA_TRADE_TOTALS["year"]
-    st.caption(f"Context for what pushes on the trade balance: SA's main "
-               f"commodities with their {_yr} export value (worldstopexports, "
-               f"ITC/UN Comtrade) and live price move. These are drivers of the "
-               f"BoP above, not the balance itself; actual impact also depends "
-               f"on volumes and the rand.")
+               "SARS cumulative exports by category \u00b7 year-to-date vs prior year")
+    mv = sars_trade.get_commodity_movement()
+    _MON = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep",
+            "Oct", "Nov", "Dec"]
+    through = _MON[int(mv.get("through_month", "12"))]
+    cy, py = mv.get("cur_year", ""), mv.get("prev_year", "")
+    src_label = {"live": "live from SARS portal", "csv": "from uploaded SARS CSV",
+                 "dated": f"dated: {mv.get('as_of','')}"}.get(mv["source"], "")
+    # values are ZAR; live/csv come as raw rand, dated as R bn — normalise to bn
+    scale = 1e9 if mv["source"] in ("live", "csv") else 1.0
+    rows = mv.get("rows", [])
+    ytd_total = sum(r["ytd"] for r in rows) or 1.0
+    body = '<div class="bops">'
+    body += (f'<div class="bops-row bops-head"><span class="bops-item">Category (HS chapter)</span>'
+             f'<span class="bops-val">{cy} YTD</span>'
+             f'<span class="bops-val">{py} YTD</span>'
+             f'<span class="bops-move">YoY</span>'
+             f'<span class="bops-move">{through} {cy}</span></div>')
+    for r in rows:
+        ytd = r["ytd"] / scale
+        prev = r["ytd_prev"] / scale
+        latest = r["latest_val"] / scale
+        share = r["ytd"] / ytd_total * 100
+        yoy = r.get("yoy_pct")
+        yoy_html = (f'<span class="num {ui.chg_cls(yoy)}">{yoy:+.1f}%</span>'
+                    if yoy is not None else '<span class="bops-na">n/a</span>')
+        share_html = f'<span class="bops-share-inline">{share:.1f}%</span>'
+        body += (f'<div class="bops-row"><span class="bops-item">{ui.esc(r["label"])}</span>'
+                 f'<span class="bops-val num">R{ytd:,.0f}bn {share_html}</span>'
+                 f'<span class="bops-val num">R{prev:,.0f}bn</span>'
+                 f'<span class="bops-move">{yoy_html}</span>'
+                 f'<span class="bops-move num">R{latest:,.1f}bn</span></div>')
+    # tracked total row
+    body += (f'<div class="bops-row bops-total"><span class="bops-item">Tracked commodity exports</span>'
+             f'<span class="bops-val num">R{ytd_total/scale:,.0f}bn</span>'
+             f'<span class="bops-val"></span><span class="bops-move"></span>'
+             f'<span class="bops-move"></span></div>')
+    body += '</div>'
+    st.markdown(body, unsafe_allow_html=True)
+    src = mv.get("source_url", "")
+    st.caption(f"Cumulative export value by HS chapter, {cy} year-to-date "
+               f"(Jan\u2013{through}) vs the same months of {py}, so the YoY "
+               "change is like-for-like. % is each category's share of tracked "
+               f"commodity exports YTD. Source: SARS ({src_label})"
+               + (f" \u00b7 [portal]({src})" if src else "") + ". These are the "
+               "BoP's largest goods drivers; chapter 71 combines gold, platinum "
+               "and other precious metals as SARS reports them.")
+
+    # Live commodity price context (spot moves) beneath the SARS values.
     win = st.pills("Price-move window", ["1D", "1M", "3M", "12M"],
                    default="1M", key="bop_win", label_visibility="collapsed") or "1M"
     _win_days = {"1D": 1, "1M": 30, "3M": 91, "12M": 365}[win]
-
     live = {x.name: x for x in quotes}
     alias = {"Iron Ore": "Iron Ore (CME TSI)", "Coal": "Coal API2 Rotterdam (proxy)"}
     tickers = [tk for _n, tk, *_ in macro.SA_BOP_EXPOSURES]
     hist = markets.get_history_batch(tickers, "2y")
-
-    def _move_cell(name, tk, side):
-        x = live.get(name) or live.get(alias.get(name, ""))
-        s = hist.get(tk)
-        mv = (x.change_pct if (x and x.ok) else None) if win == "1D" \
-            else (_pct_back(s, _win_days) if s is not None else None)
-        if mv is None:
-            return '<span class="bops-na">n/a</span>'
-        return f'<span class="num {ui.chg_cls(mv)}">{mv:+.2f}%</span>'
-
-    _exp_total = macro.SA_TRADE_TOTALS["exports"]
-    dbody = '<div class="bops">'
-    dbody += (f'<div class="bops-row bops-head"><span class="bops-item">Commodity</span>'
-              f'<span class="bops-val">Export value ({_yr}) · % of total</span>'
-              f'<span class="bops-move">Price {win}</span></div>')
+    pbody = '<div class="bops">'
+    pbody += (f'<div class="bops-row bops-head"><span class="bops-item">Commodity spot price</span>'
+              f'<span class="bops-move">Move {win}</span></div>')
     for name, tk, side, role, val_bn, val_note, band in macro.SA_BOP_EXPOSURES:
         if side != "Export":
             continue
-        if val_bn is not None:
-            share = val_bn / _exp_total * 100
-            val = (f'${val_bn:,.1f}bn '
-                   f'<span class="bops-share-inline">{share:.1f}%</span>')
-        else:
-            val = '<span class="bops-na">n/a</span>'
-        note = f'<span class="bops-note">{ui.esc(val_note)}</span>' if val_note else ""
-        dbody += (f'<div class="bops-row"><span class="bops-item">{ui.esc(name)}{note}</span>'
-                  f'<span class="bops-val num">{val}</span>'
-                  f'<span class="bops-move">{_move_cell(name, tk, side)}</span></div>')
-    dbody += '</div>'
-    st.markdown(dbody, unsafe_allow_html=True)
-    st.caption(f"Export value shown as USD and as a share of SA's "
-               f"${_exp_total:,.0f}bn total {_yr} merchandise exports "
-               f"(same source and year, so the shares reconcile). Crude oil is "
-               f"SA's dominant commodity import; a higher oil price widens the "
-               f"import bill and works against the trade balance.")
+        x = live.get(name) or live.get(alias.get(name, ""))
+        s = hist.get(tk)
+        m = (x.change_pct if (x and x.ok) else None) if win == "1D" \
+            else (_pct_back(s, _win_days) if s is not None else None)
+        cell = (f'<span class="num {ui.chg_cls(m)}">{m:+.2f}%</span>'
+                if m is not None else '<span class="bops-na">n/a</span>')
+        pbody += (f'<div class="bops-row"><span class="bops-item">{ui.esc(name)}</span>'
+                  f'<span class="bops-move">{cell}</span></div>')
+    pbody += '</div>'
+    st.markdown(pbody, unsafe_allow_html=True)
+    st.caption("Spot price moves for the main commodities \u2014 a leading read on "
+               "where the export values above may head next. Crude oil is SA's "
+               "dominant commodity import; a higher oil price works against the "
+               "trade balance.")
 
 
 _FX_WINDOWS = ["1D", "1W", "1M", "6M", "YTD"]
