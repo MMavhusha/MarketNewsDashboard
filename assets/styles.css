@@ -606,16 +606,19 @@ div[data-testid="stPills"] button:focus-visible {
 .bops-bar { height:4px; background:rgba(0,0,0,0.06); border-radius:2px; margin-top:5px; max-width:260px; }
 .bops-bar-fill { height:100%; background:#FF671D; border-radius:2px; opacity:0.55; }
 
-/* Commodity movement table: name + 5 period columns + YoY */
-.cm { display:flex; flex-direction:column; margin-top:6px; font-size:12.5px; }
-.cm-row { display:grid; grid-template-columns:1.6fr repeat(6, 1fr); align-items:center;
+/* Commodity movement table: name + 3 month cols + MoM + 2 YTD cols + YoY */
+.cm { display:flex; flex-direction:column; margin-top:6px; font-size:12px; }
+.cm-row { display:grid; grid-template-columns:1.5fr repeat(7, 1fr); align-items:center;
           border-bottom:1px solid rgba(0,0,0,0.05); padding:7px 0; }
 .cm-head { border-bottom:1px solid rgba(0,0,0,0.12); }
-.cm-h { color:#5F5E5A; font-size:11.5px; text-align:right; }
+.cm-h { color:#5F5E5A; font-size:11px; text-align:right; }
 .cm-name { color:#212322; padding-right:8px; }
-.cm-head .cm-name { color:#5F5E5A; font-size:11.5px; }
-.cm-cell { display:flex; flex-direction:column; align-items:flex-end; text-align:right; }
+.cm-head .cm-name { color:#5F5E5A; font-size:11px; }
+.cm-cell { display:flex; flex-direction:column; align-items:flex-end; text-align:right; padding:0 6px; }
 .cm-val { color:#212322; }
-.cm-pct { color:#FF671D; font-size:11px; font-weight:500; }
+.cm-pct { color:#FF671D; font-size:10.5px; font-weight:500; }
+.cm-chg { font-weight:500; }
+.cm-div { border-left:1px solid rgba(0,0,0,0.14); }
 .cm-total { border-top:1px solid rgba(0,0,0,0.12); border-bottom:none; }
 .cm-total .cm-name, .cm-total .cm-val { color:#003B71; font-weight:500; }
+.cm-resid .cm-name, .cm-resid .cm-val { color:#5F5E5A; font-style:italic; }

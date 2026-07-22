@@ -93,8 +93,8 @@ def page_commodities():
     body += '</div>'
     st.markdown(body, unsafe_allow_html=True)
     st.caption(f"Source: South African Reserve Bank ({freshness}). The current "
-               f"account is published quarterly; the trade balance monthly \u2014 "
-               f"each shows its own release period above. "
+               "account is published quarterly; the trade balance monthly \u2014 "
+               "each shows its own release period above. "
                + (f"Verify / latest release: [SARB]({src})" if src else ""))
     ui.legend("Current account = trade balance + net services, income and "
               "transfers. A surplus means SA earned more from the world than it "
@@ -120,14 +120,9 @@ def page_commodities():
     this_lbl = _mlabel(mv.get("latest_month"))
     last_lbl = _mlabel(mv.get("prev_month"))
     sm_lbl = _mlabel(f"{py}-{mv.get('through_month','')}")
-    # five reported periods, each with its own total-exports denominator
-    periods = [
-        ("this_month", this_lbl),
-        ("last_month", last_lbl),
-        ("same_month_ly", sm_lbl),
-        ("ytd", f"YTD {cy}"),
-        ("ytd_prev", f"YTD {py}"),
-    ]
+    # Monthly block (3 period cols + MoM change) | YTD block (2 cols + YoY).
+    month_periods = [("this_month", this_lbl), ("last_month", last_lbl),
+                     ("same_month_ly", sm_lbl)]
 
     def cell(val_r, tot_r):
         if val_r is None:
@@ -136,54 +131,81 @@ def page_commodities():
         if tot_r:
             sh = val_r / tot_r * 100
             return (f'<div class="cm-cell"><span class="cm-val">R{v:,.1f}bn</span>'
-                    f'<span class="cm-pct">{sh:.1f}%</span></div>')
+                    f'<span class="cm-pct">{sh:.1f}% of exports</span></div>')
         return f'<div class="cm-cell"><span class="cm-val">R{v:,.1f}bn</span></div>'
 
-    # header
-    head = '<div class="cm-row cm-head"><div class="cm-name">Commodity</div>'
-    for _key, lbl in periods:
-        head += f'<div class="cm-cell cm-h">{ui.esc(lbl)}</div>'
-    head += '<div class="cm-cell cm-h">YoY</div></div>'
+    def chg(cur, prev):
+        if cur is None or prev in (None, 0):
+            return '<div class="cm-cell"><span class="bops-na">n/a</span></div>'
+        pct = (cur - prev) / prev * 100
+        return f'<div class="cm-cell"><span class="num {ui.chg_cls(pct)}">{pct:+.1f}%</span></div>'
+
+    # header — two labelled groups with a divider between them
+    head = ('<div class="cm-row cm-head"><div class="cm-name">Commodity</div>'
+            f'<div class="cm-cell cm-h">{ui.esc(this_lbl)}</div>'
+            f'<div class="cm-cell cm-h">{ui.esc(last_lbl)}</div>'
+            f'<div class="cm-cell cm-h">{ui.esc(sm_lbl)}</div>'
+            '<div class="cm-cell cm-h cm-chg">MoM \u0394</div>'
+            f'<div class="cm-cell cm-h cm-div">YTD {cy}</div>'
+            f'<div class="cm-cell cm-h">YTD {py}</div>'
+            '<div class="cm-cell cm-h cm-chg">YoY \u0394 (YTD)</div></div>')
     body = f'<div class="cm">{head}'
+
+    def data_row(label, getter, cls="", show_chg=True):
+        h = f'<div class="cm-row {cls}"><div class="cm-name">{ui.esc(label)}</div>'
+        for key, _lbl in month_periods:
+            h += cell(getter(key), totals.get(key))
+        h += (chg(getter("this_month"), getter("last_month")) if show_chg
+              else '<div class="cm-cell"></div>')
+        # YTD block (first cell carries the divider styling via wrapper class)
+        h += '<div class="cm-cell cm-div">' + (
+            (lambda v, t: (f'<span class="cm-val">R{v/scale:,.1f}bn</span>'
+                           f'<span class="cm-pct">{v/t*100:.1f}% of exports</span>')
+             if (v is not None and t) else
+             (f'<span class="cm-val">R{v/scale:,.1f}bn</span>' if v is not None
+              else '<span class="bops-na">n/a</span>'))(getter("ytd"), totals.get("ytd"))
+        ) + '</div>'
+        h += cell(getter("ytd_prev"), totals.get("ytd_prev"))
+        h += (chg(getter("ytd"), getter("ytd_prev")) if show_chg
+              else '<div class="cm-cell"></div>')
+        h += '</div>'
+        return h
+
     # per-commodity rows
     for r in rows:
-        body += f'<div class="cm-row"><div class="cm-name">{ui.esc(r["label"])}</div>'
-        for key, _lbl in periods:
-            body += cell(r.get(key), totals.get(key))
-        yoy = r.get("yoy_pct")
-        yoy_html = (f'<span class="num {ui.chg_cls(yoy)}">{yoy:+.1f}%</span>'
-                    if yoy is not None else '<span class="bops-na">n/a</span>')
-        body += f'<div class="cm-cell">{yoy_html}</div></div>'
-    # tracked subtotal row
-    body += '<div class="cm-row cm-total"><div class="cm-name">Tracked commodities</div>'
-    for key, _lbl in periods:
-        sub = sum(r.get(key, 0) or 0 for r in rows)
-        body += cell(sub, totals.get(key))
-    body += '<div class="cm-cell"></div></div>'
-    # total exports row (context: the whole the commodities move within)
+        body += data_row(r["label"], lambda k, r=r: r.get(k))
+    # tracked subtotal
+    body += data_row("Tracked commodities",
+                     lambda k: sum(r.get(k, 0) or 0 for r in rows), cls="cm-total")
+    # reconciling residual: all other exports = total - tracked (foots to 100%)
     if totals:
-        body += '<div class="cm-row cm-total"><div class="cm-name">Total SA exports</div>'
-        for key, _lbl in periods:
-            t = totals.get(key)
-            body += (f'<div class="cm-cell"><span class="cm-val">R{t/scale:,.0f}bn</span>'
-                     f'<span class="cm-pct">100%</span></div>' if t
-                     else '<div class="cm-cell"><span class="bops-na">n/a</span></div>')
-        body += '<div class="cm-cell"></div></div>'
+        body += data_row(
+            "All other exports",
+            lambda k: (totals.get(k) - sum(r.get(k, 0) or 0 for r in rows))
+            if totals.get(k) is not None else None,
+            cls="cm-resid", show_chg=False)
+        # total row
+        body += data_row("Total SA exports", lambda k: totals.get(k),
+                         cls="cm-total", show_chg=False)
     body += '</div>'
     st.markdown(body, unsafe_allow_html=True)
     src = mv.get("source_url", "")
-    st.caption(f"Each cell: the commodity's export value and its share of total "
-               f"SA exports for that period, so you can read movement across "
-               f"the columns \u2014 {this_lbl} vs {last_lbl} vs {sm_lbl}, and "
-               f"{cy} vs {py} year-to-date. YoY compares like-for-like YTD. "
-               f"Source: SARS ({src_label})"
-               + (f" \u00b7 [portal]({src})" if src else "")
-               + ". Chapter 71 combines gold, platinum and other precious "
-               "metals as SARS reports them. These exports are the largest "
-               "goods component of the trade balance and current account shown "
-               "above (commodities are SARS-period; the BoP is SARB-quarterly, "
-               "so this shows their share of exports, not an exact sum into the "
-               "balance).")
+    st.caption(
+        "How to read: each cell shows the commodity's export value (rand) and "
+        "its share of total SA merchandise exports in that period. The monthly "
+        f"block ({this_lbl}, {last_lbl}, {sm_lbl}) with month-on-month change "
+        f"sits left; the year-to-date block ({cy} vs {py}) with the like-for-"
+        "like YoY change sits right of the divider. Shares foot down each "
+        "column: the four tracked commodities + all other exports = 100% of "
+        "total exports. 'Tracked commodities' = the four SARS HS chapters we "
+        "follow: 26 ores (iron ore, manganese, chrome), 27 coal/crude/"
+        "petroleum, 71 gold/platinum/precious metals, 74 copper. Source: SARS "
+        f"customs ({src_label})" + (f" \u00b7 [portal]({src})" if src else "")
+        + ". Figures are preliminary and SARS-revisable. These exports are the "
+        "largest goods component of the trade balance and current account "
+        "shown above; commodity figures are SARS monthly/YTD while the BoP is "
+        "SARB quarterly, so this is their share of exports, not an exact sum "
+        "into the balance.")
 
 
 

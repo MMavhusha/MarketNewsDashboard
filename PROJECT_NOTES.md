@@ -216,3 +216,216 @@ optional: TE_API_KEY, ANTHROPIC_API_KEY, LLM_API_BASE, LLM_MODEL.
 - Official wordmark SVG not yet committed.
 - Mobile untested; Streamlit ceiling: no transitions/pixel layout/spinnerless.
 - Tests: `python tests/test_logic.py` (7) — run after any classifier edit.
+
+## Free-API hunt for the "irreducible" gaps (researched, not assumed)
+Findings on the 3 items previously marked no-free-API:
+
+1. **China 10Y government bond yield** — LIKELY AVAILABLE FREE via FRED/OECD.
+   OECD publishes "Long-Term Government Bond Yields: 10-Year: Main" on FRED
+   under pattern IRLTLT01{CC}M156N (confirmed live for US=IRLTLT01USM156N,
+   and FRED lists UK/JP/EA/Canada as siblings). China candidate =
+   IRLTLT01CNM156N (MONTHLY, OECD MEI). Also confirmed China sits in FRED's
+   OECD MEI family (IR3TTS01CNM156N = China 3M T-bill yield is live).
+   CAVEAT: monthly (not daily) and I could NOT hit fred.* from the build
+   sandbox (not in egress allowlist → 403), so the exact CN 10Y id is
+   UNVERIFIED. ACTION: on deploy (has FRED_API_KEY + net), test
+   fred.latest("IRLTLT01CNM156N"); if 400/empty, try the OECD SDMX direct
+   API (stats.oecd.org / sdmx.oecd.org, no key) for DSD MEI IRLTLT01.CHN.
+   If both fail, keep labelled "TradingEconomics/manual".
+2. **LME copper** — still no free official LME feed; COMEX HG=F ×2204.62
+   proxy stays (labelled). OECD/FRED don't carry LME cash. UNCHANGED.
+3. **PMIs (ISM/Caixin/HCOB/Jibun/Absa)** — still proprietary press releases,
+   no free API. UNCHANGED (TE key or manual monthly).
+
+Bonus: FRED/OECD IRLTLT01 family also gives FREE monthly 10Y for UK
+(GB), Japan (JP), India (IN?), SA (ZA?) — worth wiring to fill the
+Regional Macro 10Y pending-blocks alongside the BIS policy-rate upgrade,
+if daily granularity isn't required (these are month-end).
+
+## API AUDIT (systematic double-check) — 21 Jul 2026
+Verified every external data source: is it free, live, correctly labelled, gracefully degrading.
+
+**yfinance (markets, FX, commodities, indices)** — free, no key, ~15min delayed.
+- VERIFIED tickers resolve: S&P500 ^GSPC, JSE ALSI ^J203.JO, FX =X pairs, GC=F/BZ=F/HG=F/PL=F/TIO=F.
+- FIXED THIS AUDIT: MTF=F is API2 (Rotterdam/European coal), NOT Newcastle — relabelled
+  "Coal API2 Rotterdam (proxy)" (was mislabelled "Newcastle proxy"). Same class of error as the
+  earlier Iron Ore SGX→CME fix. BoP note updated: SA coal actually prices nearer API4/Richards Bay.
+- Batched history (get_history_batch) collapses per-instrument fan-out; 300s cache.
+- RISK: unofficial/undocumented; can break without notice. Mitigated by shared cache + graceful n/a.
+
+**FRED (US/EA rates, CPI, unemployment, intl 10Y, US yield curve)** — free key, 120 req/min.
+- VERIFIED live & current: DGS10, DFF, ECBDFR, CPIAUCSL, UNRATE, and full CMT curve
+  (DGS1MO…DGS30, updated within days as of this audit).
+- OECD intl 10Y (IRLTLT01xx) — SOME discontinued 2024; accessed only via latest_fresh() staleness
+  guard (>120d old → honest blank). Cannot verify live from sandbox; guard makes safe either way.
+- 6h cache.
+
+**SARB Web API** (custom.resbank.co.za/SarbWebApi) — free, no key, SA-specific.
+- 4 endpoints (HomePageRates, CurrentMarketRates, Prices SDDS, RealSector SDDS). Tolerant parsing.
+- _dup() filter drops metal/FX that duplicate Commodities/Currencies; admin leak-check confirms.
+- 1h cache.
+
+**Forex Factory calendar** (nfs.faireconomy.media ff_calendar_*.json) — free public feed.
+- VERIFIED still live at the URL used. CRITICAL RATE LIMIT (confirmed this audit): max 2 weekly
+  downloads / 5 min since Aug 2024; over-limit returns "Request Denied" HTML, not JSON.
+- APP RESPECTS IT: 3600s (1h) shared cache = ~1 fetch/hour, well under limit. Over-limit HTML →
+  r.json() raises → except → tries mirror (cdn-nfs) → graceful. Robust.
+
+**Google News RSS + Moneyweb/Sharenet SENS feeds** (news.py) — free RSS.
+- Finance-scoped queries. Parsed defensively. 15min cache. Low risk (RSS is stable), but SENS
+  feeds are best-effort (Moneyweb/Sharenet may change paths). Degrade to empty, don't crash.
+
+**Trading Economics calendar** (api.tradingeconomics.com) — PAID key (TE_API_KEY), optional.
+- Only used if key present; otherwise Forex Factory is the calendar source. Not relied upon.
+
+**AI providers** (Gemini generativelanguage / Groq / Anthropic) — keys; free tiers for Gemini+Groq.
+- Chain Gemini→Groq→rules, retry-with-backoff on 429/503. Two models before rules fallback.
+
+**World Bank** (api.worldbank.org/v2) — free, no key, annual macro. Stable. 6h+ cache.
+
+**GitHub API** (app_state persistence) — GITHUB_TOKEN. For committing app-state/weekly report.
+
+NOT USABLE (confirmed, not integrated): Refinitiv/Eikon (paid enterprise, no free API);
+US Treasury physical trade tonnage (SARS PDF only); LME copper (COMEX proxy stays); PMIs (proprietary).
+
+## REAL SARB Balance of Payments (replaced commodity proxy) — 22 Jul 2026
+User asked: is there a published BoP from SARS/SARB/StatsSA? YES — SARB publishes the
+official BoP (Quarterly Bulletin). Replaced the commodity-value PROXY with the real thing.
+
+DECISION: team needs it current monthly. Approach = live-source-first.
+- FOUND: SARB Web API has ReleaseOfSelectedData + MonthlyIndicatorsAll/{dataType} endpoints
+  (verified via Swagger help page). These expose BoP/trade indicators live as JSON — same API
+  the app already uses for rates. Fields: MeasureName, Value, Period, CategoryName, FormatNumber.
+- BUILT: sarb.get_balance_of_payments() hits MonthlyIndicatorsAll/CurrentData, filters rows by
+  _BOP_KEYWORDS (current account / trade balance / …), returns {live, as_of, rows, source_url}.
+  Each row carries its own Period → trade balance (monthly) and current account (quarterly) each
+  show at native frequency. Cached 6h.
+- FALLBACK (never silently stale): if live feed unreachable / category names differ, returns
+  dated official figures — Q1 2026: current account R190.7bn (2.4% GDP), trade balance R437.9bn —
+  clearly stamped "latest published: Q1 2026" + link to SARB current-account-release page.
+- CAVEAT: exact MonthlyIndicatorsAll category/keyword matching UNVERIFIED from sandbox (can't reach
+  custom.resbank.co.za). On deploy, if live=False when it should be live, tune _BOP_KEYWORDS /
+  the dataType path against the real response. Dated fallback makes it safe either way.
+- Commodity panel RE-FRAMED: no longer "the BoP" — now "Commodity export drivers" (supporting
+  context, live price moves + 2025 export values), sitting BELOW the real BoP. Honest separation:
+  real official BoP up top, commodity drivers as the what-pushes-on-it lens below.
+- SPURIOUS-CONTENT NOTE: a Global Business Outlook article on the Q1 2026 CA had injected/implausible
+  claims (SARB citing "Iran war" and "Anthropic Claude Mythos Preview" as financial-stability risks).
+  IGNORED those; used only the hard CA numbers, corroborated across SARB site + Trading Economics.
+
+TODO on next deploy: verify get_balance_of_payments() returns live=True; if not, adjust the
+dataType segment (tried CurrentData) and _BOP_KEYWORDS to match SARB's actual category labels.
+
+## SARS trade portal — the single consistent commodity source (data layer built) — 22 Jul 2026
+User pushed to find ONE source for SA per-commodity exports spanning annual + monthly 2026,
+same currency/definitions, to enable a real period-movement statement. FOUND IT:
+- SARS Trade Statistics data-download portal: https://tools.sars.gov.za/tradestatsportal/data_download.aspx
+- Official SA customs data, FREE, per HS chapter, monthly AND annual, ZAR, one definition, to 2026.
+- Fields incl. TradeType, Chapter (bare "71"), ChapterAndDescription, YearMonth/CalendarYear,
+  CustomsValue, StatisticalQuantity. Chapters we track: 26 Ores, 27 Coal/Crude/Petroleum,
+  71 Gold/Platinum/Precious, 74 Copper.
+- CATCH: it's an ASP.NET viewstate form (not a REST API), and UNTESTABLE from the build sandbox
+  (network allowlist excludes tools.sars.gov.za).
+
+BUILT (data_sources/sars_trade.py): three-tier sourcing, each honest about which it used:
+  1. LIVE  — _try_live() replicates the form POST (viewstate GET then POST). Best-effort; field
+             names/handshake may need tuning on first deploy.
+  2. CSV   — reads data/sars_trade.csv that the user downloads from the same portal (robust; real
+             data; monthly human step). Parser prefers bare Chapter col, tolerant of quoted commas
+             in descriptions, sums months per chapter, excludes imports.
+  3. DATED — _DATED fallback (2025 annual chapter values, ZAR bn, stamped) so never blank/silently stale.
+get_commodity_exports() -> {source, as_of, unit, rows[{chapter,label,value,period}], source_url}.
+Test: test_sars_trade_parser (23 logic tests now). data/sars_trade_README.md documents CSV drop.
+
+NOT YET DONE (next step): wire get_commodity_exports() into the Commodities page as a period-movement
+statement. Current commodity-drivers panel still uses worldstopexports 2025 USD values. Deciding how to
+present movement (annual vs latest-month columns) and whether to switch the driver values to the SARS
+chapter basis (coarser but consistent + movement-capable) is the pending UI decision.
+DEPLOY TODO: confirm _try_live() returns rows; if not, tune the POST field names / viewstate handling
+against the real portal, or rely on the CSV path (which is robust).
+
+## SARS cumulative commodity statement WIRED into Commodities page — 22 Jul 2026
+Followed SARS's own presentation (better than a generic financial statement): their headline
+commodity report is "Top 10 Cumulative Commodities" = YTD ranking. Standard trade-authority
+layout = current month + cumulative YTD this year + prior-year YTD + YoY %. Adopted that.
+DECISIONS (user): (1) SARS cumulative format: This-yr YTD | Last-yr YTD | YoY Δ% | latest month.
+(2) SARS chapter basis accepted — ch71 combines gold+platinum+precious (coarser but consistent
+& movement-capable, which fine 4-digit lines can't be from a single source).
+BUILT: sars_trade.get_commodity_movement() → _cumulative_by_chapter() computes like-for-like YTD
+(Jan..latest month both years), YoY %, latest-month value, per chapter. Three-tier source (live/
+csv/dated) as before. Commodities page "Commodity export drivers" now renders the SARS cumulative
+table (YTD cy | YTD py | YoY | latest month + tracked total + YTD share%), with the live spot-price
+moves kept as a small secondary table beneath (leading indicator). CSS: bops-val 190→150px,
+bops-move 90→95px to fit multi-column. Test test_sars_trade_parser covers parse+cumulative (23 tests).
+NOTE: worldstopexports 2025 USD values (macro.SA_TRADE_TOTALS / SA_BOP_EXPOSURES value_bn) no longer
+drive the drivers table — SA_BOP_EXPOSURES still used for the spot-price rows (names/tickers) and its
+value fields are now unused-but-harmless. SA_TRADE_TOTALS likely orphaned (left in place).
+DEPLOY TODO unchanged: confirm _try_live_rows() returns rows; else use CSV path (data/sars_trade.csv).
+
+## Commodity view unified as "contribution to exports" breakdown — 22 Jul 2026
+User: the four-step BoP descent was wrong; and "R811bn" as a lump was insufficient — needed the
+per-commodity breakdown (rand value + % of TOTAL exports) showing HOW the 37% is built.
+Mockups iterated (part-to-whole chain rejected → per-commodity breakdown accepted).
+DECISIONS: (1) unify into ONE commodity view — the cumulative table's % is now share of TOTAL
+exports (not tracked subset), building to the tracked subtotal and reconciling to 100%. (2) keep
+per-commodity proportion bars. (3) spot-price % table REMOVED entirely (not what user asked for).
+DONE in views/markets_pages.py page_commodities():
+- Removed the live spot-price move table block (quotes still used by the commodity picker up top).
+- Added proportion bars under each commodity label (.bops-bar/.bops-bar-fill CSS), width scaled to
+  max tracked share so relative size is visible at a glance.
+- Added a "How the tracked share builds" caption showing the explicit sum
+  (e.g. 17.4 + 10.7 + 7.6 + 1.1 = 36.9% of total SA exports).
+- Table already reconciled vs total exports (categories → tracked subtotal → all-other residual →
+  100%) from the prior change; this makes the build-up legible + visual.
+Share basis is now TOTAL exports (gold/platinum reads 17.4%, its true basket weight), not subset.
+Period-honesty caption retained: commodity YTD (SARS) vs trade/CA (SARB quarterly) = share not sum.
+
+## Commodity view rebuilt as five-period MOVEMENT table — 22 Jul 2026
+User (explicit, simple ask): track the commodities we follow, break down their value + % per
+REPORTED PERIOD, so movement is observable. Drop vague single % and the orange bars.
+DECISIONS: (1) period-comparison columns: This month | Last month | Same month last year |
+YTD this year | YTD last year, PER COMMODITY. (2) each cell shows rand value AND % share.
+(3) keep the trade-balance/BoP link as context.
+DATA (sars_trade.py _cumulative_by_chapter): now computes 5 periods per chapter
+(this_month, last_month, same_month_ly, ytd, ytd_prev) each with its OWN per-period total-exports
+denominator (so the % share is correct for THAT period, not a single YTD denom). __total__ is now
+a dict of per-period totals. _pack_movement carries `totals` dict + latest_month/prev_month labels.
+_DATED_MOVE rewritten with the 5 periods + per-period totals (Apr 2026 vs Mar 2026 / Apr 2025).
+VIEW (markets_pages.py): new CSS-grid table `.cm` (name + 5 period cols + YoY), each cell = value
+over % (cm-val / cm-pct orange). Tracked-commodities subtotal row + Total SA exports row (100%).
+Removed the old single-% cumulative table, the proportion bars (.bops-bar) and builds-to caption.
+Caption explains: read movement across columns; % is share of total exports per period; YoY
+like-for-like; BoP period-honesty note retained. Test extended (5-period asserts). 23 logic tests.
+NOTE: .bops-bar CSS now unused (harmless); bops-share-inline still used by BoP section? check later.
+
+## Commodity movement table — accounting audit + fixes, and SARS pull documented — 22 Jul 2026
+User asked (a) document the SARS pull step by step, (b) audit the table for strict-accounting
+explainability/labelling. Did both.
+
+AUDIT FINDINGS (table would NOT have passed as shown in screenshot):
+1. Shares jumped 46.4% (tracked) → 100% (total) with NO bridge — the reconciling residual had
+   been dropped in the 5-period rebuild. REGRESSION.
+2. "YoY" column undefined — didn't state it was YTD-vs-YTD (could read as Apr-vs-Apr).
+3. Monthly and YTD columns jammed together with no grouping/divider; order current→backwards.
+4. Per-figure provenance not visible; "Total 100%" invited treating dated approx as audited fact.
+5. No preliminary/revisable flag (SARS revises 5 yrs).
+
+FIXES (all done, decisions from user):
+- Re-added "All other exports" reconciling residual (= total − tracked). Verified it FOOTS in
+  every period: tracked + residual = total, shares sum to exactly 100% (this_month 46.4%+53.6%,
+  ytd 46.0%+54.0%, etc.).
+- Split change into TWO labelled columns: "MoM Δ" (this vs last month) and "YoY Δ (YTD)"
+  (YTD cy vs py) — each states its basis.
+- Regrouped columns: monthly block [this | last | same-month-LY | MoM Δ] then a vertical divider
+  (.cm-div border-left) then YTD block [YTD cy | YTD py | YoY Δ].
+- Every share cell now labelled "X% of exports". Caption spells out how to read it, DEFINES the
+  four tracked chapters by number, states figures are preliminary/SARS-revisable, and keeps the
+  SARS-period-vs-SARB-quarterly BoP honesty note.
+- CSS: .cm grid now name + 7 cols; .cm-div divider; .cm-resid italic grey residual row.
+
+SARS PULL — DOCUMENTED in data/sars_trade_README.md (step by step): portal URL; Trade Type=Exports;
+Focus Area=Tariffs (not Countries); Country=South Africa reporter / all destinations; Chapters
+26,27,71,74 (+ Select all for the total/residual); Period = latest month + prior + same-month-LY +
+YTD both years (pick 2 latest years); Columns TradeType/Chapter/YearMonth/CustomsValue; save as
+data/sars_trade.csv; refresh monthly (14:00 last working day; preliminary, revised up to 5 yrs).
+Why chapter-level (71 combines gold+platinum) documented. 23 logic tests, 9 smoke, pyflakes clean.
