@@ -58,7 +58,7 @@ _DATED = {
 }
 
 
-def _parse_csv_text(text: str) -> list[dict]:
+def _parse_csv_text(text: str, keep_all: bool = False) -> list[dict]:
     """Parse a SARS-portal CSV export into chapter rows. Expects columns that
     include a chapter identifier, a period (YearMonth or CalendarYear) and a
     CustomsValue. Tolerant of column-name variations."""
@@ -93,13 +93,16 @@ def _parse_csv_text(text: str) -> list[dict]:
         else:
             chap_raw = str(r.get(c_chap_desc, "")).strip()
             chap = chap_raw.split("-")[0].strip().split()[0] if chap_raw else ""
-        if chap not in CHAPTERS:
+        if chap not in CHAPTERS and not keep_all:
             continue
         try:
             val = float(str(r.get(c_val, "")).replace(",", "").replace(" ", "").strip())
         except (ValueError, AttributeError, TypeError):
             continue
-        rows.append({"chapter": chap, "label": CHAPTERS[chap], "value": val,
+        if not chap:
+            continue
+        rows.append({"chapter": chap,
+                     "label": CHAPTERS.get(chap, f"Chapter {chap}"), "value": val,
                      "period": str(r.get(c_per, "")).strip()})
     return rows
 
@@ -116,11 +119,15 @@ def _aggregate(rows: list[dict]) -> list[dict]:
     return [agg[c] for c in CHAPTERS if c in agg]
 
 
-def _cumulative_by_chapter(rows: list[dict]) -> dict:
+def _cumulative_by_chapter(rows: list[dict], all_rows: list[dict] | None = None) -> dict:
     """From monthly rows (period 'YYYY-MM'), build the SARS cumulative view:
     per chapter → {ytd, ytd_prev, yoy_pct, latest_val, latest_month, months}.
     YTD = Jan..latest-month of the newest year; prior YTD = same months a year
-    earlier (like-for-like, so the YoY % is honest)."""
+    earlier (like-for-like, so the YoY % is honest).
+
+    all_rows (optional): every chapter's rows (unfiltered), used to compute the
+    TOTAL SA export YTD so shares can be expressed against total exports and
+    reconciled — not just against the tracked subset."""
     # discover months present
     def ym(r):
         p = r.get("period", "")
@@ -160,6 +167,12 @@ def _cumulative_by_chapter(rows: list[dict]) -> dict:
                    "latest_val": latest_val, "latest_month": f"{cur_y}-{latest_m}",
                    "cur_year": cur_y, "prev_year": prev_y,
                    "through_month": latest_m}
+    # total SA exports YTD (all chapters), for honest share reconciliation
+    if all_rows:
+        tot = sum(r["value"] for r in all_rows
+                  if ym(r)[0] == cur_y and ym(r)[1] and ym(r)[1] <= latest_m)
+        if tot > 0:
+            out["__total__"] = {"ytd": tot}
     return out
 
 
@@ -169,6 +182,7 @@ _DATED_MOVE = {
     "as_of": "2025 full-year vs 2024 (SARS, dated)",
     "unit": "R bn", "cur_year": "2025", "prev_year": "2024",
     "through_month": "12", "latest_month": "2025-12",
+    "total_ytd": 2200.0,  # approx SA total merchandise exports 2025 (ZAR bn)
     "rows": [
         {"chapter": "71", "label": CHAPTERS["71"], "ytd": 383.0,
          "ytd_prev": 332.0, "yoy_pct": 15.4, "latest_val": 34.0},
@@ -183,38 +197,53 @@ _DATED_MOVE = {
 }
 
 
+def _pack_movement(source, cum, all_total_note=None):
+    """Build the movement dict from a cumulative map, pulling out the total."""
+    total = cum.pop("__total__", None)
+    chapter_rows = [cum[c] for c in CHAPTERS if c in cum]
+    if not chapter_rows:
+        return None
+    any_r = chapter_rows[0]
+    return {
+        "source": source,
+        "as_of": {"live": "latest SARS release", "csv": "from uploaded SARS CSV"}.get(source, ""),
+        "unit": "R", "cur_year": any_r["cur_year"], "prev_year": any_r["prev_year"],
+        "through_month": any_r["through_month"], "rows": chapter_rows,
+        "total_ytd": total["ytd"] if total else None,
+        "source_url": _PORTAL,
+    }
+
+
 def get_commodity_movement() -> dict:
     """SARS cumulative commodity view: {source, as_of, unit, cur_year,
-    prev_year, through_month, rows:[{chapter,label,ytd,ytd_prev,yoy_pct,
-    latest_val,latest_month}], source_url}.
+    prev_year, through_month, total_ytd, rows:[{chapter,label,ytd,ytd_prev,
+    yoy_pct,latest_val,latest_month}], source_url}.
+
+    total_ytd = TOTAL SA exports YTD (all chapters), so category shares can be
+    expressed against total exports and reconciled — not just the tracked
+    subset. None when the source doesn't provide all-chapter data.
 
     Tries live scrape, then user CSV, then dated fallback. YTD is like-for-like
     (same months this year vs last), so the YoY % is a fair comparison."""
     # tier 1: live
     live_rows = _try_live_rows()
     if live_rows:
-        cum = _cumulative_by_chapter(live_rows)
-        if cum:
-            any_r = next(iter(cum.values()))
-            return {"source": "live", "as_of": "latest SARS release",
-                    "unit": "R", "cur_year": any_r["cur_year"],
-                    "prev_year": any_r["prev_year"],
-                    "through_month": any_r["through_month"],
-                    "rows": [cum[c] for c in CHAPTERS if c in cum],
-                    "source_url": _PORTAL}
+        all_rows = live_rows  # live parse keeps all chapters if keep_all used
+        cum = _cumulative_by_chapter(
+            [r for r in live_rows if r["chapter"] in CHAPTERS], all_rows)
+        packed = _pack_movement("live", cum)
+        if packed:
+            return packed
     # tier 2: CSV
     try:
         if _CSV_PATH.exists():
-            rows = _parse_csv_text(_CSV_PATH.read_text(encoding="utf-8"))
-            cum = _cumulative_by_chapter(rows)
-            if cum:
-                any_r = next(iter(cum.values()))
-                return {"source": "csv", "as_of": "from uploaded SARS CSV",
-                        "unit": "R", "cur_year": any_r["cur_year"],
-                        "prev_year": any_r["prev_year"],
-                        "through_month": any_r["through_month"],
-                        "rows": [cum[c] for c in CHAPTERS if c in cum],
-                        "source_url": _PORTAL}
+            text = _CSV_PATH.read_text(encoding="utf-8")
+            tracked = _parse_csv_text(text)
+            all_rows = _parse_csv_text(text, keep_all=True)
+            cum = _cumulative_by_chapter(tracked, all_rows)
+            packed = _pack_movement("csv", cum)
+            if packed:
+                return packed
     except Exception:
         pass
     # tier 3: dated

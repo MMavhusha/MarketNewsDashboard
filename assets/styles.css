@@ -602,3 +602,4 @@ div[data-testid="stPills"] button:focus-visible {
 .cb-note { color:#909288; font-size:11.5px; margin-top:3px; }
 .cb-note a { color:#003B71; }
 .bops-share-inline { color:#FF671D; font-weight:700; font-size:12px; margin-left:6px; }
+.bops-note-plain { color:#6B6D64; font-style:italic; }

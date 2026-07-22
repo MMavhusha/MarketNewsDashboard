@@ -113,7 +113,14 @@ def page_commodities():
     # values are ZAR; live/csv come as raw rand, dated as R bn — normalise to bn
     scale = 1e9 if mv["source"] in ("live", "csv") else 1.0
     rows = mv.get("rows", [])
-    ytd_total = sum(r["ytd"] for r in rows) or 1.0
+    tracked_ytd = sum(r["ytd"] for r in rows)
+    total_ytd = mv.get("total_ytd")  # all SA exports YTD (may be None)
+    # denominator for shares: total exports if we have it (honest), else the
+    # tracked subset (clearly labelled). An accountant's reconciliation: each
+    # category as a share of TOTAL exports, tracked subtotal, then the residual
+    # "all other exports" so the column sums to 100%.
+    denom = total_ytd if total_ytd else tracked_ytd
+    share_basis = "total exports" if total_ytd else "tracked subset"
     body = '<div class="bops">'
     body += (f'<div class="bops-row bops-head"><span class="bops-item">Category (HS chapter)</span>'
              f'<span class="bops-val">{cy} YTD</span>'
@@ -124,7 +131,7 @@ def page_commodities():
         ytd = r["ytd"] / scale
         prev = r["ytd_prev"] / scale
         latest = r["latest_val"] / scale
-        share = r["ytd"] / ytd_total * 100
+        share = r["ytd"] / denom * 100
         yoy = r.get("yoy_pct")
         yoy_html = (f'<span class="num {ui.chg_cls(yoy)}">{yoy:+.1f}%</span>'
                     if yoy is not None else '<span class="bops-na">n/a</span>')
@@ -134,21 +141,42 @@ def page_commodities():
                  f'<span class="bops-val num">R{prev:,.0f}bn</span>'
                  f'<span class="bops-move">{yoy_html}</span>'
                  f'<span class="bops-move num">R{latest:,.1f}bn</span></div>')
-    # tracked total row
-    body += (f'<div class="bops-row bops-total"><span class="bops-item">Tracked commodity exports</span>'
-             f'<span class="bops-val num">R{ytd_total/scale:,.0f}bn</span>'
+    # tracked subtotal, with its share of the denominator
+    tracked_share = tracked_ytd / denom * 100
+    body += (f'<div class="bops-row bops-total"><span class="bops-item">Tracked commodities subtotal</span>'
+             f'<span class="bops-val num">R{tracked_ytd/scale:,.0f}bn '
+             f'<span class="bops-share-inline">{tracked_share:.1f}%</span></span>'
              f'<span class="bops-val"></span><span class="bops-move"></span>'
              f'<span class="bops-move"></span></div>')
+    # reconciliation: only when we know total exports
+    if total_ytd:
+        other = total_ytd - tracked_ytd
+        other_share = other / total_ytd * 100
+        body += (f'<div class="bops-row"><span class="bops-item">'
+                 f'<span class="bops-note-plain">All other exports (reconciling)</span></span>'
+                 f'<span class="bops-val num">R{other/scale:,.0f}bn '
+                 f'<span class="bops-share-inline">{other_share:.1f}%</span></span>'
+                 f'<span class="bops-val"></span><span class="bops-move"></span>'
+                 f'<span class="bops-move"></span></div>')
+        body += (f'<div class="bops-row bops-total"><span class="bops-item">Total SA merchandise exports</span>'
+                 f'<span class="bops-val num">R{total_ytd/scale:,.0f}bn '
+                 f'<span class="bops-share-inline">100.0%</span></span>'
+                 f'<span class="bops-val"></span><span class="bops-move"></span>'
+                 f'<span class="bops-move"></span></div>')
     body += '</div>'
     st.markdown(body, unsafe_allow_html=True)
     src = mv.get("source_url", "")
     st.caption(f"Cumulative export value by HS chapter, {cy} year-to-date "
                f"(Jan\u2013{through}) vs the same months of {py}, so the YoY "
-               "change is like-for-like. % is each category's share of tracked "
-               f"commodity exports YTD. Source: SARS ({src_label})"
-               + (f" \u00b7 [portal]({src})" if src else "") + ". These are the "
-               "BoP's largest goods drivers; chapter 71 combines gold, platinum "
-               "and other precious metals as SARS reports them.")
+               "change is like-for-like. The orange % is each category's share "
+               f"of {share_basis}"
+               + ("; the tracked commodities subtotal, all-other-exports "
+                  "residual and total reconcile to 100%." if total_ytd
+                  else " (total-export basis pending a full SARS extract).")
+               + f" Source: SARS ({src_label})"
+               + (f" \u00b7 [portal]({src})" if src else "") + ". Chapter 71 "
+               "combines gold, platinum and other precious metals as SARS "
+               "reports them.")
 
     # Live commodity price context (spot moves) beneath the SARS values.
     win = st.pills("Price-move window", ["1D", "1M", "3M", "12M"],
