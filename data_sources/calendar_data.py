@@ -21,11 +21,13 @@ SAST = ZoneInfo('Africa/Johannesburg')
 import requests
 import streamlit as st
 
-FF_FEEDS = [  # primary host + mirror, this week + next week
+# this week + next week. No mirror host exists — cdn-nfs.faireconomy.media
+# does not resolve; nextweek here 404s upstream until FF publishes it (seen
+# to lag until Fri/weekend), which feed_status() reports as partial coverage
+# rather than failure.
+FF_FEEDS = [
     "https://nfs.faireconomy.media/ff_calendar_thisweek.json",
     "https://nfs.faireconomy.media/ff_calendar_nextweek.json",
-    "https://cdn-nfs.faireconomy.media/ff_calendar_thisweek.json",
-    "https://cdn-nfs.faireconomy.media/ff_calendar_nextweek.json",
 ]
 
 _CCY_LABEL = {
@@ -225,8 +227,21 @@ def has_full_access() -> bool:
 
 def feed_status() -> dict:
     rows = _fetch_forexfactory()
+    now = datetime.now(timezone.utc)
+    has_next_week = False
+    for e in rows:
+        try:
+            dt = datetime.fromisoformat(e["_dt"].replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            if dt - now > timedelta(days=6):
+                has_next_week = True
+                break
+        except Exception:
+            continue
+    span = "this + next week" if has_next_week else "this week only — next week feed not yet published upstream"
     return {"name": "Forex Factory calendar", "ok": bool(rows),
-            "detail": f"{len(rows)} events (this + next week)"}
+            "detail": f"{len(rows)} events ({span})"}
 
 
 def _curated_za() -> list[dict]:
