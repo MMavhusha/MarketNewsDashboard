@@ -374,7 +374,7 @@ def _admin_unlock_gate():
         # Check both before responding; don't reveal which half failed.
         if email_ok and pw_ok:
             st.session_state["_admin_ok"] = True
-            st.session_state["_admin_email"] = email.strip().lower()
+            st.session_state["_admin_email_authed"] = email.strip().lower()
             st.rerun()
         else:
             st.error("Access denied — email not authorized or password "
@@ -709,12 +709,12 @@ def page_settings():
     if not _admin_ok():
         _admin_unlock_gate()
         return
-    who = st.session_state.get("_admin_email", "admin")
+    who = st.session_state.get("_admin_email_authed", "admin")
     lc1, lc2 = st.columns([3, 0.8])
     lc1.caption(f"Signed in as {who} · admin unlocked for this session.")
     if lc2.button("Log out", use_container_width=True):
         st.session_state.pop("_admin_ok", None)
-        st.session_state.pop("_admin_email", None)
+        st.session_state.pop("_admin_email_authed", None)
         st.rerun()
     _admin_call_log()
     _admin_error_log()
