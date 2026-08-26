@@ -65,7 +65,14 @@ def get_sa_indicators() -> dict[str, list[dict]]:
 def feed_status() -> dict:
     groups = get_sa_indicators()
     n = sum(len(v) for v in groups.values())
-    return {"name": "SARB Web API", "ok": bool(n), "detail": f"{n} series"}
+    total_endpoints = len(_ENDPOINTS)
+    level = ("error" if not groups else
+             "ok" if len(groups) == total_endpoints else "warn")
+    detail = f"{n} series"
+    if groups and len(groups) < total_endpoints:
+        detail += f" ({len(groups)}/{total_endpoints} endpoints reachable)"
+    return {"name": "SARB Web API", "ok": bool(n), "level": level,
+            "detail": detail}
 
 
 # ---- Balance of payments (current account + trade balance) ----

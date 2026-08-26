@@ -474,7 +474,10 @@ def _feed_status_panel():
     rows = []
     strip = markets.get_summary_strip()
     strip_ok = sum(1 for q in strip if q.ok)
+    strip_level = ("error" if strip_ok == 0 else
+                   "ok" if strip_ok == len(strip) else "warn")
     rows.append({"name": "yfinance markets", "ok": strip_ok > 0,
+                 "level": strip_level,
                  "detail": f"{strip_ok}/{len(strip)} strip instruments returning data"})
     rows += _news.get_feed_status()
     rows.append(_cal.feed_status())
@@ -492,11 +495,15 @@ def _feed_status_panel():
             health = (f" \u2014 last {len(recent)} calls: {len(recent) - fails} ok"
                       + (f", {fails} failed/rate-limited (chain fell through)"
                          if fails else ", all healthy"))
+            ai_level = ("error" if fails == len(recent) else
+                        "ok" if fails == 0 else "warn")
         else:
             health = " \u2014 no calls yet this session"
+            ai_level = "ok"
         rows.append({"name": "AI classification",
                      "ok": ai_enrich.enabled() and (not recent or
                            any(e.get("ok", True) for e in recent)),
+                     "level": ai_level if ai_enrich.enabled() else "error",
                      "detail": ((f"active via {ai_enrich.provider_label()}"
                                  + health)
                                 if ai_enrich.enabled() else
@@ -504,17 +511,20 @@ def _feed_status_panel():
                                 "or ANTHROPIC_API_KEY to enable")})
     except Exception:
         pass
+    _DOT = {"ok": "#1E8052", "warn": "#F2C84A", "error": "#B0212C"}
     for r in rows:
-        dot = ("#1E8052" if r["ok"] else "#B0212C")
+        level = r.get("level") or ("ok" if r["ok"] else "error")
+        dot = _DOT[level]
         st.markdown(
             f'<div class="cal-row"><span style="width:10px;height:10px;'
             f'border-radius:50%;background:{dot};flex-shrink:0;"></span>'
             f'<span class="cty" style="width:240px;">{ui.esc(r["name"])}</span>'
             f'<span class="ev">{ui.esc(r["detail"])}</span></div>',
             unsafe_allow_html=True)
-    st.caption("A red source means the provider is unreachable or empty right "
-               "now \u2014 the app degrades to explicit 'unavailable' states, "
-               "never substitute data.")
+    st.caption("Red means the provider is unreachable or empty right now; "
+               "amber means it's partially degraded (some endpoints/instruments "
+               "reachable, not all) \u2014 the app degrades to explicit 'unavailable' "
+               "states, never substitute data.")
 
 
 def _admin_call_log():

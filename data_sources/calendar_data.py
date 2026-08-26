@@ -240,7 +240,8 @@ def feed_status() -> dict:
         except Exception:
             continue
     span = "this + next week" if has_next_week else "this week only — next week feed not yet published upstream"
-    return {"name": "Forex Factory calendar", "ok": bool(rows),
+    level = "error" if not rows else ("ok" if has_next_week else "warn")
+    return {"name": "Forex Factory calendar", "ok": bool(rows), "level": level,
             "detail": f"{len(rows)} events ({span})"}
 
 
